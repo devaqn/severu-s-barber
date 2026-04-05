@@ -298,6 +298,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
               initialValue: _fornecedorId,
               decoration: const InputDecoration(
                 labelText: 'Fornecedor',
+                hintText: 'Selecione ou informe o fornecedor',
                 prefixIcon: Icon(Icons.business),
               ),
               items: [

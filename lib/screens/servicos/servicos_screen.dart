@@ -10,6 +10,7 @@ import '../../models/servico.dart';
 import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../utils/security_utils.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/ui_helpers.dart';
 
@@ -158,6 +159,14 @@ class _ServicosScreenState extends State<ServicosScreen> {
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Informe o nome do servico.';
+                          }
+                          try {
+                            SecurityUtils.sanitizeName(
+                              v,
+                              fieldName: 'Nome do servico',
+                            );
+                          } catch (_) {
+                            return 'Nome do servico invalido.';
                           }
                           return null;
                         },
@@ -341,6 +350,8 @@ class _ServicosScreenState extends State<ServicosScreen> {
           ),
           title: Text(
             servico.nome,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w700,
@@ -348,6 +359,8 @@ class _ServicosScreenState extends State<ServicosScreen> {
           ),
           subtitle: Text(
             '${AppFormatters.duration(servico.duracaoMinutos)}  -  Comissao ${(servico.comissaoPercentual * 100).toStringAsFixed(0)}%',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(color: AppTheme.textSecondary),
           ),
           trailing: ConstrainedBox(

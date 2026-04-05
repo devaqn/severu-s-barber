@@ -82,7 +82,7 @@ void main() {
     expect(controller.usuarioPhotoUrl, '/tmp/new.jpg');
   });
 
-  testWidgets('Remocao de foto persiste URL nula e drawer mostra iniciais',
+  testWidgets('Remocao de foto persiste URL nula e drawer mostra placeholder S',
       (tester) async {
     final fake = FakeAuthService(usuario: buildUsuario(photoUrl: '/tmp/p.jpg'));
     final controller = AuthController(authService: fake);
@@ -104,7 +104,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('JS'), findsOneWidget);
+    expect(find.text('S'), findsOneWidget);
   });
 
   test('Offline salva local e sincroniza ao voltar online', () async {

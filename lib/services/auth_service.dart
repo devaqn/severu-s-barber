@@ -208,7 +208,7 @@ class AuthService {
     required String email,
     required String senha,
     required String nome,
-    required String telefone,
+    String? telefone,
     required double comissaoPercentual,
   }) async {
     _garantirFirebaseInicializado();
@@ -217,7 +217,7 @@ class AuthService {
     final sanitizedNome = SecurityUtils.sanitizeName(nome, fieldName: 'Nome');
     final sanitizedEmail = SecurityUtils.sanitizeEmail(email);
     SecurityUtils.ensureStrongPassword(senha);
-    final sanitizedTelefone = SecurityUtils.sanitizePhone(telefone);
+    final sanitizedTelefone = SecurityUtils.sanitizeOptionalPhone(telefone);
     final sanitizedComissao = SecurityUtils.sanitizeDoubleRange(
       comissaoPercentual,
       fieldName: 'Comissao',
@@ -298,17 +298,13 @@ class AuthService {
     double comissaoPercentual = 50.0,
     bool firstLogin = true,
   }) async {
-    final safeTelefone = SecurityUtils.sanitizeOptionalText(
-      telefone,
-      maxLength: 20,
-      allowNewLines: false,
-    );
+    final safeTelefone = SecurityUtils.sanitizeOptionalPhone(telefone);
 
     final cred = await criarContaBarbeiro(
       email: email,
       senha: password,
       nome: nome,
-      telefone: safeTelefone ?? '0000000000',
+      telefone: safeTelefone,
       comissaoPercentual: comissaoPercentual,
     );
 
@@ -589,10 +585,8 @@ class AuthService {
     final sanitizedNome =
         SecurityUtils.sanitizeName(usuario.nome, fieldName: 'Nome');
     final sanitizedEmail = SecurityUtils.sanitizeEmail(usuario.email);
-    final sanitizedTelefone = SecurityUtils.sanitizeOptionalText(
+    final sanitizedTelefone = SecurityUtils.sanitizeOptionalPhone(
       usuario.telefone,
-      maxLength: 20,
-      allowNewLines: false,
     );
     final sanitizedPhotoUrl = SecurityUtils.sanitizeOptionalText(
       usuario.photoUrl,

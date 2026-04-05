@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/usuario.dart';
@@ -21,6 +22,32 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
   final AuthService _authService = AuthService();
   bool _loading = true;
   List<Usuario> _barbeiros = const [];
+
+  String _apenasDigitos(String value) => value.replaceAll(RegExp(r'\D'), '');
+
+  String _mascararTelefone(String value) {
+    final digits = _apenasDigitos(value);
+    if (digits.isEmpty) return '';
+    if (digits.length <= 2) return '($digits';
+    if (digits.length <= 6) {
+      return '(${digits.substring(0, 2)}) ${digits.substring(2)}';
+    }
+    if (digits.length <= 10) {
+      return '(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6)}';
+    }
+    return '(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}';
+  }
+
+  void _aplicarMascaraTelefone(TextEditingController ctrl, String value) {
+    final digits = _apenasDigitos(value);
+    final limitado = digits.length > 11 ? digits.substring(0, 11) : digits;
+    final masked = _mascararTelefone(limitado);
+    if (masked == ctrl.text) return;
+    ctrl.value = TextEditingValue(
+      text: masked,
+      selection: TextSelection.collapsed(offset: masked.length),
+    );
+  }
 
   @override
   void initState() {
@@ -73,7 +100,11 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
   Future<void> _abrirEdicao(Usuario usuario) async {
     final nomeCtrl = TextEditingController(text: usuario.nome);
     final emailCtrl = TextEditingController(text: usuario.email);
-    final telefoneCtrl = TextEditingController(text: usuario.telefone ?? '');
+    final telefoneCtrl = TextEditingController(
+      text: (usuario.telefone ?? '').isEmpty
+          ? ''
+          : AppFormatters.phone(usuario.telefone!),
+    );
     final comissaoCtrl = TextEditingController(
         text: usuario.comissaoPercentual.toStringAsFixed(2));
 
@@ -143,10 +174,24 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                               labelText: 'Telefone',
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(11),
+                            ],
+                            onChanged: (v) =>
+                                _aplicarMascaraTelefone(telefoneCtrl, v),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) return null;
+                              final digits = _apenasDigitos(v ?? '');
+                              if (digits.isEmpty) return null;
+                              if (digits.length < 10) {
+                                return 'Informe ao menos 10 digitos.';
+                              }
+                              if (digits.length > 11) {
+                                return 'Maximo de 11 digitos.';
+                              }
                               try {
-                                SecurityUtils.sanitizePhone(v);
+                                SecurityUtils.sanitizePhone(v ?? '');
                               } catch (_) {
                                 return 'Telefone invalido.';
                               }

@@ -71,6 +71,9 @@ class DatabaseHelper {
     if (oldVersion < 5) {
       await _migrateToV5(db);
     }
+    if (oldVersion < 6) {
+      await _migrateToV6(db);
+    }
     await _createIndexes(db);
   }
 
@@ -671,6 +674,23 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _migrateToV6(Database db) async {
+    await db.execute('''
+      UPDATE ${AppConstants.tableProdutos}
+      SET fornecedor_id = NULL
+      WHERE fornecedor_id IN (
+        SELECT id
+        FROM ${AppConstants.tableFornecedores}
+        WHERE nome = 'Distribuidora Beauty Pro'
+      )
+    ''');
+
+    await db.execute('''
+      DELETE FROM ${AppConstants.tableFornecedores}
+      WHERE nome = 'Distribuidora Beauty Pro'
+    ''');
+  }
+
   Future<void> _addColumnIfMissing(
     Database db,
     String tableName,
@@ -832,14 +852,6 @@ class DatabaseHelper {
     for (final s in servicos) {
       await db.insert(AppConstants.tableServicos, s);
     }
-
-    await db.insert(AppConstants.tableFornecedores, {
-      'nome': 'Distribuidora Beauty Pro',
-      'telefone': '(11) 99999-0000',
-      'email': 'contato@beautypro.com',
-      'observacoes': 'Fornecedor principal de produtos',
-      'created_at': now,
-    });
 
     await db.insert(AppConstants.tableUsuarios, {
       'id': 'admin_local',

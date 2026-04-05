@@ -14,6 +14,7 @@ import '../controllers/auth_controller.dart';
 import '../main.dart' show themeModeNotifier;
 import '../services/profile_photo_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/constants.dart';
 
 class AppDrawer extends StatefulWidget {
   static const String dashboard = 'dashboard';
@@ -263,19 +264,6 @@ class _AppDrawerState extends State<AppDrawer> {
     }
   }
 
-  String _initials(String name) {
-    final cleaned = name.trim();
-    if (cleaned.isEmpty) return 'SB';
-    final parts = cleaned.split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
-    if (parts.isEmpty) return 'SB';
-    if (parts.length == 1) {
-      final p = parts.first;
-      return p.substring(0, p.length >= 2 ? 2 : 1).toUpperCase();
-    }
-    final list = parts.toList();
-    return '${list.first[0]}${list.last[0]}'.toUpperCase();
-  }
-
   Widget _buildHeader(AuthController auth, bool isAdmin) {
     final name = auth.usuarioNome.isEmpty ? 'Sessao ativa' : auth.usuarioNome;
     final path = _avatarPath?.trim();
@@ -311,10 +299,10 @@ class _AppDrawerState extends State<AppDrawer> {
                     width: 96,
                     height: 96,
                     decoration: BoxDecoration(
-                      color: AppTheme.textPrimary.withValues(alpha: 0.18),
+                      color: AppTheme.accentColor,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppTheme.textPrimary.withValues(alpha: 0.58),
+                        color: Colors.white.withValues(alpha: 0.72),
                         width: 2,
                       ),
                     ),
@@ -328,9 +316,8 @@ class _AppDrawerState extends State<AppDrawer> {
                                   fit: BoxFit.cover,
                                   width: 96,
                                   height: 96,
-                                  errorBuilder: (_, __, ___) => _AvatarInitials(
-                                    initials: _initials(name),
-                                  ),
+                                  errorBuilder: (_, __, ___) =>
+                                      const _AvatarPlaceholder(),
                                 )
                               : Image.file(
                                   avatarFile!,
@@ -340,9 +327,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                   width: 96,
                                   height: 96,
                                 )
-                          : Center(
-                              child: _AvatarInitials(initials: _initials(name)),
-                            ),
+                          : const _AvatarPlaceholder(),
                     ),
                   ),
                   if (_updatingAvatar)
@@ -613,7 +598,7 @@ class _AppDrawerState extends State<AppDrawer> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Severus Barber v2.0.0',
+                    '${AppConstants.appName} v${AppConstants.appVersion}',
                     style: GoogleFonts.inter(
                         color: AppTheme.textSecondary, fontSize: 12),
                   ),
@@ -681,23 +666,19 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 }
 
-class _AvatarInitials extends StatelessWidget {
-  final String initials;
-
-  const _AvatarInitials({
-    required this.initials,
-  });
+class _AvatarPlaceholder extends StatelessWidget {
+  const _AvatarPlaceholder();
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Text(
-        initials,
+        'S',
         style: GoogleFonts.poppins(
-          color: AppTheme.accentColor,
-          fontSize: 30,
+          color: Colors.white,
+          fontSize: 40,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
+          height: 1,
         ),
       ),
     );

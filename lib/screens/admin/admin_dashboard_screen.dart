@@ -174,22 +174,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     // Cards financeiros
                     _buildSectionTitle('Resumo Financeiro'),
                     const SizedBox(height: 10),
+                    _buildMetricaDestaque(
+                      titulo: 'Faturado Hoje',
+                      valor: AppFormatters.currency(fatHoje),
+                      subtitulo:
+                          'Atualizado em ${AppFormatters.time(DateTime.now())}',
+                      icone: Icons.today,
+                    ),
+                    const SizedBox(height: 10),
                     _buildCardPair(
                       StatCard(
-                        title: 'Faturado Hoje',
-                        value: AppFormatters.currency(fatHoje),
-                        icon: Icons.today,
-                        color: AppTheme.infoColor,
-                        gradient: const [AppTheme.infoColor, AppTheme.infoDark],
-                      ),
-                      StatCard(
-                        title: 'Faturado no Mês',
+                        title: 'Faturado no Mes',
                         value: AppFormatters.currency(fatMes),
                         icon: Icons.calendar_month,
                         color: AppTheme.accentColor,
                         gradient: const [
                           AppTheme.accentColor,
                           AppTheme.accentDark
+                        ],
+                      ),
+                      StatCard(
+                        title: 'Atendimentos',
+                        value: '$atendHoje',
+                        icon: Icons.content_cut,
+                        color: AppTheme.textPrimary,
+                        gradient: const [
+                          AppTheme.purpleStart,
+                          AppTheme.purpleEnd
                         ],
                       ),
                     ),
@@ -210,7 +221,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             : const [AppTheme.errorColor, AppTheme.accentDark],
                       ),
                       StatCard(
-                        title: 'Despesas do Mês',
+                        title: 'Despesas do Mes',
                         value: AppFormatters.currency(despesas),
                         icon: Icons.money_off,
                         color: AppTheme.errorColor,
@@ -223,31 +234,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 10),
                     _buildCardPair(
                       StatCard(
-                        title: 'Atendimentos',
-                        value: '$atendHoje',
-                        icon: Icons.content_cut,
-                        color: AppTheme.purpleStart,
-                        gradient: const [
-                          AppTheme.purpleStart,
-                          AppTheme.purpleEnd
-                        ],
-                      ),
-                      StatCard(
                         title: 'Estoque Baixo',
                         value: '$estoqueBaixo item(ns)',
                         icon: Icons.warning_amber_rounded,
                         color: estoqueBaixo > 0
-                            ? AppTheme.warningColor
+                            ? AppTheme.errorColor
                             : AppTheme.textSecondary,
                         gradient: estoqueBaixo > 0
-                            ? const [
-                                AppTheme.warningColor,
-                                AppTheme.warningDark
-                              ]
+                            ? const [AppTheme.errorColor, AppTheme.accentDark]
                             : const [
                                 AppTheme.textSecondary,
                                 AppTheme.secondaryColor
                               ],
+                      ),
+                      StatCard(
+                        title: 'Comandas Abertas',
+                        value: '$comandasAbertas',
+                        icon: Icons.receipt_long,
+                        color: AppTheme.accentColor,
+                        gradient: const [
+                          AppTheme.accentColor,
+                          AppTheme.accentDark,
+                        ],
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -345,6 +353,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildMetricaDestaque({
+    required String titulo,
+    required String valor,
+    required String subtitulo,
+    required IconData icone,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppTheme.accentColor, AppTheme.accentDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icone, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.88),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  valor,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  subtitulo,
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

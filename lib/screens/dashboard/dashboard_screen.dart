@@ -365,11 +365,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: 'Estoque Baixo',
             value: '$estoqueBaixo item(ns)',
             icon: Icons.warning_amber_rounded,
-            color: estoqueBaixo > 0
-                ? AppTheme.warningColor
-                : AppTheme.textSecondary,
+            color:
+                estoqueBaixo > 0 ? AppTheme.errorColor : AppTheme.textSecondary,
             gradient: estoqueBaixo > 0
-                ? const [AppTheme.warningColor, AppTheme.warningDark]
+                ? const [AppTheme.errorColor, AppTheme.accentDark]
                 : const [AppTheme.textSecondary, AppTheme.secondaryColor],
           ),
         ),

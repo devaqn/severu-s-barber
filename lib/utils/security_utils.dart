@@ -20,10 +20,10 @@ class SecurityUtils {
   static final RegExp _lineBreaks = RegExp(r'\r\n?');
   static final RegExp _emailRegex = RegExp(
       r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$");
-  static final RegExp _phoneRegex = RegExp(r'^\d{10,13}$');
-  static final RegExp _nomeRegex =
-      RegExp(r"^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF0-9]"
-          r"[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF0-9 .'\-]{1,79}$");
+  static final RegExp _phoneRegex = RegExp(r'^\d{10,11}$');
+  static final RegExp _nomeRegex = RegExp(
+      r"^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF0-9]"
+      r"[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF0-9 .,'\-+&()/]{1,79}$");
 
   static void ensure(bool condition, String message) {
     if (!condition) {
@@ -79,6 +79,14 @@ class SecurityUtils {
 
   static String sanitizePhone(String telefone) {
     final digits = digitsOnly(telefone);
+    ensure(_phoneRegex.hasMatch(digits), 'Telefone invalido.');
+    return digits;
+  }
+
+  static String? sanitizeOptionalPhone(String? telefone) {
+    if (telefone == null) return null;
+    final digits = digitsOnly(telefone);
+    if (digits.isEmpty) return null;
     ensure(_phoneRegex.hasMatch(digits), 'Telefone invalido.');
     return digits;
   }

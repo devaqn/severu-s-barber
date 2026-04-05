@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -22,6 +23,33 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
   final _senhaCtrl = TextEditingController();
   final _comissaoCtrl = TextEditingController(text: '50');
   bool _senhaVisivel = false;
+
+  String _apenasDigitos(String value) => value.replaceAll(RegExp(r'\D'), '');
+
+  String _mascararTelefone(String value) {
+    final digits = _apenasDigitos(value);
+    if (digits.isEmpty) return '';
+    if (digits.length <= 2) return '($digits';
+    if (digits.length <= 6) {
+      return '(${digits.substring(0, 2)}) ${digits.substring(2)}';
+    }
+    if (digits.length <= 10) {
+      return '(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6)}';
+    }
+    return '(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}';
+  }
+
+  void _onTelefoneChanged(String value) {
+    final digits = _apenasDigitos(value);
+    final limitado = digits.length > 11 ? digits.substring(0, 11) : digits;
+    final masked = _mascararTelefone(limitado);
+
+    if (masked == _telefoneCtrl.text) return;
+    _telefoneCtrl.value = TextEditingValue(
+      text: masked,
+      selection: TextSelection.collapsed(offset: masked.length),
+    );
+  }
 
   @override
   void dispose() {
@@ -145,15 +173,27 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                   controller: _telefoneCtrl,
                   textInputAction: TextInputAction.next,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
+                  ],
+                  onChanged: _onTelefoneChanged,
                   decoration: const InputDecoration(
                     labelText: 'Telefone',
                     hintText: '(11) 99999-9999',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return null;
+                    final digits = _apenasDigitos(v ?? '');
+                    if (digits.isEmpty) return null;
+                    if (digits.length < 10) {
+                      return 'Informe ao menos 10 digitos.';
+                    }
+                    if (digits.length > 11) {
+                      return 'Maximo de 11 digitos.';
+                    }
                     try {
-                      SecurityUtils.sanitizePhone(v);
+                      SecurityUtils.sanitizePhone(v ?? '');
                     } catch (_) {
                       return 'Telefone invalido.';
                     }
