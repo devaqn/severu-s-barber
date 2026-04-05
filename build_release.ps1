@@ -72,52 +72,69 @@ function Test-Utf8SourceFiles {
     param([string]$ProjectRoot)
 
     $utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
-    $mojibakeTokens = @(
-        "Ã§", "Ã£", "Ã¡", "Ã©", "Ãª", "Ã³", "Ãº", "Ã­", "Ãµ",
-        "Ã‰", "Ã“", "Ã‡", "Âº", "Âª", "â€”", "â€¢", "â€“", "â€"
-    )
-
+    $mojibakePattern = '[\u00C3][\u0080-\u00BF]|[\u00C2][\u0080-\u00BF]|[\u00E2][\u0080-\u00BF]{1,2}'
     $targetDirs = @(
         (Join-Path $ProjectRoot "lib"),
         (Join-Path $ProjectRoot "test"),
-        (Join-Path $ProjectRoot "docs")
+        (Join-Path $ProjectRoot "docs"),
+        (Join-Path $ProjectRoot "android"),
+        (Join-Path $ProjectRoot "ios"),
+        (Join-Path $ProjectRoot "web"),
+        (Join-Path $ProjectRoot "windows"),
+        (Join-Path $ProjectRoot "linux"),
+        (Join-Path $ProjectRoot "macos")
     ) | Where-Object { Test-Path $_ }
-
     $targetFiles = @(
         (Join-Path $ProjectRoot "README.md"),
         (Join-Path $ProjectRoot "FIREBASE_SETUP.md"),
         (Join-Path $ProjectRoot "pubspec.yaml"),
         (Join-Path $ProjectRoot "analysis_options.yaml")
     ) | Where-Object { Test-Path $_ }
+    $extensions = @(
+        ".dart", ".md", ".yaml", ".yml", ".json", ".kts", ".ps1",
+        ".gradle", ".properties", ".xml", ".kt", ".java",
+        ".swift", ".m", ".mm", ".plist", ".pbxproj", ".xcconfig",
+        ".cmake", ".txt", ".sh", ".bat", ".arb", ".html", ".js", ".css"
+    )
 
-    $extensions = @(".dart", ".md", ".yaml", ".yml", ".json", ".kts", ".ps1")
-    $files = New-Object System.Collections.Generic.List[string]
+    $fileSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $excludedSegments = @(
+        "\.git\",
+        "\.dart_tool\",
+        "\build\",
+        "\.gradle\",
+        "\Pods\",
+        "\node_modules\"
+    )
 
     foreach ($dir in $targetDirs) {
         Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
-            if ($extensions -contains $_.Extension.ToLowerInvariant()) {
-                $files.Add($_.FullName)
+            $fullName = $_.FullName
+            $isExcluded = $false
+            foreach ($segment in $excludedSegments) {
+                if ($fullName.IndexOf($segment, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    $isExcluded = $true
+                    break
+                }
+            }
+            if (-not $isExcluded -and $extensions -contains $_.Extension.ToLowerInvariant()) {
+                [void]$fileSet.Add($_.FullName)
             }
         }
     }
-
     foreach ($file in $targetFiles) {
-        $files.Add($file)
+        [void]$fileSet.Add($file)
     }
 
     $invalidUtf8 = New-Object System.Collections.Generic.List[string]
     $mojibakeFound = New-Object System.Collections.Generic.List[string]
 
-    foreach ($filePath in $files) {
+    foreach ($filePath in $fileSet) {
         try {
             $bytes = [System.IO.File]::ReadAllBytes($filePath)
             $text = $utf8Strict.GetString($bytes)
-
-            foreach ($token in $mojibakeTokens) {
-                if ($text.Contains($token)) {
-                    $mojibakeFound.Add($filePath)
-                    break
-                }
+            if ($text -match $mojibakePattern) {
+                $mojibakeFound.Add($filePath)
             }
         }
         catch {
@@ -126,12 +143,12 @@ function Test-Utf8SourceFiles {
     }
 
     if ($invalidUtf8.Count -gt 0) {
-        throw "Arquivos com codificacao invalida (nao UTF-8):`n - $($invalidUtf8 -join \"`n - \")"
+        $items = ($invalidUtf8 | Sort-Object -Unique) -join "`n - "
+        throw "Arquivos com codificacao invalida (nao UTF-8):`n - $items"
     }
-
     if ($mojibakeFound.Count -gt 0) {
-        $unique = $mojibakeFound | Sort-Object -Unique
-        throw "Arquivos com texto possivelmente corrompido (mojibake):`n - $($unique -join \"`n - \")"
+        $items = ($mojibakeFound | Sort-Object -Unique) -join "`n - "
+        throw "Arquivos com texto possivelmente corrompido (mojibake):`n - $items"
     }
 }
 
