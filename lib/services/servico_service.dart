@@ -106,11 +106,24 @@ class ServicoService {
         whereArgs: [safeServico.id],
         limit: 1,
       );
-      final firebaseId =
+      String? firebaseId =
           row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       final uid = _auth.currentUser?.uid;
-      if (firebaseId != null && shopId != null && uid != null) {
+      if (shopId != null && uid != null) {
+        if (firebaseId == null || firebaseId.trim().isEmpty) {
+          firebaseId = _uuid.v4();
+          await _db.update(
+            AppConstants.tableServicos,
+            {
+              'firebase_id': firebaseId,
+              'barbearia_id': shopId,
+              'created_by': uid,
+            },
+            'id = ?',
+            [safeServico.id],
+          );
+        }
         await _context
             .collection(barbeariaId: shopId, nome: AppConstants.tableServicos)
             .doc(firebaseId)
@@ -260,8 +273,11 @@ class ServicoService {
       min: 5,
       max: 720,
     );
+    final comissaoNormalizada = servico.comissaoPercentual > 1
+        ? servico.comissaoPercentual / 100
+        : servico.comissaoPercentual;
     final safeComissao = SecurityUtils.sanitizeDoubleRange(
-      servico.comissaoPercentual,
+      comissaoNormalizada,
       fieldName: 'Comissao',
       min: 0,
       max: 1,

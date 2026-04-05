@@ -7,18 +7,25 @@
 class Produto {
   final int? id;
   final String nome;
+
   /// Preço de venda ao cliente
   final double precoVenda;
+
   /// Preço de custo (compra do fornecedor)
   final double precoCusto;
+
   /// Quantidade atual em estoque
   final int quantidade;
+
   /// Estoque mínimo — abaixo disso gera alerta
   final int estoqueMinimo;
+
   /// Percentual de comissão do barbeiro (0.0 a 1.0)
   final double comissaoPercentual;
+
   /// ID do fornecedor (pode ser nulo)
   final int? fornecedorId;
+
   /// Nome do fornecedor (join para exibição)
   final String? fornecedorNome;
   final bool ativo;
@@ -41,6 +48,9 @@ class Produto {
   });
 
   factory Produto.fromMap(Map<String, dynamic> map) {
+    final comissaoRaw =
+        (map['comissao_percentual'] as num?)?.toDouble() ?? 0.20;
+    final comissao = comissaoRaw > 1 ? comissaoRaw / 100 : comissaoRaw;
     return Produto(
       id: map['id'] as int?,
       nome: map['nome'] as String,
@@ -48,7 +58,7 @@ class Produto {
       precoCusto: (map['preco_custo'] as num?)?.toDouble() ?? 0.0,
       quantidade: (map['quantidade'] as int?) ?? 0,
       estoqueMinimo: (map['estoque_minimo'] as int?) ?? 3,
-      comissaoPercentual: (map['comissao_percentual'] as num?)?.toDouble() ?? 0.20,
+      comissaoPercentual: comissao.clamp(0.0, 1.0).toDouble(),
       fornecedorId: map['fornecedor_id'] as int?,
       fornecedorNome: map['fornecedor_nome'] as String?,
       ativo: (map['ativo'] as int?) == 1,
@@ -106,7 +116,8 @@ class Produto {
   double get margemLucro => precoVenda - precoCusto;
 
   /// Margem de lucro em percentual
-  double get margemLucroPercent => precoCusto > 0 ? (margemLucro / precoCusto) : 0;
+  double get margemLucroPercent =>
+      precoCusto > 0 ? (margemLucro / precoCusto) : 0;
 
   /// Se o estoque está abaixo do mínimo
   bool get estoqueBaixo => quantidade <= estoqueMinimo;

@@ -1,17 +1,22 @@
-﻿// ============================================================
+// ============================================================
 // usuario.dart
 // Modelo de usuario (Admin/Barbeiro) com dados de comissao.
 // ============================================================
 
 class Usuario {
+  static const Object _naoInformado = Object();
+
   final String id;
   final String nome;
   final String email;
   final String? telefone;
+  final String? photoUrl;
   final String? barbeariaId;
+
   /// 'admin' ou 'barbeiro'
   final String role;
   final bool ativo;
+
   /// Percentual de comissao em escala 0..100.
   final double comissaoPercentual;
   final bool firstLogin;
@@ -22,6 +27,7 @@ class Usuario {
     required this.nome,
     required this.email,
     this.telefone,
+    this.photoUrl,
     this.barbeariaId,
     required this.role,
     this.ativo = true,
@@ -49,6 +55,7 @@ class Usuario {
       nome: map['nome'] as String,
       email: map['email'] as String,
       telefone: map['telefone'] as String?,
+      photoUrl: map['photo_url'] as String?,
       barbeariaId: map['barbearia_id'] as String?,
       role: (map['role'] as String?) ?? 'barbeiro',
       ativo: ativoRaw is bool ? ativoRaw : ((ativoRaw as int?) ?? 1) == 1,
@@ -67,6 +74,7 @@ class Usuario {
       'nome': nome,
       'email': email,
       'telefone': telefone,
+      'photo_url': photoUrl,
       'barbearia_id': barbeariaId,
       'role': role,
       'ativo': ativo ? 1 : 0,
@@ -82,6 +90,7 @@ class Usuario {
       'nome': nome,
       'email': email,
       'telefone': telefone,
+      'photo_url': photoUrl,
       'barbearia_id': barbeariaId,
       'role': role,
       'ativo': ativo,
@@ -97,6 +106,7 @@ class Usuario {
       nome: (data['nome'] ?? '') as String,
       email: (data['email'] ?? '') as String,
       telefone: data['telefone'] as String?,
+      photoUrl: data['photo_url'] as String?,
       barbeariaId: data['barbearia_id'] as String?,
       role: (data['role'] as String?) ?? 'barbeiro',
       ativo: (data['ativo'] as bool?) ?? true,
@@ -112,8 +122,9 @@ class Usuario {
   Usuario copyWith({
     String? nome,
     String? email,
-    String? telefone,
-    String? barbeariaId,
+    Object? telefone = _naoInformado,
+    Object? photoUrl = _naoInformado,
+    Object? barbeariaId = _naoInformado,
     String? role,
     bool? ativo,
     double? comissaoPercentual,
@@ -123,8 +134,15 @@ class Usuario {
       id: id,
       nome: nome ?? this.nome,
       email: email ?? this.email,
-      telefone: telefone ?? this.telefone,
-      barbeariaId: barbeariaId ?? this.barbeariaId,
+      telefone: identical(telefone, _naoInformado)
+          ? this.telefone
+          : telefone as String?,
+      photoUrl: identical(photoUrl, _naoInformado)
+          ? this.photoUrl
+          : photoUrl as String?,
+      barbeariaId: identical(barbeariaId, _naoInformado)
+          ? this.barbeariaId
+          : barbeariaId as String?,
       role: role ?? this.role,
       ativo: ativo ?? this.ativo,
       comissaoPercentual: comissaoPercentual ?? this.comissaoPercentual,

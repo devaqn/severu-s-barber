@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -49,7 +49,9 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
 
     final safeNome = SecurityUtils.sanitizeName(_nomeCtrl.text);
     final safeEmail = SecurityUtils.sanitizeEmail(_emailCtrl.text);
-    final safeTelefone = SecurityUtils.sanitizePhone(_telefoneCtrl.text);
+    final safeTelefone = _telefoneCtrl.text.trim().isEmpty
+        ? null
+        : SecurityUtils.sanitizePhone(_telefoneCtrl.text);
 
     final ctrl = context.read<AuthController>();
     final ok = await ctrl.cadastrarBarbeiro(
@@ -149,9 +151,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Informe o telefone.';
-                    }
+                    if (v == null || v.trim().isEmpty) return null;
                     try {
                       SecurityUtils.sanitizePhone(v);
                     } catch (_) {
@@ -183,7 +183,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.ensureStrongPassword(v);
                     } catch (e) {
-                      return e.toString();
+                      return e.toString().replaceFirst('Exception: ', '');
                     }
                     return null;
                   },
@@ -199,7 +199,8 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     prefixIcon: Icon(Icons.percent),
                   ),
                   validator: (v) {
-                    final valor = double.tryParse((v ?? '').replaceAll(',', '.'));
+                    final valor =
+                        double.tryParse((v ?? '').replaceAll(',', '.'));
                     if (valor == null) return 'Informe um numero valido.';
                     if (valor < 0 || valor > 100) {
                       return 'Valor deve estar entre 0 e 100.';

@@ -11,7 +11,7 @@ class AppConstants {
 
   // ── Nome do banco de dados ──────────────────────────────────────────
   static const String dbName = 'barbearia_pro.db';
-  static const int dbVersion = 4;
+  static const int dbVersion = 5;
 
   // ── Nomes das tabelas do banco ──────────────────────────────────────
   static const String tableClientes = 'clientes';

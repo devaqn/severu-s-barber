@@ -14,7 +14,6 @@ import '../controllers/auth_controller.dart';
 import '../main.dart' show themeModeNotifier;
 import '../services/profile_photo_service.dart';
 import '../utils/app_theme.dart';
-import 'ui_helpers.dart';
 
 class AppDrawer extends StatefulWidget {
   static const String dashboard = 'dashboard';
@@ -46,6 +45,7 @@ class _AppDrawerState extends State<AppDrawer> {
 
   String? _avatarPath;
   String? _avatarUserId;
+  int _avatarVersion = 0;
   bool _updatingAvatar = false;
 
   @override
@@ -55,16 +55,81 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _syncAvatar() {
-    final userId = context.read<AuthController>().usuarioId;
-    if (userId.isEmpty || userId == _avatarUserId) return;
-    _loadAvatar(userId);
+    final auth = context.read<AuthController>();
+    final userId = auth.usuarioId;
+    final photoUrl = auth.usuarioPhotoUrl?.trim();
+
+    if (userId.isEmpty) return;
+
+    if (userId != _avatarUserId) {
+      _avatarUserId = userId;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        setState(() {
+          _avatarPath = photoUrl;
+          _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+        });
+      } else {
+        _loadAvatar(userId);
+      }
+      return;
+    }
+
+    if (photoUrl != null && photoUrl.isNotEmpty && photoUrl != _avatarPath) {
+      setState(() {
+        _avatarPath = photoUrl;
+        _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+      });
+      return;
+    }
+
+    if ((photoUrl == null || photoUrl.isEmpty) && _avatarPath == null) {
+      _loadAvatar(userId);
+    }
   }
 
   Future<void> _loadAvatar(String userId) async {
-    _avatarUserId = userId;
     final file = await _photoService.getProfilePhoto(userId);
     if (!mounted || _avatarUserId != userId) return;
-    setState(() => _avatarPath = file?.path);
+    setState(() {
+      _avatarPath = file?.path;
+      _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+    });
+  }
+
+  Future<void> _invalidateAvatarCache(String? previousPath) async {
+    final path = previousPath?.trim();
+    if (path != null &&
+        path.isNotEmpty &&
+        !path.startsWith('http://') &&
+        !path.startsWith('https://')) {
+      await FileImage(File(path)).evict();
+    }
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+
+  void _showAvatarSnack(
+    String mensagem, {
+    bool isError = false,
+  }) {
+    final background = isError ? AppTheme.errorColor : AppTheme.accentColor;
+    final foreground = isError ? AppTheme.textPrimary : AppTheme.primaryColor;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: background,
+        content: Text(
+          mensagem,
+          style:
+              GoogleFonts.inter(color: foreground, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  String _withCacheBust(String url) {
+    final separator = url.contains('?') ? '&' : '?';
+    return '$url${separator}v=$_avatarVersion';
   }
 
   Future<void> _openAvatarActions(AuthController auth) async {
@@ -80,30 +145,43 @@ class _AppDrawerState extends State<AppDrawer> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo_library,
+                leading: const Icon(Icons.photo_camera_outlined,
                     color: AppTheme.accentColor),
                 title: Text(
-                  'Escolher foto do perfil',
+                  'Tirar foto',
                   style: GoogleFonts.inter(color: AppTheme.textPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await _pickProfilePhoto(auth);
+                  await _pickProfilePhoto(auth, source: ImageSource.camera);
                 },
               ),
-              if (_avatarPath != null)
-                ListTile(
-                  leading: const Icon(Icons.delete_outline,
-                      color: AppTheme.errorColor),
-                  title: Text(
-                    'Remover foto',
-                    style: GoogleFonts.inter(color: AppTheme.textPrimary),
-                  ),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _removeProfilePhoto(auth);
-                  },
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: AppTheme.accentColor),
+                title: Text(
+                  'Escolher da galeria',
+                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
                 ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickProfilePhoto(auth, source: ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: AppTheme.errorColor),
+                title: Text(
+                  'Remover foto',
+                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                ),
+                onTap: _avatarPath == null
+                    ? null
+                    : () async {
+                        Navigator.pop(ctx);
+                        await _removeProfilePhoto(auth);
+                      },
+              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -112,36 +190,43 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  Future<void> _pickProfilePhoto(AuthController auth) async {
+  Future<void> _pickProfilePhoto(
+    AuthController auth, {
+    required ImageSource source,
+  }) async {
     if (_updatingAvatar || auth.usuarioId.isEmpty) return;
 
     final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 1200,
       maxHeight: 1200,
       imageQuality: 88,
     );
     if (picked == null) return;
 
+    final previousPath = _avatarPath;
     setState(() => _updatingAvatar = true);
     try {
       final saved = await _photoService.saveProfilePhoto(
         userId: auth.usuarioId,
         sourcePath: picked.path,
       );
+      final persisted = await auth.atualizarFotoPerfil(saved.path);
+      if (!persisted) {
+        throw Exception(auth.errorMsg ?? 'Falha ao persistir foto de perfil.');
+      }
+      await _invalidateAvatarCache(previousPath);
       if (!mounted) return;
-      setState(() => _avatarPath = saved.path);
-      UiFeedback.showSnack(
-        context,
-        'Foto de perfil atualizada.',
-        type: AppNoticeType.success,
-      );
-    } catch (e) {
+      setState(() {
+        _avatarPath = saved.path;
+        _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+      });
+      _showAvatarSnack('Foto de perfil atualizada com sucesso.');
+    } catch (_) {
       if (!mounted) return;
-      UiFeedback.showSnack(
-        context,
+      _showAvatarSnack(
         'Nao foi possivel atualizar a foto de perfil.',
-        type: AppNoticeType.error,
+        isError: true,
       );
     } finally {
       if (mounted) {
@@ -153,23 +238,24 @@ class _AppDrawerState extends State<AppDrawer> {
   Future<void> _removeProfilePhoto(AuthController auth) async {
     if (_updatingAvatar || auth.usuarioId.isEmpty) return;
 
+    final previousPath = _avatarPath;
     setState(() => _updatingAvatar = true);
     try {
       await _photoService.deleteProfilePhoto(auth.usuarioId);
+      final persisted = await auth.atualizarFotoPerfil(null);
+      if (!persisted) {
+        throw Exception(auth.errorMsg ?? 'Falha ao remover foto do perfil.');
+      }
+      await _invalidateAvatarCache(previousPath);
       if (!mounted) return;
-      setState(() => _avatarPath = null);
-      UiFeedback.showSnack(
-        context,
-        'Foto de perfil removida.',
-        type: AppNoticeType.info,
-      );
+      setState(() {
+        _avatarPath = null;
+        _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+      });
+      _showAvatarSnack('Foto de perfil removida com sucesso.');
     } catch (_) {
       if (!mounted) return;
-      UiFeedback.showSnack(
-        context,
-        'Nao foi possivel remover a foto.',
-        type: AppNoticeType.error,
-      );
+      _showAvatarSnack('Nao foi possivel remover a foto.', isError: true);
     } finally {
       if (mounted) {
         setState(() => _updatingAvatar = false);
@@ -192,8 +278,11 @@ class _AppDrawerState extends State<AppDrawer> {
 
   Widget _buildHeader(AuthController auth, bool isAdmin) {
     final name = auth.usuarioNome.isEmpty ? 'Sessao ativa' : auth.usuarioNome;
-    final avatarFile = _avatarPath == null ? null : File(_avatarPath!);
-    final hasAvatar = avatarFile != null && avatarFile.existsSync();
+    final path = _avatarPath?.trim();
+    final isNetworkAvatar = path != null &&
+        (path.startsWith('http://') || path.startsWith('https://'));
+    final avatarFile = (!isNetworkAvatar && path != null) ? File(path) : null;
+    final hasAvatar = isNetworkAvatar || (avatarFile?.existsSync() ?? false);
 
     return Container(
       width: double.infinity,
@@ -231,25 +320,50 @@ class _AppDrawerState extends State<AppDrawer> {
                     ),
                     child: ClipOval(
                       child: hasAvatar
-                          ? Image.file(
-                              avatarFile,
-                              fit: BoxFit.cover,
-                              width: 96,
-                              height: 96,
-                            )
+                          ? isNetworkAvatar
+                              ? Image.network(
+                                  _withCacheBust(path),
+                                  key: ValueKey(
+                                      'network_avatar_${_withCacheBust(path)}'),
+                                  fit: BoxFit.cover,
+                                  width: 96,
+                                  height: 96,
+                                  errorBuilder: (_, __, ___) => _AvatarInitials(
+                                    initials: _initials(name),
+                                  ),
+                                )
+                              : Image.file(
+                                  avatarFile!,
+                                  key: ValueKey(
+                                      'file_avatar_${avatarFile.path}_$_avatarVersion'),
+                                  fit: BoxFit.cover,
+                                  width: 96,
+                                  height: 96,
+                                )
                           : Center(
-                              child: Text(
-                                _initials(name),
-                                style: GoogleFonts.poppins(
-                                  color: AppTheme.goldColor,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
+                              child: _AvatarInitials(initials: _initials(name)),
                             ),
                     ),
                   ),
+                  if (_updatingAvatar)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.44),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: AppTheme.accentColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     right: -2,
                     bottom: -2,
@@ -264,16 +378,11 @@ class _AppDrawerState extends State<AppDrawer> {
                           width: 1.2,
                         ),
                       ),
-                      child: _updatingAvatar
-                          ? const Padding(
-                              padding: EdgeInsets.all(6),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(
-                              Icons.photo_camera_outlined,
-                              size: 15,
-                              color: AppTheme.textPrimary,
-                            ),
+                      child: const Icon(
+                        Icons.photo_camera_outlined,
+                        size: 15,
+                        color: AppTheme.primaryColor,
+                      ),
                     ),
                   ),
                 ],
@@ -290,7 +399,7 @@ class _AppDrawerState extends State<AppDrawer> {
             ),
             const SizedBox(height: 2),
             Text(
-              isAdmin ? 'Perfil: Dono/Admin' : 'Perfil: Funcionario',
+              isAdmin ? 'Perfil: Dono/Admin' : 'Perfil: Funcionário',
               style: GoogleFonts.inter(
                 color: AppTheme.textPrimary.withValues(alpha: 0.78),
                 fontSize: 12,
@@ -567,6 +676,29 @@ class _AppDrawerState extends State<AppDrawer> {
             child: const Text('Sair'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarInitials extends StatelessWidget {
+  final String initials;
+
+  const _AvatarInitials({
+    required this.initials,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initials,
+        style: GoogleFonts.poppins(
+          color: AppTheme.accentColor,
+          fontSize: 30,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/usuario.dart';
@@ -74,8 +74,8 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
     final nomeCtrl = TextEditingController(text: usuario.nome);
     final emailCtrl = TextEditingController(text: usuario.email);
     final telefoneCtrl = TextEditingController(text: usuario.telefone ?? '');
-    final comissaoCtrl =
-        TextEditingController(text: usuario.comissaoPercentual.toStringAsFixed(2));
+    final comissaoCtrl = TextEditingController(
+        text: usuario.comissaoPercentual.toStringAsFixed(2));
 
     try {
       final updated = await showDialog<Usuario>(
@@ -164,8 +164,8 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                               prefixIcon: Icon(Icons.percent),
                             ),
                             validator: (v) {
-                              final valor =
-                                  double.tryParse((v ?? '').replaceAll(',', '.'));
+                              final valor = double.tryParse(
+                                  (v ?? '').replaceAll(',', '.'));
                               if (valor == null) return 'Informe um numero.';
                               if (valor < 0 || valor > 100) {
                                 return 'Valor entre 0 e 100.';
@@ -274,7 +274,8 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                 ? AppEmptyState(
                     icon: Icons.people_outline,
                     title: 'Nenhum barbeiro cadastrado',
-                    subtitle: 'Adicione o primeiro barbeiro para iniciar a equipe.',
+                    subtitle:
+                        'Adicione o primeiro barbeiro para iniciar a equipe.',
                     actionLabel: 'Adicionar Barbeiro',
                     onAction: _abrirCriacao,
                   )
@@ -290,6 +291,12 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                           decoration: BoxDecoration(
                             color: AppTheme.secondaryColor,
                             borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: (usuario.ativo
+                                      ? AppTheme.accentColor
+                                      : Colors.grey)
+                                  .withValues(alpha: 0.28),
+                            ),
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
@@ -345,7 +352,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                                   scale: 0.9,
                                   child: Switch.adaptive(
                                     value: usuario.ativo,
-                                    activeThumbColor: AppTheme.successColor,
+                                    activeThumbColor: AppTheme.accentColor,
                                     onChanged: (v) => _toggleAtivo(usuario, v),
                                   ),
                                 ),

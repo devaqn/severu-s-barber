@@ -1,76 +1,66 @@
-﻿// ============================================================
+// ============================================================
 // servicos_screen.dart
-// Tela de gestao de servicos com lista, filtro e formulario modal.
+// Gestao de servicos com CRUD e validacao.
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../models/servico.dart';
 import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/ui_helpers.dart';
 
-/// Tela para gerenciamento de servicos ofertados pela barbearia.
 class ServicosScreen extends StatefulWidget {
-  /// Construtor padrao da tela de servicos.
   const ServicosScreen({super.key});
 
   @override
   State<ServicosScreen> createState() => _ServicosScreenState();
 }
 
-/// Estado da tela de servicos com CRUD e filtro de ativos.
 class _ServicosScreenState extends State<ServicosScreen> {
-  // Servico de dados para operacoes com servicos.
   final ServicoService _service = ServicoService();
 
-  // Lista total exibida na tela.
   List<Servico> _servicos = [];
-
-  // Flag de carregamento para feedback visual.
   bool _loading = true;
-
-  // Toggle para exibir apenas ativos ou todos.
   bool _apenasAtivos = true;
 
   @override
   void initState() {
     super.initState();
-    // Carregamento inicial da lista de servicos.
     _carregar();
   }
 
-  /// Carrega servicos do banco de acordo com filtro ativo.
   Future<void> _carregar() async {
     setState(() => _loading = true);
     try {
       _servicos = await _service.getAll(apenasAtivos: _apenasAtivos);
     } catch (e) {
-      _erro('Falha ao carregar servicos: $e');
+      _showSnack('Falha ao carregar servicos: $e', isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  /// Snackbar de erro padrao em fundo vermelho.
-  void _erro(String mensagem) {
+  void _showSnack(String mensagem, {bool isError = false}) {
+    final background = isError ? AppTheme.errorColor : AppTheme.accentColor;
+    final foreground = isError ? AppTheme.textPrimary : AppTheme.primaryColor;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: AppTheme.errorColor, content: Text(mensagem)),
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: background,
+        content: Text(
+          mensagem,
+          style:
+              GoogleFonts.inter(color: foreground, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 
-  /// Snackbar de sucesso padrao em fundo verde.
-  void _sucesso(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: AppTheme.successColor, content: Text(mensagem)),
-    );
-  }
-
-  /// Abre modal de criacao/edicao e persiste os dados enviados.
-  Future<void> _abrirModal({Servico? servico}) async {
-    // Controllers locais do formulario de modal bottom sheet.
+  Future<void> _abrirFormulario({Servico? servico}) async {
     final nomeCtrl = TextEditingController(text: servico?.nome ?? '');
     final precoCtrl = TextEditingController(
       text: servico != null ? servico.preco.toStringAsFixed(2) : '',
@@ -78,10 +68,15 @@ class _ServicosScreenState extends State<ServicosScreen> {
     final duracaoCtrl = TextEditingController(
       text: servico?.duracaoMinutos.toString() ?? '30',
     );
-    var ativo = servico?.ativo ?? true;
+    final comissaoCtrl = TextEditingController(
+      text: (((servico?.comissaoPercentual ?? 0.5) * 100).toStringAsFixed(0)),
+    );
 
-    // Exibe modal com formulario de servico.
-    final result = await showModalBottomSheet<Servico>(
+    bool ativo = servico?.ativo ?? true;
+    bool salvando = false;
+    final formKey = GlobalKey<FormState>();
+
+    final shouldReload = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTheme.secondaryColor,
@@ -89,152 +84,322 @@ class _ServicosScreenState extends State<ServicosScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final formKey = GlobalKey<FormState>();
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          ),
-          child: StatefulBuilder(
-            builder: (context, setModalState) {
-              return Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      servico == null ? 'Novo Servico' : 'Editar Servico',
-                      style: GoogleFonts.poppins(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w700,
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            Future<void> salvar() async {
+              if (!formKey.currentState!.validate() || salvando) return;
+              setModalState(() => salvando = true);
+              try {
+                final preco =
+                    double.parse(precoCtrl.text.trim().replaceAll(',', '.'));
+                final duracao = int.parse(duracaoCtrl.text.trim());
+                final comissaoPercent =
+                    double.parse(comissaoCtrl.text.trim().replaceAll(',', '.'));
+                final comissaoDecimal = comissaoPercent / 100;
+
+                final payload = Servico(
+                  id: servico?.id,
+                  nome: nomeCtrl.text.trim(),
+                  preco: preco,
+                  duracaoMinutos: duracao,
+                  comissaoPercentual: comissaoDecimal,
+                  ativo: ativo,
+                );
+
+                if (servico == null) {
+                  await _service.insert(payload);
+                } else {
+                  await _service.update(payload);
+                }
+
+                if (!ctx.mounted) return;
+                Navigator.of(ctx).pop(true);
+                if (!mounted) return;
+                _showSnack(
+                  servico == null
+                      ? 'Servico criado com sucesso.'
+                      : 'Servico atualizado com sucesso.',
+                );
+              } catch (e) {
+                if (!mounted) return;
+                _showSnack('Falha ao salvar servico: $e', isError: true);
+              } finally {
+                if (ctx.mounted) {
+                  setModalState(() => salvando = false);
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+              ),
+              child: SafeArea(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        servico == null ? 'Novo Servico' : 'Editar Servico',
+                        style: GoogleFonts.poppins(
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: nomeCtrl,
-                      decoration: const InputDecoration(labelText: 'Nome *'),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: precoCtrl,
-                      decoration: const InputDecoration(labelText: 'Preco *'),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      validator: (v) {
-                        final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                        if (n == null || n <= 0) return 'Informe um preco valido';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: duracaoCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Duracao (min) *'),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        final n = int.tryParse(v ?? '');
-                        if (n == null || n <= 0) return 'Informe duracao valida';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      value: ativo,
-                      activeThumbColor: AppTheme.accentColor,
-                      onChanged: (v) => setModalState(() => ativo = v),
-                      title: Text(
-                        'Ativo',
-                        style: GoogleFonts.inter(color: AppTheme.textPrimary),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          if (!formKey.currentState!.validate()) return;
-                          final preco =
-                              double.parse(precoCtrl.text.replaceAll(',', '.'));
-                          final duracao = int.parse(duracaoCtrl.text);
-                          Navigator.pop(
-                            ctx,
-                            Servico(
-                              id: servico?.id,
-                              nome: nomeCtrl.text.trim(),
-                              preco: preco,
-                              duracaoMinutos: duracao,
-                              ativo: ativo,
-                            ),
-                          );
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: nomeCtrl,
+                        decoration: const InputDecoration(labelText: 'Nome *'),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Informe o nome do servico.';
+                          }
+                          return null;
                         },
-                        icon: const Icon(Icons.save),
-                        label: const Text('Salvar'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: precoCtrl,
+                        decoration: const InputDecoration(labelText: 'Preco *'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) {
+                          final n = double.tryParse(
+                            (v ?? '').trim().replaceAll(',', '.'),
+                          );
+                          if (n == null || n <= 0) {
+                            return 'Informe um preco maior que zero.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: duracaoCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Duracao (min) *'),
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) {
+                          final n = int.tryParse((v ?? '').trim());
+                          if (n == null || n <= 0) {
+                            return 'Informe uma duracao valida.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: comissaoCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Comissao (%) *'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        textInputAction: TextInputAction.done,
+                        validator: (v) {
+                          final n = double.tryParse(
+                            (v ?? '').trim().replaceAll(',', '.'),
+                          );
+                          if (n == null || n < 0 || n > 100) {
+                            return 'Comissao deve estar entre 0 e 100.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: ativo,
+                        activeThumbColor: AppTheme.accentColor,
+                        onChanged: (v) => setModalState(() => ativo = v),
+                        title: Text(
+                          ativo ? 'Servico ativo' : 'Servico inativo',
+                          style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: salvando ? null : salvar,
+                          child: salvando
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Salvar'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
     );
 
-    // Sai se modal foi fechado sem salvar.
-    if (result == null) return;
-
-    try {
-      // Persiste insercao ou atualizacao conforme id.
-      if (result.id == null) {
-        await _service.insert(result);
-        _sucesso('Servico criado com sucesso');
-      } else {
-        await _service.update(result);
-        _sucesso('Servico atualizado com sucesso');
-      }
+    if (shouldReload == true) {
       await _carregar();
-    } catch (e) {
-      _erro('Falha ao salvar servico: $e');
     }
   }
 
-  /// Alterna status ativo/inativo preservando historico.
-  Future<void> _toggleAtivo(Servico servico) async {
+  Future<void> _alternarStatus(Servico servico, bool ativo) async {
     try {
-      if (servico.ativo) {
-        await _service.delete(servico.id!);
-        _sucesso('Servico desativado');
-      } else {
-        await _service.update(servico.copyWith(ativo: true));
-        _sucesso('Servico ativado');
-      }
+      await _service.update(servico.copyWith(ativo: ativo));
+      if (!mounted) return;
+      _showSnack(ativo ? 'Servico ativado.' : 'Servico inativado.');
       await _carregar();
     } catch (e) {
-      _erro('Falha ao alterar status: $e');
+      _showSnack('Falha ao alterar status: $e', isError: true);
     }
+  }
+
+  Future<void> _confirmarExclusao(Servico servico) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Excluir servico',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text('Deseja excluir "${servico.nome}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || servico.id == null) return;
+    try {
+      await _service.delete(servico.id!);
+      if (!mounted) return;
+      _showSnack('Servico excluido.');
+      await _carregar();
+    } catch (e) {
+      _showSnack('Falha ao excluir servico: $e', isError: true);
+    }
+  }
+
+  Widget _buildServicoCard(Servico servico) {
+    final leadingColor = servico.ativo ? AppTheme.accentColor : Colors.grey;
+    return Dismissible(
+      key: ValueKey('servico_${servico.id}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        await _confirmarExclusao(servico);
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.secondaryColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.accentColor.withValues(alpha: 0.15),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(12),
+          leading: Container(
+            width: 8,
+            height: 56,
+            decoration: BoxDecoration(
+              color: leadingColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          title: Text(
+            servico.nome,
+            style: GoogleFonts.poppins(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: Text(
+            '${AppFormatters.duration(servico.duracaoMinutos)}  -  Comissao ${(servico.comissaoPercentual * 100).toStringAsFixed(0)}%',
+            style: GoogleFonts.inter(color: AppTheme.textSecondary),
+          ),
+          trailing: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 128),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(
+                  child: Text(
+                    AppFormatters.currency(servico.preco),
+                    textAlign: TextAlign.right,
+                    style: GoogleFonts.poppins(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _abrirFormulario(servico: servico),
+                  icon: const Icon(Icons.edit_outlined,
+                      color: AppTheme.accentColor),
+                  tooltip: 'Editar',
+                ),
+                Switch.adaptive(
+                  value: servico.ativo,
+                  activeThumbColor: AppTheme.accentColor,
+                  onChanged: (v) => _alternarStatus(servico, v),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Tela principal de servicos com drawer e lista.
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
         title: Text(
           'Servicos',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
         actions: [
           Row(
             children: [
-              Text('Ativos', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
-              Switch(
+              Text(
+                'Apenas ativos',
+                style: GoogleFonts.inter(color: AppTheme.textSecondary),
+              ),
+              Switch.adaptive(
                 value: _apenasAtivos,
                 activeThumbColor: AppTheme.accentColor,
                 onChanged: (v) {
@@ -248,112 +413,36 @@ class _ServicosScreenState extends State<ServicosScreen> {
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.servicos),
       floatingActionButton: FloatingActionButton(
+        onPressed: () => _abrirFormulario(),
         backgroundColor: AppTheme.accentColor,
-        onPressed: () => _abrirModal(),
-        child: const Icon(Icons.add, color: AppTheme.textPrimary),
+        child: const Icon(Icons.add, color: AppTheme.primaryColor),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.accentColor),
+            )
           : _servicos.isEmpty
-              ? Center(
-                  child: Text(
-                    'Nenhum servico cadastrado',
-                    style: GoogleFonts.inter(color: AppTheme.textSecondary),
+              ? AppPageContainer(
+                  child: AppEmptyState(
+                    icon: Icons.content_cut_outlined,
+                    title: 'Nenhum servico cadastrado',
+                    subtitle:
+                        'Cadastre um novo servico para comecar os atendimentos.',
+                    actionLabel: 'Novo servico',
+                    onAction: () => _abrirFormulario(),
                   ),
                 )
               : RefreshIndicator(
+                  color: AppTheme.accentColor,
                   onRefresh: _carregar,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
                     itemCount: _servicos.length,
                     itemBuilder: (context, index) {
-                      final s = _servicos[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Slidable(
-                          key: ValueKey(s.id),
-                          endActionPane: ActionPane(
-                            motion: const DrawerMotion(),
-                            children: [
-                              SlidableAction(
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(16),
-                                  bottomLeft: Radius.circular(16),
-                                ),
-                                onPressed: (_) => _abrirModal(servico: s),
-                                icon: Icons.edit,
-                                label: 'Editar',
-                                backgroundColor: AppTheme.infoColor,
-                                foregroundColor: AppTheme.textPrimary,
-                              ),
-                              SlidableAction(
-                                borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(16),
-                                  bottomRight: Radius.circular(16),
-                                ),
-                                onPressed: (_) => _toggleAtivo(s),
-                                icon: s.ativo ? Icons.toggle_off : Icons.toggle_on,
-                                label: s.ativo ? 'Desativar' : 'Ativar',
-                                backgroundColor:
-                                    s.ativo ? AppTheme.errorColor : AppTheme.successColor,
-                                foregroundColor: AppTheme.textPrimary,
-                              ),
-                            ],
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppTheme.secondaryColor,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(14),
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [AppTheme.warningColor, AppTheme.warningDark],
-                                  ),
-                                ),
-                                child: const Icon(Icons.content_cut, color: AppTheme.textPrimary),
-                              ),
-                              title: Text(
-                                s.nome,
-                                style: GoogleFonts.poppins(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'Duracao: ${AppFormatters.duration(s.duracaoMinutos)}',
-                                style: GoogleFonts.inter(color: AppTheme.textSecondary),
-                              ),
-                              trailing: Text(
-                                AppFormatters.currency(s.preco),
-                                style: GoogleFonts.poppins(
-                                  color: AppTheme.successColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
+                      return _buildServicoCard(_servicos[index]);
                     },
                   ),
                 ),
     );
   }
 }
-
-

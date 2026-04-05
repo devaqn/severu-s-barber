@@ -46,6 +46,7 @@ class AuthController extends ChangeNotifier {
   bool get firebaseDisponivel => _authService.firebaseDisponivel;
   String get usuarioId => _usuario?.id ?? '';
   String get usuarioNome => _usuario?.nome ?? '';
+  String? get usuarioPhotoUrl => _usuario?.photoUrl;
   String get barbeariaId => _usuario?.barbeariaId ?? '';
 
   // ── Inicialização ─────────────────────────────────────────────────
@@ -219,6 +220,20 @@ class AuthController extends ChangeNotifier {
       return false;
     } finally {
       _loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> atualizarFotoPerfil(String? photoUrl) async {
+    _errorMsg = null;
+    try {
+      final atualizado = await _authService.atualizarFotoPerfil(photoUrl);
+      _usuario = atualizado;
+      return true;
+    } catch (e) {
+      _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
       notifyListeners();
     }
   }

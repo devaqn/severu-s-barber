@@ -116,13 +116,34 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
 
   /// Desativa produto mantendo historico de vendas.
   Future<void> _desativar(Produto produto) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir produto'),
+        content: Text('Deseja excluir "${produto.nome}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
     try {
       if (produto.id == null) return;
       await _service.delete(produto.id!);
-      _sucesso('Produto desativado com sucesso');
+      _sucesso('Produto excluido com sucesso');
       await _carregar();
     } catch (e) {
-      _erro('Falha ao desativar produto: $e');
+      _erro('Falha ao excluir produto: $e');
     }
   }
 
@@ -177,7 +198,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.accentColor,
         onPressed: () => _abrirFormulario(),
-        child: const Icon(Icons.add, color: AppTheme.textPrimary),
+        child: const Icon(Icons.add, color: AppTheme.primaryColor),
       ),
       body: Column(
         children: [
@@ -221,6 +242,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                         ),
                       )
                     : RefreshIndicator(
+                        color: AppTheme.accentColor,
                         onRefresh: _carregar,
                         child: ListView.builder(
                           padding: const EdgeInsets.all(12),
@@ -287,13 +309,13 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                           colors: [
-                                            AppTheme.successColor,
-                                            AppTheme.successDark
+                                            AppTheme.accentColor,
+                                            AppTheme.accentDark
                                           ],
                                         ),
                                       ),
                                       child: const Icon(Icons.inventory_2,
-                                          color: AppTheme.textPrimary),
+                                          color: AppTheme.primaryColor),
                                     ),
                                     title: Text(
                                       p.nome,
@@ -318,6 +340,11 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                         ),
                                         Text(
                                           'Estoque: ${p.quantidade} un.  |  Margem: ${margem.toStringAsFixed(1)}%',
+                                          style: GoogleFonts.inter(
+                                              color: AppTheme.textSecondary),
+                                        ),
+                                        Text(
+                                          'Comissao: ${(p.comissaoPercentual * 100).toStringAsFixed(0)}%',
                                           style: GoogleFonts.inter(
                                               color: AppTheme.textSecondary),
                                         ),

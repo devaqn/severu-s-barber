@@ -229,7 +229,7 @@ class AuthService {
 
     SecurityUtils.ensure(
       !(await _emailEmUso(sanitizedEmail)),
-      'Este email ja esta em uso.',
+      'E-mail ja cadastrado.',
     );
 
     final secondaryApp = await Firebase.initializeApp(
@@ -252,6 +252,7 @@ class AuthService {
         'nome': sanitizedNome,
         'email': sanitizedEmail,
         'telefone': sanitizedTelefone,
+        'photo_url': null,
         'role': AppConstants.roleBarbeiro,
         'comissao_percentual': sanitizedComissao,
         'first_login': true,
@@ -267,6 +268,7 @@ class AuthService {
         nome: sanitizedNome,
         email: sanitizedEmail,
         telefone: sanitizedTelefone,
+        photoUrl: null,
         role: AppConstants.roleBarbeiro,
         ativo: true,
         comissaoPercentual: sanitizedComissao,
@@ -348,7 +350,7 @@ class AuthService {
 
     SecurityUtils.ensure(
       !(await _emailEmUso(sanitizedEmail)),
-      'Este email ja esta em uso.',
+      'E-mail ja cadastrado.',
     );
 
     try {
@@ -391,6 +393,7 @@ class AuthService {
         'nome': sanitizedNome,
         'email': sanitizedEmail,
         'telefone': null,
+        'photo_url': null,
         'role': AppConstants.roleAdmin,
         'ativo': true,
         'comissao_percentual': 0.0,
@@ -406,6 +409,7 @@ class AuthService {
         nome: sanitizedNome,
         email: sanitizedEmail,
         telefone: null,
+        photoUrl: null,
         role: AppConstants.roleAdmin,
         ativo: true,
         comissaoPercentual: 0.0,
@@ -470,6 +474,39 @@ class AuthService {
     });
 
     await _upsertUsuarioLocal(perfil.copyWith(firstLogin: false));
+  }
+
+  Future<Usuario> atualizarFotoPerfil(String? photoUrl) async {
+    final usuarioAtual = await getCurrentUsuario();
+    if (usuarioAtual == null) {
+      throw Exception('Usuario nao autenticado.');
+    }
+
+    final safePhotoUrl = SecurityUtils.sanitizeOptionalText(
+      photoUrl,
+      maxLength: 2048,
+      allowNewLines: false,
+    );
+    final shopId = _resolveBarbeariaId(usuarioAtual);
+
+    if (_firebaseDisponivel) {
+      await _usuariosCollection(shopId).doc(usuarioAtual.id).set({
+        'photo_url': safePhotoUrl,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    final atualizado = usuarioAtual.copyWith(
+      photoUrl: safePhotoUrl,
+      barbeariaId: shopId,
+    );
+    await _upsertUsuarioLocal(atualizado);
+
+    if (_usuarioLocalLogado?.id == atualizado.id) {
+      _usuarioLocalLogado = atualizado;
+    }
+
+    return atualizado;
   }
 
   Future<Usuario?> getUsuarioPorId(String id) async {
@@ -557,6 +594,11 @@ class AuthService {
       maxLength: 20,
       allowNewLines: false,
     );
+    final sanitizedPhotoUrl = SecurityUtils.sanitizeOptionalText(
+      usuario.photoUrl,
+      maxLength: 2048,
+      allowNewLines: false,
+    );
     final sanitizedRole = SecurityUtils.sanitizeEnumValue(
       usuario.role,
       fieldName: 'Perfil',
@@ -575,6 +617,7 @@ class AuthService {
       nome: sanitizedNome,
       email: sanitizedEmail,
       telefone: sanitizedTelefone,
+      photoUrl: sanitizedPhotoUrl,
       role: sanitizedRole,
       comissaoPercentual: sanitizedComissao,
       barbeariaId: shopId,
@@ -625,7 +668,7 @@ class AuthService {
       case 'invalid-login-credentials':
         return Exception('Email ou senha invalidos.');
       case 'email-already-in-use':
-        return Exception('Este email ja esta em uso.');
+        return Exception('E-mail ja cadastrado.');
       case 'weak-password':
         return Exception('Senha fraca. Use uma senha mais forte.');
       case 'invalid-email':
@@ -794,6 +837,7 @@ class AuthService {
       'nome': nome,
       'email': email,
       'telefone': null,
+      'photo_url': null,
       'role': AppConstants.roleAdmin,
       'ativo': true,
       'comissao_percentual': 0.0,
@@ -809,6 +853,7 @@ class AuthService {
       nome: nome,
       email: email,
       telefone: null,
+      photoUrl: null,
       role: AppConstants.roleAdmin,
       ativo: true,
       comissaoPercentual: 0.0,

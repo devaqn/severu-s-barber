@@ -140,6 +140,8 @@ class ProdutoService {
       'id = ?',
       [safeProduto.id],
     );
+
+    await _syncProdutoAndLastMovimentoIfOnline(safeProduto.id!);
   }
 
   Future<void> delete(int id) async {
@@ -691,8 +693,11 @@ class ProdutoService {
       min: 0,
       max: 1000000,
     );
+    final comissaoNormalizada = produto.comissaoPercentual > 1
+        ? produto.comissaoPercentual / 100
+        : produto.comissaoPercentual;
     final safeComissao = SecurityUtils.sanitizeDoubleRange(
-      produto.comissaoPercentual,
+      comissaoNormalizada,
       fieldName: 'Comissao',
       min: 0,
       max: 1,

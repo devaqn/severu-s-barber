@@ -9,8 +9,10 @@ class Servico {
   final int? id;
   final String nome;
   final double preco;
+
   /// Duração média do serviço em minutos
   final int duracaoMinutos;
+
   /// Percentual de comissão do barbeiro (0.0 a 1.0)
   final double comissaoPercentual;
   final bool ativo;
@@ -25,12 +27,15 @@ class Servico {
   });
 
   factory Servico.fromMap(Map<String, dynamic> map) {
+    final comissaoRaw =
+        (map['comissao_percentual'] as num?)?.toDouble() ?? 0.50;
+    final comissao = comissaoRaw > 1 ? comissaoRaw / 100 : comissaoRaw;
     return Servico(
       id: map['id'] as int?,
       nome: map['nome'] as String,
       preco: (map['preco'] as num).toDouble(),
       duracaoMinutos: (map['duracao_minutos'] as int?) ?? 30,
-      comissaoPercentual: (map['comissao_percentual'] as num?)?.toDouble() ?? 0.50,
+      comissaoPercentual: comissao.clamp(0.0, 1.0).toDouble(),
       ativo: (map['ativo'] as int?) == 1,
     );
   }

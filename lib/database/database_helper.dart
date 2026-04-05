@@ -68,6 +68,9 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await _migrateToV4(db);
     }
+    if (oldVersion < 5) {
+      await _migrateToV5(db);
+    }
     await _createIndexes(db);
   }
 
@@ -257,6 +260,7 @@ class DatabaseHelper {
         nome TEXT NOT NULL,
         email TEXT NOT NULL,
         telefone TEXT,
+        photo_url TEXT,
         barbearia_id TEXT,
         role TEXT NOT NULL DEFAULT 'barbeiro',
         ativo INTEGER DEFAULT 1,
@@ -642,6 +646,31 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> _migrateToV5(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableUsuarios,
+      'photo_url',
+      'TEXT',
+    );
+
+    await db.execute('''
+      UPDATE ${AppConstants.tableServicos}
+      SET comissao_percentual = comissao_percentual / 100.0
+      WHERE comissao_percentual IS NOT NULL
+        AND comissao_percentual > 1
+        AND comissao_percentual <= 100
+    ''');
+
+    await db.execute('''
+      UPDATE ${AppConstants.tableProdutos}
+      SET comissao_percentual = comissao_percentual / 100.0
+      WHERE comissao_percentual IS NOT NULL
+        AND comissao_percentual > 1
+        AND comissao_percentual <= 100
+    ''');
+  }
+
   Future<void> _addColumnIfMissing(
     Database db,
     String tableName,
@@ -753,49 +782,49 @@ class DatabaseHelper {
         'nome': 'Corte de Cabelo',
         'preco': 35.0,
         'duracao_minutos': 30,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Barba',
         'preco': 25.0,
         'duracao_minutos': 20,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Corte + Barba',
         'preco': 55.0,
         'duracao_minutos': 50,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Sobrancelha',
         'preco': 15.0,
         'duracao_minutos': 15,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Lavagem',
         'preco': 20.0,
         'duracao_minutos': 20,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Hidratacao',
         'preco': 30.0,
         'duracao_minutos': 25,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
       {
         'nome': 'Relaxamento',
         'preco': 45.0,
         'duracao_minutos': 40,
-        'comissao_percentual': 50.0,
+        'comissao_percentual': 0.50,
         'ativo': 1
       },
     ];
@@ -817,6 +846,7 @@ class DatabaseHelper {
       'nome': 'Administrador',
       'email': 'admin@severusbarber.com',
       'telefone': null,
+      'photo_url': null,
       'barbearia_id': AppConstants.localBarbeariaId,
       'role': AppConstants.roleAdmin,
       'ativo': 1,

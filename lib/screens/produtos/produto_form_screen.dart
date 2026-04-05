@@ -31,6 +31,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
   final _custoCtrl = TextEditingController();
   final _qtdCtrl = TextEditingController();
   final _minCtrl = TextEditingController();
+  final _comissaoCtrl = TextEditingController();
 
   // Lista de fornecedores carregada do banco.
   List<Fornecedor> _fornecedores = [];
@@ -56,10 +57,12 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
       _custoCtrl.text = p.precoCusto.toStringAsFixed(2);
       _qtdCtrl.text = p.quantidade.toString();
       _minCtrl.text = p.estoqueMinimo.toString();
+      _comissaoCtrl.text = (p.comissaoPercentual * 100).toStringAsFixed(0);
       _fornecedorId = p.fornecedorId;
     } else {
       _qtdCtrl.text = '0';
       _minCtrl.text = '3';
+      _comissaoCtrl.text = '20';
     }
     _loadFornecedores();
   }
@@ -71,6 +74,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
     _custoCtrl.dispose();
     _qtdCtrl.dispose();
     _minCtrl.dispose();
+    _comissaoCtrl.dispose();
     super.dispose();
   }
 
@@ -136,6 +140,13 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
         min: 0,
         max: 1000000,
       );
+      final comissaoPercent = SecurityUtils.sanitizeDoubleRange(
+        double.parse(_comissaoCtrl.text.replaceAll(',', '.')),
+        fieldName: 'Comissao',
+        min: 0,
+        max: 100,
+      );
+      final comissaoDecimal = comissaoPercent / 100;
 
       if (_isEditing) {
         await _service.update(
@@ -145,6 +156,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
             precoCusto: precoCusto,
             quantidade: qtd,
             estoqueMinimo: min,
+            comissaoPercentual: comissaoDecimal,
             fornecedorId: _fornecedorId,
             updatedAt: now,
           ),
@@ -157,6 +169,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
             precoCusto: precoCusto,
             quantidade: qtd,
             estoqueMinimo: min,
+            comissaoPercentual: comissaoDecimal,
             fornecedorId: _fornecedorId,
             createdAt: now,
             updatedAt: now,
@@ -231,7 +244,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               validator: (v) {
                 final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                if (n == null || n <= 0) return 'Informe preco de custo valido';
+                if (n == null || n < 0) return 'Informe preco de custo valido';
                 return null;
               },
             ),
@@ -264,6 +277,23 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
               },
             ),
             const SizedBox(height: 12),
+            TextFormField(
+              controller: _comissaoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Comissao (%) *',
+                prefixIcon: Icon(Icons.percent),
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: (v) {
+                final n = double.tryParse((v ?? '').replaceAll(',', '.'));
+                if (n == null || n < 0 || n > 100) {
+                  return 'Informe comissao entre 0 e 100';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               initialValue: _fornecedorId,
               decoration: const InputDecoration(
@@ -285,10 +315,18 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
               onChanged: (v) => setState(() => _fornecedorId = v),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: _saving ? null : _salvar,
-              icon: const Icon(Icons.save),
-              label: Text(_saving ? 'Salvando...' : 'Salvar Produto'),
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Salvar Produto'),
             ),
           ],
         ),
