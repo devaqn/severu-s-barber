@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // agenda_service.dart
 // Serviço de agendamentos com Firestore (fonte principal)
 // e SQLite como cache offline.
@@ -6,7 +6,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -22,7 +21,7 @@ class AgendaService {
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   Future<bool> _isFirebaseOnline() async {
@@ -120,7 +119,8 @@ class AgendaService {
       if (shopId != null && usuario.uid != null) {
         final firebaseId = _uuid.v4();
         await _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
+            .collection(
+                barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
             .doc(firebaseId)
             .set({
           'cliente_id': safeAgendamento.clienteId,
@@ -161,11 +161,13 @@ class AgendaService {
         whereArgs: [safeAgendamento.id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null && usuario.uid != null) {
         await _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
+            .collection(
+                barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
             .doc(firebaseId)
             .set({
           'cliente_id': safeAgendamento.clienteId,
@@ -215,11 +217,13 @@ class AgendaService {
         whereArgs: [id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
+            .collection(
+                barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
             .doc(firebaseId)
             .update({
           'status': safeStatus,
@@ -254,11 +258,13 @@ class AgendaService {
         whereArgs: [id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
+            .collection(
+                barbeariaId: shopId, nome: AppConstants.tableAgendamentos)
             .doc(firebaseId)
             .delete();
       }
@@ -375,7 +381,8 @@ class AgendaService {
     if (dataHora == null) return;
 
     await _context
-        .collection(barbeariaId: resolvedShopId, nome: AppConstants.tableAgendamentos)
+        .collection(
+            barbeariaId: resolvedShopId, nome: AppConstants.tableAgendamentos)
         .doc(firebaseId)
         .set({
       'cliente_id': row['cliente_id'],
@@ -535,4 +542,3 @@ class _UsuarioAtual {
     required this.nome,
   });
 }
-

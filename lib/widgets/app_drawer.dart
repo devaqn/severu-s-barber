@@ -1,17 +1,22 @@
-﻿// ============================================================
+// ============================================================
 // app_drawer.dart
 // Main side menu with role-based navigation.
 // ============================================================
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/auth_controller.dart';
 import '../main.dart' show themeModeNotifier;
+import '../services/profile_photo_service.dart';
 import '../utils/app_theme.dart';
+import 'ui_helpers.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   static const String dashboard = 'dashboard';
   static const String atendimentos = 'atendimentos';
   static const String comandas = 'comandas';
@@ -32,6 +37,291 @@ class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key, this.selectedItem});
 
   @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  final ProfilePhotoService _photoService = ProfilePhotoService();
+  final ImagePicker _picker = ImagePicker();
+
+  String? _avatarPath;
+  String? _avatarUserId;
+  bool _updatingAvatar = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAvatar();
+  }
+
+  void _syncAvatar() {
+    final userId = context.read<AuthController>().usuarioId;
+    if (userId.isEmpty || userId == _avatarUserId) return;
+    _loadAvatar(userId);
+  }
+
+  Future<void> _loadAvatar(String userId) async {
+    _avatarUserId = userId;
+    final file = await _photoService.getProfilePhoto(userId);
+    if (!mounted || _avatarUserId != userId) return;
+    setState(() => _avatarPath = file?.path);
+  }
+
+  Future<void> _openAvatarActions(AuthController auth) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.secondaryColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library,
+                    color: AppTheme.accentColor),
+                title: Text(
+                  'Escolher foto do perfil',
+                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickProfilePhoto(auth);
+                },
+              ),
+              if (_avatarPath != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline,
+                      color: AppTheme.errorColor),
+                  title: Text(
+                    'Remover foto',
+                    style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _removeProfilePhoto(auth);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickProfilePhoto(AuthController auth) async {
+    if (_updatingAvatar || auth.usuarioId.isEmpty) return;
+
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 88,
+    );
+    if (picked == null) return;
+
+    setState(() => _updatingAvatar = true);
+    try {
+      final saved = await _photoService.saveProfilePhoto(
+        userId: auth.usuarioId,
+        sourcePath: picked.path,
+      );
+      if (!mounted) return;
+      setState(() => _avatarPath = saved.path);
+      UiFeedback.showSnack(
+        context,
+        'Foto de perfil atualizada.',
+        type: AppNoticeType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showSnack(
+        context,
+        'Nao foi possivel atualizar a foto de perfil.',
+        type: AppNoticeType.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingAvatar = false);
+      }
+    }
+  }
+
+  Future<void> _removeProfilePhoto(AuthController auth) async {
+    if (_updatingAvatar || auth.usuarioId.isEmpty) return;
+
+    setState(() => _updatingAvatar = true);
+    try {
+      await _photoService.deleteProfilePhoto(auth.usuarioId);
+      if (!mounted) return;
+      setState(() => _avatarPath = null);
+      UiFeedback.showSnack(
+        context,
+        'Foto de perfil removida.',
+        type: AppNoticeType.info,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      UiFeedback.showSnack(
+        context,
+        'Nao foi possivel remover a foto.',
+        type: AppNoticeType.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingAvatar = false);
+      }
+    }
+  }
+
+  String _initials(String name) {
+    final cleaned = name.trim();
+    if (cleaned.isEmpty) return 'SB';
+    final parts = cleaned.split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
+    if (parts.isEmpty) return 'SB';
+    if (parts.length == 1) {
+      final p = parts.first;
+      return p.substring(0, p.length >= 2 ? 2 : 1).toUpperCase();
+    }
+    final list = parts.toList();
+    return '${list.first[0]}${list.last[0]}'.toUpperCase();
+  }
+
+  Widget _buildHeader(AuthController auth, bool isAdmin) {
+    final name = auth.usuarioNome.isEmpty ? 'Sessao ativa' : auth.usuarioNome;
+    final avatarFile = _avatarPath == null ? null : File(_avatarPath!);
+    final hasAvatar = avatarFile != null && avatarFile.existsSync();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 48, 16, 20),
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/severusbanner.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.48),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        ),
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: _updatingAvatar ? null : () => _openAvatarActions(auth),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      color: AppTheme.textPrimary.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppTheme.textPrimary.withValues(alpha: 0.58),
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: hasAvatar
+                          ? Image.file(
+                              avatarFile,
+                              fit: BoxFit.cover,
+                              width: 96,
+                              height: 96,
+                            )
+                          : Center(
+                              child: Text(
+                                _initials(name),
+                                style: GoogleFonts.poppins(
+                                  color: AppTheme.goldColor,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.textPrimary.withValues(alpha: 0.9),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: _updatingAvatar
+                          ? const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(
+                              Icons.photo_camera_outlined,
+                              size: 15,
+                              color: AppTheme.textPrimary,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Severus Barber',
+              style: GoogleFonts.poppins(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              isAdmin ? 'Perfil: Dono/Admin' : 'Perfil: Funcionario',
+              style: GoogleFonts.inter(
+                color: AppTheme.textPrimary.withValues(alpha: 0.78),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                color: AppTheme.textPrimary.withValues(alpha: 0.93),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Toque na foto para alterar',
+              style: GoogleFonts.inter(
+                color: AppTheme.textPrimary.withValues(alpha: 0.76),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final isAdmin = auth.isAdmin;
@@ -40,72 +330,7 @@ class AppDrawer extends StatelessWidget {
       backgroundColor: AppTheme.primaryColor,
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.accentColor, AppTheme.accentDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.textPrimary.withValues(alpha: 0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'SB',
-                      style: GoogleFonts.poppins(
-                        color: AppTheme.goldColor,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Severus Barber',
-                  style: GoogleFonts.poppins(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isAdmin ? 'Perfil: Dono/Admin' : 'Perfil: Funcionário',
-                  style: GoogleFonts.inter(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.75),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  auth.usuarioNome.isEmpty ? 'Sessão ativa' : auth.usuarioNome,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildHeader(auth, isAdmin),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(top: 8),
@@ -114,7 +339,7 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.dashboard,
                   label: 'Dashboard',
                   color: AppTheme.accentColor,
-                  isActive: selectedItem == dashboard,
+                  isActive: widget.selectedItem == AppDrawer.dashboard,
                   onTap: () => _goDashboard(context),
                 ),
                 const _DrawerSection(title: 'Atendimento'),
@@ -122,7 +347,7 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.receipt_long,
                   label: 'Comandas',
                   color: AppTheme.accentColor,
-                  isActive: selectedItem == comandas,
+                  isActive: widget.selectedItem == AppDrawer.comandas,
                   onTap: () =>
                       _navigateTo(context, '/comandas', AppDrawer.comandas),
                 ),
@@ -130,7 +355,7 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.content_cut,
                   label: 'Atendimentos',
                   color: AppTheme.purpleStart,
-                  isActive: selectedItem == atendimentos,
+                  isActive: widget.selectedItem == AppDrawer.atendimentos,
                   onTap: () => _navigateTo(
                       context, '/atendimentos', AppDrawer.atendimentos),
                 ),
@@ -138,7 +363,7 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.event,
                   label: 'Agenda',
                   color: AppTheme.infoColor,
-                  isActive: selectedItem == agenda,
+                  isActive: widget.selectedItem == AppDrawer.agenda,
                   onTap: () =>
                       _navigateTo(context, '/agenda', AppDrawer.agenda),
                 ),
@@ -147,7 +372,7 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.people,
                   label: 'Clientes',
                   color: AppTheme.infoColor,
-                  isActive: selectedItem == clientes,
+                  isActive: widget.selectedItem == AppDrawer.clientes,
                   onTap: () =>
                       _navigateTo(context, '/clientes', AppDrawer.clientes),
                 ),
@@ -156,7 +381,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.badge_outlined,
                     label: 'Adicionar Barbeiro',
                     color: AppTheme.goldColor,
-                    isActive: selectedItem == barbeiros,
+                    isActive: widget.selectedItem == AppDrawer.barbeiros,
                     onTap: () => _navigateTo(
                       context,
                       '/admin/barbeiros',
@@ -165,9 +390,9 @@ class AppDrawer extends StatelessWidget {
                   ),
                   _DrawerItem(
                     icon: Icons.design_services,
-                    label: 'ServiÃ§os',
+                    label: 'Serviços',
                     color: AppTheme.warningColor,
-                    isActive: selectedItem == servicos,
+                    isActive: widget.selectedItem == AppDrawer.servicos,
                     onTap: () =>
                         _navigateTo(context, '/servicos', AppDrawer.servicos),
                   ),
@@ -175,7 +400,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.shopping_bag,
                     label: 'Produtos',
                     color: AppTheme.successColor,
-                    isActive: selectedItem == produtos,
+                    isActive: widget.selectedItem == AppDrawer.produtos,
                     onTap: () =>
                         _navigateTo(context, '/produtos', AppDrawer.produtos),
                   ),
@@ -183,7 +408,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.inventory_2,
                     label: 'Estoque',
                     color: AppTheme.warningColor,
-                    isActive: selectedItem == estoque,
+                    isActive: widget.selectedItem == AppDrawer.estoque,
                     onTap: () =>
                         _navigateTo(context, '/estoque', AppDrawer.estoque),
                   ),
@@ -192,7 +417,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.attach_money,
                     label: 'Financeiro',
                     color: AppTheme.goldColor,
-                    isActive: selectedItem == financeiro,
+                    isActive: widget.selectedItem == AppDrawer.financeiro,
                     onTap: () => _navigateTo(
                         context, '/financeiro', AppDrawer.financeiro),
                   ),
@@ -200,7 +425,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.point_of_sale,
                     label: 'Caixa',
                     color: AppTheme.successColor,
-                    isActive: selectedItem == caixa,
+                    isActive: widget.selectedItem == AppDrawer.caixa,
                     onTap: () =>
                         _navigateTo(context, '/caixa', AppDrawer.caixa),
                   ),
@@ -209,7 +434,7 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.analytics,
                     label: 'Analytics',
                     color: AppTheme.infoColor,
-                    isActive: selectedItem == analytics,
+                    isActive: widget.selectedItem == AppDrawer.analytics,
                     onTap: () =>
                         _navigateTo(context, '/analytics', AppDrawer.analytics),
                   ),
@@ -217,15 +442,15 @@ class AppDrawer extends StatelessWidget {
                     icon: Icons.emoji_events,
                     label: 'Ranking de Clientes',
                     color: AppTheme.goldColor,
-                    isActive: selectedItem == ranking,
+                    isActive: widget.selectedItem == AppDrawer.ranking,
                     onTap: () =>
                         _navigateTo(context, '/ranking', AppDrawer.ranking),
                   ),
                   _DrawerItem(
                     icon: Icons.summarize,
-                    label: 'RelatÃ³rios',
+                    label: 'Relatórios',
                     color: AppTheme.errorColor,
-                    isActive: selectedItem == relatorios,
+                    isActive: widget.selectedItem == AppDrawer.relatorios,
                     onTap: () => _navigateTo(
                         context, '/relatorios', AppDrawer.relatorios),
                   ),
@@ -316,7 +541,7 @@ class AppDrawer extends StatelessWidget {
 
   void _navigateTo(BuildContext context, String route, String key) {
     Navigator.pop(context);
-    if (selectedItem == key) return;
+    if (widget.selectedItem == key) return;
     Navigator.pushNamedAndRemoveUntil(context, route, (r) => false);
   }
 
@@ -425,4 +650,3 @@ class _DrawerItem extends StatelessWidget {
     );
   }
 }
-

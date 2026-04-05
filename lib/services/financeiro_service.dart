@@ -8,7 +8,6 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -33,7 +32,7 @@ class FinanceiroService {
     'Luz',
   };
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   Future<bool> _isFirebaseOnline() async {
@@ -113,7 +112,8 @@ class FinanceiroService {
         whereArgs: [safeDespesa.id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       final uid = _auth.currentUser?.uid;
       if (firebaseId != null && shopId != null && uid != null) {
@@ -159,7 +159,8 @@ class FinanceiroService {
         whereArgs: [safeId],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context
@@ -202,7 +203,8 @@ class FinanceiroService {
 
   Future<Map<String, double>> getResumo(DateTime inicio, DateTime fim) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
-    final faturamento = await _comandaService.getFaturamentoPeriodo(inicio, fim);
+    final faturamento =
+        await _comandaService.getFaturamentoPeriodo(inicio, fim);
     final despesas = await getTotalDespesas(inicio, fim);
     final lucro = faturamento - despesas;
 
@@ -341,8 +343,8 @@ class FinanceiroService {
       );
     }
 
-    final pagamentos =
-        await _comandaService.getFaturamentoPorPagamento(caixa.dataAbertura, agora);
+    final pagamentos = await _comandaService.getFaturamentoPorPagamento(
+        caixa.dataAbertura, agora);
 
     final valorFinal =
         caixa.valorInicial + pagamentos.values.fold(0.0, (a, b) => a + b);
@@ -553,7 +555,8 @@ class FinanceiroService {
     if (data == null) return;
 
     await _context
-        .collection(barbeariaId: resolvedShopId, nome: AppConstants.tableDespesas)
+        .collection(
+            barbeariaId: resolvedShopId, nome: AppConstants.tableDespesas)
         .doc(firebaseId)
         .set({
       'descricao': row['descricao'],
@@ -682,13 +685,13 @@ class FinanceiroService {
       );
     }
 
-    final dataAbertura = DateTime.tryParse((row['data_abertura'] as String?) ?? '');
+    final dataAbertura =
+        DateTime.tryParse((row['data_abertura'] as String?) ?? '');
     if (dataAbertura == null) return;
 
     final dataFechamentoRaw = row['data_fechamento'] as String?;
-    final dataFechamento = dataFechamentoRaw == null
-        ? null
-        : DateTime.tryParse(dataFechamentoRaw);
+    final dataFechamento =
+        dataFechamentoRaw == null ? null : DateTime.tryParse(dataFechamentoRaw);
 
     await _context
         .collection(barbeariaId: resolvedShopId, nome: AppConstants.tableCaixas)
@@ -821,4 +824,3 @@ class FinanceiroService {
     );
   }
 }
-

@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -7,7 +7,11 @@ import '../utils/constants.dart';
 class FirebaseContextService {
   static String? _cachedBarbeariaId;
 
-  bool get firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get firebaseDisponivel {
+    if (Firebase.apps.isEmpty) return false;
+    final options = Firebase.app().options;
+    return _firebaseConfigValida(options);
+  }
 
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -70,7 +74,10 @@ class FirebaseContextService {
     required String barbeariaId,
     required String nome,
   }) {
-    return _firestore.collection('barbearias').doc(barbeariaId).collection(nome);
+    return _firestore
+        .collection('barbearias')
+        .doc(barbeariaId)
+        .collection(nome);
   }
 
   DocumentReference<Map<String, dynamic>> barbeariaDoc(String barbeariaId) {
@@ -92,5 +99,34 @@ class FirebaseContextService {
 
   static void setCachedBarbeariaId(String? value) {
     _cachedBarbeariaId = value;
+  }
+
+  bool _firebaseConfigValida(FirebaseOptions options) {
+    final apiKey = options.apiKey.trim();
+    final appId = options.appId.trim();
+    final projectId = options.projectId.trim();
+    final senderId = options.messagingSenderId.trim();
+
+    if (_isLikelyPlaceholder(apiKey) ||
+        _isLikelyPlaceholder(projectId) ||
+        appId.isEmpty ||
+        appId.contains(':000000000000:') ||
+        appId.endsWith(':0000000000000000000000')) {
+      return false;
+    }
+
+    if (senderId.isEmpty || RegExp(r'^0+$').hasMatch(senderId)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isLikelyPlaceholder(String value) {
+    final v = value.trim().toLowerCase();
+    if (v.isEmpty) return true;
+    if (v.contains('placeholder')) return true;
+    if (RegExp(r'^0+$').hasMatch(v)) return true;
+    return false;
   }
 }

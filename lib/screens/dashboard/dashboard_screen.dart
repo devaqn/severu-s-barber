@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // dashboard_screen.dart
 // Tela principal com consolidacao de indicadores da barbearia.
 // ============================================================
@@ -152,7 +152,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const NovoAtendimentoScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const NovoAtendimentoScreen()),
               );
               await _recarregar();
             },
@@ -266,26 +267,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: Image.asset(
-            'assets/images/severusbanner.png',
+          child: Container(
             height: 180,
             width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                height: 120,
-                width: double.infinity,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppTheme.secondaryColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Logo nao encontrado',
-                  style: GoogleFonts.inter(color: AppTheme.textSecondary),
-                ),
-              );
-            },
+            color: const Color(0xFF101010),
+            child: Image.asset(
+              'assets/images/severusbanner.png',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 120,
+                  width: double.infinity,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondaryColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Logo nao encontrado',
+                    style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -361,7 +365,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: 'Estoque Baixo',
             value: '$estoqueBaixo item(ns)',
             icon: Icons.warning_amber_rounded,
-            color: estoqueBaixo > 0 ? AppTheme.warningColor : AppTheme.textSecondary,
+            color: estoqueBaixo > 0
+                ? AppTheme.warningColor
+                : AppTheme.textSecondary,
             gradient: estoqueBaixo > 0
                 ? const [AppTheme.warningColor, AppTheme.warningDark]
                 : const [AppTheme.textSecondary, AppTheme.secondaryColor],
@@ -428,7 +434,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppTheme.infoColor.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
@@ -600,7 +607,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.event_available, color: AppTheme.textSecondary),
+                    const Icon(Icons.event_available,
+                        color: AppTheme.textSecondary),
                     const SizedBox(height: 6),
                     Text(
                       'Agenda limpa para hoje',
@@ -622,7 +630,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: AppTheme.accentColor.withValues(alpha: 0.2),
+                      backgroundColor:
+                          AppTheme.accentColor.withValues(alpha: 0.2),
                       child: Text(
                         a.clienteNome.isNotEmpty
                             ? a.clienteNome[0].toUpperCase()
@@ -792,9 +801,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-
-
-
 /// Modelo de acao filho do FAB expansivel.
 class ExpandableFabAction {
   final String label;
@@ -848,12 +854,14 @@ class _ExpandableFabState extends State<ExpandableFab> {
               child: IgnorePointer(
                 ignoring: !_open,
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: index == widget.actions.length - 1 ? 10 : 8),
+                  padding: EdgeInsets.only(
+                      bottom: index == widget.actions.length - 1 ? 10 : 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: AppTheme.secondaryColor,
                           borderRadius: BorderRadius.circular(12),
@@ -890,11 +898,11 @@ class _ExpandableFabState extends State<ExpandableFab> {
           child: AnimatedRotation(
             turns: _open ? 0.125 : 0,
             duration: const Duration(milliseconds: 220),
-            child: Icon(_open ? Icons.close : Icons.add, color: AppTheme.textPrimary),
+            child: Icon(_open ? Icons.close : Icons.add,
+                color: AppTheme.textPrimary),
           ),
         ),
       ],
     );
   }
 }
-

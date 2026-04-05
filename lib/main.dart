@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -55,15 +57,29 @@ Future<void> main() async {
     );
   };
 
+  await _inicializarFirebase();
+
+  runApp(const SeverusBarberApp());
+}
+
+Future<void> _inicializarFirebase() async {
   try {
+    final isAndroidOrIos = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+
+    if (isAndroidOrIos) {
+      // Android/iOS usam configuracao nativa (google-services / plist).
+      await Firebase.initializeApp();
+      return;
+    }
+
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-  } catch (_) {
-    debugPrint('Firebase nao inicializado. Rodando em modo offline.');
+  } catch (e) {
+    debugPrint('Firebase nao inicializado. Rodando em modo offline. Erro: $e');
   }
-
-  runApp(const SeverusBarberApp());
 }
 
 class SeverusBarberApp extends StatelessWidget {

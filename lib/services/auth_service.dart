@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // auth_service.dart
 // Authentication service with Firebase Auth + Firestore
 // (multi-tenant by barbearia) and SQLite offline fallback.
@@ -24,14 +24,32 @@ class AuthService {
 
   static const String _offlineAdminEmailDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_EMAIL',
-    defaultValue: 'admin@offline.test',
+    defaultValue: 'teste@severus.app',
   );
   static const String _offlineAdminPasswordDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_PASSWORD',
-    defaultValue: '123456',
+    defaultValue: 'Teste@123!',
+  );
+  static const String _firebaseTestAdminNameDefine = String.fromEnvironment(
+    'FIREBASE_TEST_ADMIN_NAME',
+    defaultValue: 'Administrador Teste',
+  );
+  static const String _firebaseTestAdminEmailDefine = String.fromEnvironment(
+    'FIREBASE_TEST_ADMIN_EMAIL',
+    defaultValue: 'teste@severus.app',
+  );
+  static const String _firebaseTestAdminPasswordDefine = String.fromEnvironment(
+    'FIREBASE_TEST_ADMIN_PASSWORD',
+    defaultValue: 'Teste@123!',
   );
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel {
+    if (Firebase.apps.isEmpty) return false;
+    final options = Firebase.app().options;
+    return _firebaseConfigValida(options);
+  }
+
+  bool get firebaseDisponivel => _firebaseDisponivel;
 
   bool get _offlineDisponivel =>
       _offlineAdminEmailDefine.trim().isNotEmpty &&
@@ -108,6 +126,80 @@ class AuthService {
       _usuarioLocalLogado = usuario;
       return usuario;
     } on FirebaseAuthException catch (e) {
+      throw _traduzirErroAuth(e);
+    }
+  }
+
+  Future<Usuario> entrarOuCriarContaTesteFirebase() async {
+    final email = SecurityUtils.sanitizeEmail(_firebaseTestAdminEmailDefine);
+    const senha = _firebaseTestAdminPasswordDefine;
+    final nome = SecurityUtils.sanitizeName(
+      _firebaseTestAdminNameDefine,
+      fieldName: 'Nome da conta teste',
+    );
+    SecurityUtils.ensureStrongPassword(senha);
+
+    if (!_firebaseDisponivel) {
+      return _loginOffline(email: email, password: senha);
+    }
+
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: senha,
+      );
+      final usuario = await _garantirPerfilAdminParaUser(
+        user: cred.user!,
+        nome: nome,
+        email: email,
+      );
+      _usuarioLocalLogado = usuario;
+      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      return usuario;
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'user-not-found' &&
+          e.code != 'wrong-password' &&
+          e.code != 'invalid-credential' &&
+          e.code != 'invalid-login-credentials') {
+        throw _traduzirErroAuth(e);
+      }
+    }
+
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: senha,
+      );
+      final usuario = await _garantirPerfilAdminParaUser(
+        user: cred.user!,
+        nome: nome,
+        email: email,
+      );
+      _usuarioLocalLogado = usuario;
+      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      return usuario;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        try {
+          final cred = await _auth.signInWithEmailAndPassword(
+            email: email,
+            password: senha,
+          );
+          final usuario = await _garantirPerfilAdminParaUser(
+            user: cred.user!,
+            nome: nome,
+            email: email,
+          );
+          _usuarioLocalLogado = usuario;
+          FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+          return usuario;
+        } on FirebaseAuthException {
+          throw Exception(
+            'Conta de teste ja existe com outra senha. '
+            'Atualize FIREBASE_TEST_ADMIN_PASSWORD.',
+          );
+        }
+      }
       throw _traduzirErroAuth(e);
     }
   }
@@ -226,7 +318,10 @@ class AuthService {
     if (!firstLogin && usuario.firstLogin) {
       await _usuariosCollection(_resolveBarbeariaId(usuario))
           .doc(usuario.id)
-          .update({'first_login': false, 'updated_at': FieldValue.serverTimestamp()});
+          .update({
+        'first_login': false,
+        'updated_at': FieldValue.serverTimestamp()
+      });
       final atualizado = usuario.copyWith(firstLogin: false);
       await _upsertUsuarioLocal(atualizado);
       return atualizado;
@@ -516,6 +611,9 @@ class AuthService {
   }
 
   Future<bool> podeCadastrarAdminPublicamente() async {
+    if (!_firebaseDisponivel) {
+      return false;
+    }
     return !(await _hasAnyAdmin());
   }
 
@@ -524,6 +622,7 @@ class AuthService {
       case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':
+      case 'invalid-login-credentials':
         return Exception('Email ou senha invalidos.');
       case 'email-already-in-use':
         return Exception('Este email ja esta em uso.');
@@ -531,6 +630,16 @@ class AuthService {
         return Exception('Senha fraca. Use uma senha mais forte.');
       case 'invalid-email':
         return Exception('Email invalido.');
+      case 'operation-not-allowed':
+        return Exception(
+          'Login por email/senha nao esta habilitado no Firebase Authentication.',
+        );
+      case 'app-not-authorized':
+      case 'invalid-api-key':
+      case 'api-key-not-valid':
+        return Exception(
+          'Configuracao do Firebase invalida. Verifique google-services.json.',
+        );
       case 'too-many-requests':
         return Exception('Muitas tentativas. Tente novamente mais tarde.');
       case 'network-request-failed':
@@ -544,18 +653,59 @@ class AuthService {
 
   void _garantirFirebaseInicializado() {
     if (!_firebaseDisponivel) {
-      throw Exception('Firebase nao inicializado.');
+      throw Exception(
+        'Firebase nao configurado neste app. '
+        'Use google-services.json real para autenticar online.',
+      );
     }
+  }
+
+  bool _firebaseConfigValida(FirebaseOptions options) {
+    final apiKey = options.apiKey.trim();
+    final appId = options.appId.trim();
+    final projectId = options.projectId.trim();
+    final senderId = options.messagingSenderId.trim();
+
+    if (_isLikelyPlaceholder(apiKey) ||
+        _isLikelyPlaceholder(projectId) ||
+        appId.isEmpty ||
+        appId.contains(':000000000000:') ||
+        appId.endsWith(':0000000000000000000000')) {
+      return false;
+    }
+
+    if (senderId.isEmpty || RegExp(r'^0+$').hasMatch(senderId)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isLikelyPlaceholder(String value) {
+    final v = value.trim().toLowerCase();
+    if (v.isEmpty) return true;
+    if (v.contains('placeholder')) return true;
+    if (RegExp(r'^0+$').hasMatch(v)) return true;
+    return false;
   }
 
   Future<bool> _hasAnyAdmin() async {
     if (_firebaseDisponivel) {
-      final snap = await _firestore
-          .collectionGroup(AppConstants.tableUsuarios)
-          .where('role', isEqualTo: AppConstants.roleAdmin)
-          .limit(1)
-          .get();
-      return snap.docs.isNotEmpty;
+      try {
+        final snap = await _firestore
+            .collectionGroup(AppConstants.tableUsuarios)
+            .where('role', isEqualTo: AppConstants.roleAdmin)
+            .limit(1)
+            .get();
+        return snap.docs.isNotEmpty;
+      } on FirebaseException catch (e) {
+        // Em regras de producao fechadas, usuario deslogado pode nao ter
+        // permissao de leitura para esse collectionGroup.
+        if (e.code == 'permission-denied') {
+          return false;
+        }
+        rethrow;
+      }
     }
 
     final rows = await _db.rawQuery('''
@@ -615,13 +765,59 @@ class AuthService {
     );
   }
 
-  Future<void> _ensureBarbeariaDocument(String shopId, String uidCriador) async {
+  Future<void> _ensureBarbeariaDocument(
+      String shopId, String uidCriador) async {
     await _context.barbeariaDoc(shopId).set({
       'id': shopId,
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
       'created_by': uidCriador,
     }, SetOptions(merge: true));
+  }
+
+  Future<Usuario> _garantirPerfilAdminParaUser({
+    required User user,
+    required String nome,
+    required String email,
+  }) async {
+    final existente = await _buscarUsuarioFirestore(user.uid);
+    if (existente != null) {
+      await _upsertUsuarioLocal(existente);
+      return existente;
+    }
+
+    final shopId = 'shop_${user.uid}';
+    await _ensureBarbeariaDocument(shopId, user.uid);
+    await _usuariosCollection(shopId).doc(user.uid).set({
+      'uid': user.uid,
+      'id': user.uid,
+      'nome': nome,
+      'email': email,
+      'telefone': null,
+      'role': AppConstants.roleAdmin,
+      'ativo': true,
+      'comissao_percentual': 0.0,
+      'first_login': false,
+      'barbearia_id': shopId,
+      'created_by': user.uid,
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final criado = Usuario(
+      id: user.uid,
+      nome: nome,
+      email: email,
+      telefone: null,
+      role: AppConstants.roleAdmin,
+      ativo: true,
+      comissaoPercentual: 0.0,
+      firstLogin: false,
+      barbeariaId: shopId,
+      createdAt: DateTime.now(),
+    );
+    await _upsertUsuarioLocal(criado);
+    return criado;
   }
 
   Future<Usuario?> _buscarUsuarioFirestore(String uid) async {
@@ -718,7 +914,10 @@ class AuthService {
     const offlinePassword = _offlineAdminPasswordDefine;
 
     if (email != offlineEmail || password != offlinePassword) {
-      throw Exception('Credenciais invalidas.');
+      throw Exception(
+        'Credenciais invalidas. Use a conta de teste: '
+        '$_offlineAdminEmailDefine / $_offlineAdminPasswordDefine',
+      );
     }
 
     final rows = await _db.queryAll(

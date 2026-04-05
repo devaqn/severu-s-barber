@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -27,7 +26,7 @@ class ComandaService {
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   Future<bool> _isFirebaseOnline() async {
@@ -289,11 +288,11 @@ class ComandaService {
         AppConstants.tableComandasItens,
         {
           ...safeItem
-            .copyWith(
-              comandaId: safeComandaId,
-              comissaoPercentual: comissaoFinal,
-            )
-            .toMap(),
+              .copyWith(
+                comandaId: safeComandaId,
+                comissaoPercentual: comissaoFinal,
+              )
+              .toMap(),
           'updated_at': DateTime.now().toIso8601String(),
         },
       );
@@ -602,7 +601,10 @@ class ComandaService {
           );
     await _syncFromFirestoreIfOnline();
 
-    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereArgs = <dynamic>[
+      inicio.toIso8601String(),
+      fim.toIso8601String()
+    ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
@@ -633,7 +635,10 @@ class ComandaService {
           );
     await _syncFromFirestoreIfOnline();
 
-    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereArgs = <dynamic>[
+      inicio.toIso8601String(),
+      fim.toIso8601String()
+    ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
@@ -705,7 +710,10 @@ class ComandaService {
           );
     await _syncFromFirestoreIfOnline();
 
-    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereArgs = <dynamic>[
+      inicio.toIso8601String(),
+      fim.toIso8601String()
+    ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
@@ -885,10 +893,9 @@ class ComandaService {
     final comandaRef = _context
         .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
         .doc(firebaseId);
-    final createdBy =
-        (row['created_by'] as String?)?.trim().isNotEmpty == true
-            ? row['created_by'] as String
-            : uid;
+    final createdBy = (row['created_by'] as String?)?.trim().isNotEmpty == true
+        ? row['created_by'] as String
+        : uid;
 
     await comandaRef.set({
       'cliente_id': row['cliente_id'],
@@ -951,7 +958,8 @@ class ComandaService {
       }, SetOptions(merge: true));
     }
 
-    final cloudItems = await comandaRef.collection(_comandaItensSubcollection).get();
+    final cloudItems =
+        await comandaRef.collection(_comandaItensSubcollection).get();
     for (final cloudDoc in cloudItems.docs) {
       if (!localFirebaseIds.contains(cloudDoc.id)) {
         await cloudDoc.reference.delete();

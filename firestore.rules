@@ -26,9 +26,26 @@ service cloud.firestore {
       return isInShop(shopId) && getUser(shopId).role == 'barbeiro';
     }
 
+    function isBootstrapAdmin(shopId, uid) {
+      return isAuth()
+        && uid == request.auth.uid
+        && shopId == 'shop_' + request.auth.uid
+        && request.resource.data.role == 'admin'
+        && request.resource.data.ativo == true
+        && request.resource.data.barbearia_id == shopId;
+    }
+
+    match /barbearias/{shopId} {
+      allow read: if isInShop(shopId);
+      allow create: if isAuth()
+        && shopId == 'shop_' + request.auth.uid
+        && request.resource.data.created_by == request.auth.uid;
+      allow update: if isInShop(shopId) && isAdmin(shopId);
+    }
+
     match /barbearias/{shopId}/usuarios/{uid} {
       allow read: if isInShop(shopId) && (isAdmin(shopId) || request.auth.uid == uid);
-      allow write: if isInShop(shopId) && isAdmin(shopId);
+      allow write: if (isInShop(shopId) && isAdmin(shopId)) || isBootstrapAdmin(shopId, uid);
     }
 
     match /barbearias/{shopId}/clientes/{id} {

@@ -43,6 +43,7 @@ class AuthController extends ChangeNotifier {
   bool get isLoading => _loading;
   bool get isAdmin => _usuario?.isAdmin ?? false;
   bool get isBarbeiro => _usuario?.isBarbeiro ?? false;
+  bool get firebaseDisponivel => _authService.firebaseDisponivel;
   String get usuarioId => _usuario?.id ?? '';
   String get usuarioNome => _usuario?.nome ?? '';
   String get barbeariaId => _usuario?.barbeariaId ?? '';
@@ -84,6 +85,27 @@ class AuthController extends ChangeNotifier {
       SecurityUtils.ensure(password.isNotEmpty, 'Senha obrigatoria.');
 
       final u = await _authService.login(email: safeEmail, password: password);
+      _usuario = u;
+      _status = u.isAdmin
+          ? AuthStatus.autenticadoAdmin
+          : AuthStatus.autenticadoBarbeiro;
+      return true;
+    } catch (e) {
+      _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      _status = AuthStatus.naoAutenticado;
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> entrarOuCriarContaTesteFirebase() async {
+    _loading = true;
+    _errorMsg = null;
+    notifyListeners();
+    try {
+      final u = await _authService.entrarOuCriarContaTesteFirebase();
       _usuario = u;
       _status = u.isAdmin
           ? AuthStatus.autenticadoAdmin

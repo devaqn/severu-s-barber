@@ -1,6 +1,6 @@
-﻿// ============================================================
+// ============================================================
 // admin_dashboard_screen.dart
-// Dashboard administrativo: visÃ£o total da barbearia,
+// Dashboard administrativo: visão total da barbearia,
 // ranking de barbeiros, faturamento e comandas abertas.
 // ============================================================
 
@@ -21,7 +21,7 @@ import '../../widgets/stat_card.dart';
 import '../../widgets/ui_helpers.dart';
 import '../comanda/comandas_screen.dart';
 
-/// Dashboard do administrador com visÃ£o completa da barbearia.
+/// Dashboard do administrador com visão completa da barbearia.
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -131,7 +131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return AppPageContainer(
               child: AppErrorState(
                 title: 'Falha ao carregar o dashboard',
-                subtitle: 'Verifique a conexÃ£o e tente novamente.',
+                subtitle: 'Verifique a conexão e tente novamente.',
                 onRetry: _recarregar,
               ),
             );
@@ -183,7 +183,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         gradient: const [AppTheme.infoColor, AppTheme.infoDark],
                       ),
                       StatCard(
-                        title: 'Faturado no MÃªs',
+                        title: 'Faturado no Mês',
                         value: AppFormatters.currency(fatMes),
                         icon: Icons.calendar_month,
                         color: AppTheme.accentColor,
@@ -210,7 +210,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             : const [AppTheme.errorColor, AppTheme.accentDark],
                       ),
                       StatCard(
-                        title: 'Despesas do MÃªs',
+                        title: 'Despesas do Mês',
                         value: AppFormatters.currency(despesas),
                         icon: Icons.money_off,
                         color: AppTheme.errorColor,
@@ -252,7 +252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // GrÃ¡fico de faturamento
+                    // Gráfico de faturamento
                     _buildGrafico(faturamentoPorDia),
                     const SizedBox(height: 20),
 
@@ -323,7 +323,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '$count comanda(s) em aberto â€” Toque para ver',
+                '$count comanda(s) em aberto — Toque para ver',
                 style: GoogleFonts.inter(
                   color: AppTheme.warningColor,
                   fontWeight: FontWeight.w600,
@@ -352,8 +352,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildBannerAniversariantes(List<Cliente> clientes) {
     final nomes = clientes.map((c) => c.nome).join(', ');
     final telefones = clientes
-        .map((c) => '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
-        .join('  â€¢  ');
+        .map((c) =>
+            '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
+        .join('  •  ');
 
     return Container(
       width: double.infinity,
@@ -401,26 +402,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildCardPair(Widget left, Widget right) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 760;
-        if (stacked) {
-          return Column(
-            children: [
-              left,
-              const SizedBox(height: 10),
-              right,
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: left),
-            const SizedBox(width: 10),
-            Expanded(child: right),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: 10),
+        Expanded(child: right),
+      ],
     );
   }
 
@@ -476,7 +463,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     SizedBox(
                       width: 28,
                       child: Text(
-                        '${i + 1}Âº',
+                        '${i + 1}º',
                         style: GoogleFonts.poppins(
                           color: posColor,
                           fontWeight: FontWeight.w700,
@@ -514,7 +501,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
                         Text(
-                          'ComissÃ£o: ${AppFormatters.currency((r['comissao'] as num?)?.toDouble() ?? 0)}',
+                          'Comissão: ${AppFormatters.currency((r['comissao'] as num?)?.toDouble() ?? 0)}',
                           style: GoogleFonts.inter(
                               color: AppTheme.goldColor, fontSize: 11),
                         ),

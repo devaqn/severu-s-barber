@@ -68,6 +68,73 @@ function Sync-GradleApkToFlutterOutput {
     }
 }
 
+function Test-Utf8SourceFiles {
+    param([string]$ProjectRoot)
+
+    $utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+    $mojibakeTokens = @(
+        "Ã§", "Ã£", "Ã¡", "Ã©", "Ãª", "Ã³", "Ãº", "Ã­", "Ãµ",
+        "Ã‰", "Ã“", "Ã‡", "Âº", "Âª", "â€”", "â€¢", "â€“", "â€"
+    )
+
+    $targetDirs = @(
+        (Join-Path $ProjectRoot "lib"),
+        (Join-Path $ProjectRoot "test"),
+        (Join-Path $ProjectRoot "docs")
+    ) | Where-Object { Test-Path $_ }
+
+    $targetFiles = @(
+        (Join-Path $ProjectRoot "README.md"),
+        (Join-Path $ProjectRoot "FIREBASE_SETUP.md"),
+        (Join-Path $ProjectRoot "pubspec.yaml"),
+        (Join-Path $ProjectRoot "analysis_options.yaml")
+    ) | Where-Object { Test-Path $_ }
+
+    $extensions = @(".dart", ".md", ".yaml", ".yml", ".json", ".kts", ".ps1")
+    $files = New-Object System.Collections.Generic.List[string]
+
+    foreach ($dir in $targetDirs) {
+        Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
+            if ($extensions -contains $_.Extension.ToLowerInvariant()) {
+                $files.Add($_.FullName)
+            }
+        }
+    }
+
+    foreach ($file in $targetFiles) {
+        $files.Add($file)
+    }
+
+    $invalidUtf8 = New-Object System.Collections.Generic.List[string]
+    $mojibakeFound = New-Object System.Collections.Generic.List[string]
+
+    foreach ($filePath in $files) {
+        try {
+            $bytes = [System.IO.File]::ReadAllBytes($filePath)
+            $text = $utf8Strict.GetString($bytes)
+
+            foreach ($token in $mojibakeTokens) {
+                if ($text.Contains($token)) {
+                    $mojibakeFound.Add($filePath)
+                    break
+                }
+            }
+        }
+        catch {
+            $invalidUtf8.Add($filePath)
+        }
+    }
+
+    if ($invalidUtf8.Count -gt 0) {
+        throw "Arquivos com codificacao invalida (nao UTF-8):`n - $($invalidUtf8 -join \"`n - \")"
+    }
+
+    if ($mojibakeFound.Count -gt 0) {
+        $unique = $mojibakeFound | Sort-Object -Unique
+        throw "Arquivos com texto possivelmente corrompido (mojibake):`n - $($unique -join \"`n - \")"
+    }
+}
+
 if (-not (Test-Path $flutterBin)) {
     throw "Flutter nao encontrado em $flutterBin"
 }
@@ -99,6 +166,7 @@ try {
     Stop-GradleInfrastructure -ProjectRoot $projectRoot
     & $flutterBin clean
     & $flutterBin pub get
+    Test-Utf8SourceFiles -ProjectRoot $projectRoot
 
     $loopbackErrorDetected = $false
     $lastFlutterLog = $null

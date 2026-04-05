@@ -1,11 +1,10 @@
-﻿// ============================================================
+// ============================================================
 // servico_service.dart
 // Servico CRUD de servicos com Firestore + cache SQLite.
 // ============================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -21,7 +20,7 @@ class ServicoService {
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   Future<bool> _isFirebaseOnline() async {
@@ -107,7 +106,8 @@ class ServicoService {
         whereArgs: [safeServico.id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       final uid = _auth.currentUser?.uid;
       if (firebaseId != null && shopId != null && uid != null) {
@@ -153,7 +153,8 @@ class ServicoService {
         whereArgs: [id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context

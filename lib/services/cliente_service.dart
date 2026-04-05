@@ -1,6 +1,5 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:uuid/uuid.dart';
 
@@ -19,7 +18,7 @@ class ClienteService {
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
 
   Future<bool> _isFirebaseOnline() async {
     if (!_firebaseDisponivel) return false;

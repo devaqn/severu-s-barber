@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:uuid/uuid.dart';
 
@@ -22,7 +21,7 @@ class ProdutoService {
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
-  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
   Future<bool> _isFirebaseOnline() async {
@@ -111,7 +110,8 @@ class ProdutoService {
         whereArgs: [safeProduto.id],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       final uid = _auth.currentUser?.uid;
       if (firebaseId != null && shopId != null && uid != null) {
@@ -156,7 +156,8 @@ class ProdutoService {
         whereArgs: [safeId],
         limit: 1,
       );
-      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId =
+          row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context
@@ -617,7 +618,8 @@ class ProdutoService {
       'barbearia_id': shopId,
       'created_by': uid,
       'updated_at': FieldValue.serverTimestamp(),
-      if (produto['created_at'] == null) 'created_at': FieldValue.serverTimestamp(),
+      if (produto['created_at'] == null)
+        'created_at': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
     final movimentos = await _db.queryAll(
