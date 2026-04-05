@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // caixa_screen.dart
 // Controle de abertura e fechamento de caixa diario.
 // Mostra resumo por forma de pagamento ao fechar.
@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/caixa.dart';
-import '../../services/atendimento_service.dart';
 import '../../services/financeiro_service.dart';
 import '../../utils/formatters.dart';
 import '../../utils/constants.dart';
@@ -24,7 +23,6 @@ class CaixaScreen extends StatefulWidget {
 
 class _CaixaScreenState extends State<CaixaScreen> {
   final FinanceiroService _service = FinanceiroService();
-  final AtendimentoService _atendimentoService = AtendimentoService();
 
   Caixa? _caixaAberto;
   List<Caixa> _historico = [];
@@ -56,7 +54,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
 
       Map<String, double> pagamentos = {};
       if (aberto != null) {
-        pagamentos = await _atendimentoService.getFaturamentoPorPagamento(
+        pagamentos = await _service.getFaturamentoPorPagamento(
           aberto.dataAbertura,
           DateTime.now(),
         );
@@ -159,6 +157,133 @@ class _CaixaScreenState extends State<CaixaScreen> {
     }
   }
 
+  Future<void> _sangria() async {
+    if (_caixaAberto == null) return;
+    final ctrl = TextEditingController();
+    final obsCtrl = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sangria de Caixa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Informe o valor retirado do caixa:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: 'Valor (R\$)',
+                prefixIcon: Icon(Icons.arrow_downward),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: obsCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo (opcional)',
+                prefixIcon: Icon(Icons.notes),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            child: const Text('Confirmar Sangria'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
+        await _service.sangria(
+          caixaId: _caixaAberto!.id!,
+          valor: valor,
+          observacao: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+        );
+        await _carregar();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppTheme.successColor,
+              content: Text('Sangria de R\$ ${valor.toStringAsFixed(2)} registrada.'),
+            ),
+          );
+        }
+      } catch (e) {
+        _erro('Falha na sangria: $e');
+      }
+    }
+  }
+
+  Future<void> _reforco() async {
+    if (_caixaAberto == null) return;
+    final ctrl = TextEditingController();
+    final obsCtrl = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reforço de Caixa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Informe o valor adicionado ao caixa:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: 'Valor (R\$)',
+                prefixIcon: Icon(Icons.arrow_upward),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: obsCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo (opcional)',
+                prefixIcon: Icon(Icons.notes),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar Reforço'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      try {
+        final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
+        await _service.reforco(
+          caixaId: _caixaAberto!.id!,
+          valor: valor,
+          observacao: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+        );
+        await _carregar();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppTheme.successColor,
+              content: Text('Reforço de R\$ ${valor.toStringAsFixed(2)} registrado.'),
+            ),
+          );
+        }
+      } catch (e) {
+        _erro('Falha no reforço: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,6 +361,32 @@ class _CaixaScreenState extends State<CaixaScreen> {
                 colors: const [AppTheme.purpleStart, AppTheme.purpleEnd],
               ),
               const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _sangria,
+                      icon: const Icon(Icons.arrow_downward, color: AppTheme.errorColor),
+                      label: const Text('Sangria', style: TextStyle(color: AppTheme.errorColor)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppTheme.errorColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _reforco,
+                      icon: const Icon(Icons.arrow_upward, color: AppTheme.successColor),
+                      label: const Text('Reforço', style: TextStyle(color: AppTheme.successColor)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppTheme.successColor),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(

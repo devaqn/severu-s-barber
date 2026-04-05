@@ -7,11 +7,13 @@ import 'controllers/atendimento_controller.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/cliente_controller.dart';
 import 'controllers/estoque_controller.dart';
+import 'screens/admin/barbeiros_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/agenda/agenda_screen.dart';
 import 'screens/analytics/analytics_screen.dart';
 import 'screens/atendimentos/atendimentos_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/primeiro_login_screen.dart';
 import 'screens/barbeiro/barbeiro_dashboard_screen.dart';
 import 'screens/caixa/caixa_screen.dart';
 import 'screens/clientes/clientes_screen.dart';
@@ -24,6 +26,7 @@ import 'screens/ranking/ranking_screen.dart';
 import 'screens/relatorios/relatorios_screen.dart';
 import 'screens/servicos/servicos_screen.dart';
 import 'utils/app_theme.dart';
+import 'firebase_options.dart';
 
 final ValueNotifier<ThemeMode> themeModeNotifier =
     ValueNotifier(ThemeMode.dark);
@@ -53,7 +56,9 @@ Future<void> main() async {
   };
 
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (_) {
     debugPrint('Firebase nao inicializado. Rodando em modo offline.');
   }
@@ -101,6 +106,8 @@ class SeverusBarberApp extends StatelessWidget {
             home: const AuthWrapper(),
             routes: {
               '/login': (_) => const LoginScreen(),
+              '/primeiro-login': (_) =>
+                  const ProtectedRoute(child: PrimeiroLoginScreen()),
               '/dashboard-admin': (_) => const ProtectedRoute(
                     adminOnly: true,
                     child: AdminDashboardScreen(),
@@ -108,6 +115,8 @@ class SeverusBarberApp extends StatelessWidget {
               '/dashboard-barbeiro': (_) =>
                   const ProtectedRoute(child: BarbeiroDashboardScreen()),
               '/clientes': (_) => const ProtectedRoute(child: ClientesScreen()),
+              '/admin/barbeiros': (_) => const ProtectedRoute(
+                  adminOnly: true, child: BarbeirosScreen()),
               '/servicos': (_) => const ProtectedRoute(
                   adminOnly: true, child: ServicosScreen()),
               '/produtos': (_) => const ProtectedRoute(
@@ -162,8 +171,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
       case AuthStatus.verificando:
         return const AuthLoadingScreen();
       case AuthStatus.autenticadoAdmin:
+        if (auth.usuario?.firstLogin ?? false) {
+          return const PrimeiroLoginScreen();
+        }
         return const AdminDashboardScreen();
       case AuthStatus.autenticadoBarbeiro:
+        if (auth.usuario?.firstLogin ?? false) {
+          return const PrimeiroLoginScreen();
+        }
         return const BarbeiroDashboardScreen();
       case AuthStatus.naoAutenticado:
         return const LoginScreen();

@@ -4,6 +4,7 @@
 // ============================================================
 
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/cliente.dart';
 import '../services/cliente_service.dart';
 
@@ -20,14 +21,21 @@ class ClienteController extends ChangeNotifier {
 
   // Indicador de carregamento para a tela.
   bool isLoading = false;
+  String _query = '';
+  StreamSubscription<List<Cliente>>? _sub;
 
   /// Carrega clientes e reseta filtro atual.
   Future<void> carregar() async {
     isLoading = true;
     notifyListeners();
     try {
-      clientes = await _service.getAll();
-      clientesFiltrados = List<Cliente>.from(clientes);
+      _sub ??= _service.streamClientes().listen((dados) {
+        clientes = List<Cliente>.from(dados);
+        _aplicarFiltro();
+      });
+      final inicial = await _service.getAll();
+      clientes = List<Cliente>.from(inicial);
+      _aplicarFiltro();
     } finally {
       isLoading = false;
       notifyListeners();
@@ -36,19 +44,8 @@ class ClienteController extends ChangeNotifier {
 
   /// Busca clientes por nome em tempo real.
   Future<void> buscar(String query) async {
-    if (query.trim().isEmpty) {
-      clientesFiltrados = List<Cliente>.from(clientes);
-      notifyListeners();
-      return;
-    }
-    isLoading = true;
-    notifyListeners();
-    try {
-      clientesFiltrados = await _service.search(query.trim());
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+    _query = query.trim();
+    _aplicarFiltro();
   }
 
   /// Salva cliente novo ou existente e recarrega a lista.
@@ -80,5 +77,26 @@ class ClienteController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _aplicarFiltro() {
+    if (_query.isEmpty) {
+      clientesFiltrados = List<Cliente>.from(clientes);
+      notifyListeners();
+      return;
+    }
+
+    final normalized = _query.toLowerCase();
+    clientesFiltrados = clientes.where((cliente) {
+      return cliente.nome.toLowerCase().contains(normalized) ||
+          cliente.telefone.contains(normalized);
+    }).toList(growable: false);
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 }

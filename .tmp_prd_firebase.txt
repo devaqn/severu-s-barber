@@ -1,0 +1,502 @@
+💈
+SEVERUS BARBER
+Product Requirements Document
+Firebase: Integração Multi-Dispositivo em Tempo Real
+Incluindo QA Completo ao Final
+Versão
+2.0
+Data
+04/04/2026
+Status
+Pronto para Execução
+Stack
+Flutter 3.x · Dart 3.x · Firebase Auth · Cloud Firestore · SQLite (offline fallback)
+Objetivo Central
+Todos os dados (clientes, comandas, produtos, financeiro) sincronizados em tempo real via Firestore, com o Admin criando logins para cada barbeiro
+Destinatário
+OpenAI Codex / Agente de Desenvolvimento
+
+1. Contexto e Problema
+
+Atualmente o Severus Barber opera em modo offline (SQLite local). Cada dispositivo tem sua própria base de dados isolada, sem sincronização. Isso impede que:
+O dono (Admin) veja em tempo real o que os barbeiros estão cadastrando e vendendo.
+Um barbeiro instalado em seu próprio celular acesse os clientes cadastrados por outro.
+O Admin crie uma conta de login para um novo barbeiro diretamente pelo app.
+Comandas, produtos e financeiro fiquem centralizados em um único banco compartilhado.
+
+O objetivo deste PRD é especificar todas as modificações necessárias para que o Firebase (Auth + Firestore) seja ativado como fonte principal de dados, mantendo o SQLite apenas como cache offline.
+
+2. Arquitetura Alvo
+
+A arquitetura deve seguir o modelo abaixo após a integração:
+
+  [Celular do Admin]  ←──── Firestore (nuvem) ────→  [Celular do Barbeiro 1]
+  [Celular do Admin]  ←──── Firestore (nuvem) ────→  [Celular do Barbeiro 2]
+
+Regras gerais:
+Firebase Auth gerencia a identidade de todos os usuários (Admin + Barbeiros).
+Cloud Firestore é o banco principal — todos os writes e reads passam por ele quando há internet.
+SQLite continua existindo como cache local para modo offline — ao reconectar, sincroniza com Firestore.
+Cada documento no Firestore tem o campo barbearia_id (ou shop_id) para isolar dados de barbearias diferentes no futuro (arquitetura SaaS multi-tenant).
+2.1 Coleções no Firestore
+Estrutura de coleções a ser criada/validada:
+
+barbearias/{barbearia_id}/
+    usuarios/{uid}          → Admin e Barbeiros
+    clientes/{id}           → Clientes cadastrados
+    servicos/{id}           → Serviços oferecidos
+    produtos/{id}           → Produtos para venda
+    comandas/{id}           → Comandas abertas e fechadas
+    comandas/{id}/itens/{id}→ Itens de cada comanda
+    atendimentos/{id}       → Histórico de atendimentos
+    despesas/{id}           → Despesas financeiras
+    agendamentos/{id}       → Agenda
+    caixas/{id}             → Abertura/fechamento de caixa
+    estoque/{id}            → Movimentações de estoque
+
+Cada documento deve conter os campos: created_at, updated_at, created_by (uid do usuário que criou).
+
+3. Feature A — Firebase Auth: Admin Cria Login do Barbeiro
+
+3.1 Problema Atual
+O auth_service.dart já importa Firebase Auth, mas a criação de conta de barbeiro provavelmente usa createUserWithEmailAndPassword de forma que desloga o Admin (comportamento padrão do Firebase no cliente). Isso quebra a sessão do dono.
+3.2 Solução Requerida
+Usar uma segunda instância do Firebase App para criar a conta do barbeiro sem afetar a sessão atual do Admin. Segue o padrão exato a ser implementado:
+
+// auth_service.dart
+Future<UserCredential> criarContaBarbeiro({
+  required String email,
+  required String senha,
+  required String nome,
+  required String telefone,
+  required double comissaoPercentual,
+}) async {
+  // 1. Cria segunda instância Firebase para não deslogar o Admin
+  final secondaryApp = await Firebase.initializeApp(
+    name: 'secondaryApp_${DateTime.now().millisecondsSinceEpoch}',
+    options: Firebase.app().options,
+  );
+  final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+  // 2. Cria a conta do barbeiro
+  final credential = await secondaryAuth.createUserWithEmailAndPassword(
+    email: email, password: senha,
+  );
+
+  // 3. Salva dados no Firestore
+  await FirebaseFirestore.instance
+    .collection('barbearias')
+    .doc(barbearia_id)
+    .collection('usuarios')
+    .doc(credential.user!.uid)
+    .set({
+      'uid': credential.user!.uid,
+      'nome': nome,
+      'email': email,
+      'telefone': telefone,
+      'role': 'barbeiro',
+      'comissao_percentual': comissaoPercentual,
+      'first_login': true,
+      'ativo': true,
+      'created_at': FieldValue.serverTimestamp(),
+    });
+
+  // 4. Deleta a instância secundária
+  await secondaryApp.delete();
+  return credential;
+}
+
+3.3 Tela de Criação de Barbeiro (Admin)
+Criar ou revisar a tela screens/admin/criar_barbeiro_screen.dart com os campos:
+Campo
+Tipo
+Descrição
+nome
+String
+Nome completo do barbeiro
+email
+String
+Email de login (único no Firebase Auth)
+senha_temporaria
+String
+Mínimo 8 caracteres — exibir campo com toggle show/hide
+telefone
+String
+Telefone do barbeiro (opcional)
+comissao_percentual
+double
+% de comissão — slider de 0 a 100, padrão 50%
+
+Botão 'Criar Barbeiro' — ao tocar, chamar criarContaBarbeiro() do auth_service.dart.
+Exibir loading indicator durante a criação (pode levar 2-5 segundos).
+Após sucesso: exibir snackbar 'Barbeiro criado com sucesso!' e voltar para a listagem.
+Em caso de erro (email já existe, sem internet): exibir mensagem amigável em pt-BR.
+Botão acessível somente via menu do Admin — barbeiros não enxergam essa rota.
+3.4 Primeiro Login do Barbeiro
+Ao fazer login, verificar no Firestore se first_login == true.
+Se true: redirecionar para tela de redefinição de senha antes de acessar o dashboard.
+Após redefinir: setar first_login = false no Firestore.
+3.5 Documento do Usuário no Firestore
+Campo
+Tipo
+Descrição
+uid
+String
+UID gerado pelo Firebase Auth
+nome
+String
+Nome do barbeiro
+email
+String
+Email de login
+telefone
+String
+Telefone de contato
+role
+String
+'admin' ou 'barbeiro'
+comissao_percentual
+double
+Percentual de comissão (0.0 a 100.0)
+first_login
+bool
+True no primeiro acesso — força troca de senha
+ativo
+bool
+False = barbeiro desativado (não aparece em listas)
+barbearia_id
+String
+ID da barbearia — isola dados no modelo SaaS
+created_at
+Timestamp
+Data de criação
+updated_at
+Timestamp
+Data da última atualização
+
+4. Feature B — Sincronização Firestore de Todas as Entidades
+
+Cada service existente deve ser atualizado para ler e escrever no Firestore como fonte primária. O SQLite deve ser mantido como cache (mirror local). A lógica padrão de cada service:
+
+// Padrão de escrita (write-through cache)
+Future<void> salvar(Entidade e) async {
+  await _firestore.collection(...).doc(e.id).set(e.toMap()); // Firestore primeiro
+  await _db.insert(..., e.toMap());                          // SQLite como cache
+}
+
+// Padrão de leitura (online: Firestore | offline: SQLite)
+Stream<List<Entidade>> listar() {
+  if (conectado) return _firestore.collection(...).snapshots()...;
+  return Stream.value(await _db.query(...));
+}
+4.1 cliente_service.dart
+Criar, editar e deletar clientes deve refletir em Firestore em tempo real.
+Campos adicionais obrigatórios no documento: barbearia_id, created_by, data_nascimento.
+Usar StreamBuilder ou Provider com stream do Firestore na tela de listagem de clientes.
+Barbeiro vê todos os clientes da barbearia (não só os dele).
+4.2 produto_service.dart
+Produtos são cadastrados pelo Admin — barbeiros apenas consultam e usam em comandas.
+Ao baixar estoque (fechar comanda), atualizar o campo quantidade no Firestore.
+Alertas de estoque mínimo devem ser baseados no valor do Firestore.
+4.3 servico_service.dart
+Serviços cadastrados pelo Admin e visíveis para todos os barbeiros.
+Sincronizar campo comissao_percentual — mas lembrar que a Feature 1 (PRD anterior) usa o percentual do barbeiro, não do serviço.
+4.4 comanda_service.dart
+Comanda aberta: documento com status 'aberta' no Firestore — Admin consegue ver em tempo real quais comandas estão abertas.
+Ao fechar comanda: atualizar status para 'fechada', registrar comissão calculada, dar baixa no estoque.
+Campo barbeiro_uid na comanda identifica qual barbeiro realizou o atendimento.
+Admin consegue ver TODAS as comandas. Barbeiro vê apenas as suas.
+4.5 financeiro_service.dart
+Despesas cadastradas pelo Admin salvas no Firestore.
+Dashboard do Admin lê faturamento consolidado de todos os barbeiros via Firestore.
+Lucro líquido = soma de todas as comandas fechadas - despesas do período.
+4.6 agenda_service.dart
+Agendamentos salvos no Firestore — barbeiro vê sua própria agenda, Admin vê todas.
+Usar Timestamp do Firestore para data/hora dos agendamentos.
+4.7 estoque_service.dart (movimentos)
+Toda movimentação de estoque (entrada manual, baixa por comanda) salva no Firestore com quem fez, quando e qual produto.
+
+5. Regras de Segurança do Firestore
+
+Implementar as seguintes Firestore Security Rules no console do Firebase:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() { return request.auth != null; }
+
+    function getUser() {
+      return get(/databases/$(database)/documents/
+        barbearias/$(request.auth.token.barbearia_id)/
+        usuarios/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() { return getUser().role == 'admin'; }
+    function isBarbeiro() { return getUser().role == 'barbeiro'; }
+
+    // Usuários: Admin lê e escreve todos; Barbeiro lê apenas o próprio
+    match /barbearias/{shopId}/usuarios/{uid} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isAdmin();
+    }
+
+    // Clientes, Serviços, Produtos: todos leem; só Admin escreve
+    match /barbearias/{shopId}/clientes/{id} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (isAdmin() || isBarbeiro());
+    }
+
+    match /barbearias/{shopId}/servicos/{id} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isAdmin();
+    }
+
+    match /barbearias/{shopId}/produtos/{id} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (isAdmin() || isBarbeiro());
+    }
+
+    // Comandas: barbeiro cria/edita as suas; Admin lê todas
+    match /barbearias/{shopId}/comandas/{id} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (isAdmin() || isBarbeiro());
+      allow update: if isAuth() &&
+        (isAdmin() || resource.data.barbeiro_uid == request.auth.uid);
+      allow delete: if isAuth() && isAdmin();
+    }
+
+    // Financeiro: somente Admin
+    match /barbearias/{shopId}/despesas/{id} {
+      allow read, write: if isAuth() && isAdmin();
+    }
+
+    // Demais coleções: autenticados leem e escrevem
+    match /barbearias/{shopId}/{collection}/{id} {
+      allow read, write: if isAuth();
+    }
+  }
+}
+
+6. Fluxo Completo de Uso (do Zero)
+
+6.1 Configuração Inicial (uma única vez)
+Passo 1 — Admin instala o APK no seu celular.
+Passo 2 — Na tela de login, toca em 'Criar conta Admin' (visível apenas se não houver Admin cadastrado no Firestore).
+Passo 3 — Preenche nome, email e senha. O app cria o documento na coleção usuarios/ com role = 'admin' e barbearia_id gerado automaticamente.
+Passo 4 — Admin loga e acessa o Dashboard Administrativo.
+6.2 Adicionando um Barbeiro
+Admin vai em Menu → Barbeiros → Adicionar Barbeiro.
+Preenche nome, email, senha temporária e % de comissão.
+App cria a conta via segunda instância Firebase (sem deslogar o Admin).
+Documento do barbeiro salvo no Firestore com first_login = true.
+Admin comunica o email e senha temporária ao barbeiro (WhatsApp, etc).
+6.3 Barbeiro Instalando o App
+Barbeiro baixa o APK e instala no próprio celular.
+Abre o app — tela de Login.
+Digita email e senha temporária recebidos do Admin.
+App detecta first_login = true → redireciona para tela 'Crie sua nova senha'.
+Após redefinir senha → acessa o Dashboard do Barbeiro com todos os dados da barbearia já sincronizados.
+6.4 Barbeiro no Dia a Dia
+Abre comanda → seleciona cliente (lista vem do Firestore, compartilhada).
+Adiciona serviços e produtos — comissão calculada com o % do barbeiro.
+Fecha comanda → dados gravados no Firestore → Admin vê em tempo real no próprio celular.
+Cadastra novo cliente → aparece para todos os barbeiros instantaneamente.
+
+7. Arquivos a Criar / Modificar
+
+7.1 Arquivos a Modificar
+main.dart — garantir que Firebase.initializeApp() com DefaultFirebaseOptions está ativo (descomentar conforme README).
+services/auth_service.dart — implementar criarContaBarbeiro() com segunda instância, leitura de barbearia_id, first_login.
+services/cliente_service.dart — write-through para Firestore, stream de leitura.
+services/produto_service.dart — write-through para Firestore.
+services/servico_service.dart — write-through para Firestore.
+services/comanda_service.dart — salvar comandas no Firestore com barbeiro_uid.
+services/financeiro_service.dart — ler faturamento consolidado do Firestore.
+services/agenda_service.dart — agendamentos no Firestore.
+database/database_helper.dart — manter como cache; adicionar colunas firebase_id onde necessário.
+controllers/auth_controller.dart — expor barbearia_id globalmente via Provider para todos os services usarem.
+7.2 Arquivos a Criar
+screens/admin/criar_barbeiro_screen.dart — formulário de criação de barbeiro.
+screens/auth/primeiro_login_screen.dart — tela de redefinição de senha no primeiro acesso.
+services/connectivity_service.dart — checar conectividade e decidir entre Firestore e SQLite.
+lib/firebase_options.dart — gerado automaticamente pelo FlutterFire CLI (se não existir).
+7.3 pubspec.yaml — Dependências Necessárias
+dependencies:
+  firebase_core: ^3.x.x
+  firebase_auth: ^5.x.x
+  cloud_firestore: ^5.x.x
+  connectivity_plus: ^6.x.x   # checar internet
+  uuid: ^4.x.x                # gerar IDs únicos locais
+
+8. QA — Plano de Testes Completo
+
+INSTRUÇÃO AO CODEX: Após implementar todas as features acima, executar obrigatoriamente cada cenário de teste abaixo. Para cada item, registrar o resultado (✅ Passou / ❌ Falhou / ⚠️ Parcial) antes de considerar a tarefa concluída.
+
+8.1 Auth e Criação de Conta
+#
+Cenário de Teste
+Passo a Passo
+Resultado Esperado
+Q01
+Admin cria conta sem deslogar
+1. Logar como Admin
+2. Ir em Adicionar Barbeiro
+3. Preencher dados e salvar
+Admin permanece logado; novo barbeiro aparece na listagem
+Q02
+Email duplicado bloqueado
+1. Tentar criar barbeiro com email já cadastrado
+Exibe mensagem 'Este email já está em uso'
+Q03
+Barbeiro faz primeiro login
+1. Logar com credenciais temporárias do barbeiro
+App redireciona para tela de redefinição de senha antes do dashboard
+Q04
+Redefinição de senha no primeiro login
+1. Barbeiro redefine a senha
+2. Tentar logar com senha antiga
+Senha antiga recusada; nova senha funciona normalmente
+Q05
+Barbeiro não acessa criação de conta
+1. Logar como barbeiro
+2. Verificar menu/drawer
+Opção 'Adicionar Barbeiro' não aparece para barbeiro
+
+8.2 Sincronização em Tempo Real
+#
+Cenário de Teste
+Passo a Passo
+Resultado Esperado
+Q06
+Cliente cadastrado aparece para todos
+1. Barbeiro cadastra novo cliente no celular dele
+2. Admin verifica a lista de clientes no próprio celular
+Cliente aparece no celular do Admin em até 3 segundos
+Q07
+Comanda aberta visível para Admin
+1. Barbeiro abre comanda
+2. Admin verifica dashboard
+Admin vê a comanda como 'em aberto' no dashboard
+Q08
+Fechamento de comanda atualiza financeiro
+1. Barbeiro fecha comanda de R$ 50,00
+2. Admin abre dashboard financeiro
+Faturamento do Admin aumenta R$ 50,00 em tempo real
+Q09
+Produto cadastrado aparece para barbeiro
+1. Admin cadastra novo produto
+2. Barbeiro abre tela de produtos no celular dele
+Produto novo aparece na lista do barbeiro sem reiniciar o app
+Q10
+Estoque baixa ao fechar comanda
+1. Produto X tem estoque = 5
+2. Barbeiro adiciona produto X numa comanda e fecha
+3. Admin verifica estoque
+Estoque do produto X = 4 no celular do Admin
+
+8.3 Permissões e Acesso
+#
+Cenário de Teste
+Passo a Passo
+Resultado Esperado
+Q11
+Barbeiro não vê despesas financeiras
+1. Logar como barbeiro
+2. Tentar acessar menu Financeiro
+Opção de despesas não visível ou bloqueada com mensagem de permissão
+Q12
+Barbeiro vê só as próprias comandas
+1. Barbeiro A fecha comanda
+2. Logar como Barbeiro B
+Barbeiro B não vê a comanda do Barbeiro A
+Q13
+Admin vê comandas de todos os barbeiros
+1. Barbeiros A e B fecham comandas
+2. Logar como Admin
+Admin vê as comandas de A e B no histórico
+Q14
+Barbeiro não edita % de comissão
+1. Logar como barbeiro
+2. Acessar perfil
+Campo de % comissão não aparece ou está bloqueado (read-only)
+Q15
+Regras Firestore bloqueiam acesso direto
+1. Tentar acessar coleção despesas como barbeiro via qualquer rota
+Firestore retorna erro de permissão (permission-denied)
+
+8.4 Modo Offline
+#
+Cenário de Teste
+Passo a Passo
+Resultado Esperado
+Q16
+App funciona sem internet
+1. Desligar Wi-Fi e dados móveis
+2. Abrir comanda, adicionar itens e fechar
+Comanda fechada com sucesso usando cache SQLite local
+Q17
+Sincronização ao reconectar
+1. Criar cliente offline
+2. Reconectar internet
+3. Verificar Firestore
+Cliente aparece no Firestore e no celular do Admin após reconexão
+Q18
+Login funciona offline
+1. Fazer login enquanto conectado
+2. Desligar internet
+3. Fechar e reabrir o app
+App reabre com sessão ativa sem pedir login novamente
+
+8.5 Persistência de Dados
+#
+Cenário de Teste
+Passo a Passo
+Resultado Esperado
+Q19
+Dados persistem após reiniciar app
+1. Cadastrar cliente, produto e comanda
+2. Forçar fechar o app
+3. Reabrir
+Todos os dados aparecem corretamente
+Q20
+% Comissão do barbeiro salvo
+1. Admin altera comissão do Barbeiro A para 60%
+2. Fechar e reabrir o app como Admin
+Barbeiro A ainda mostra 60% de comissão
+Q21
+Comanda usa % correto do barbeiro
+1. Barbeiro A tem 60% de comissão
+2. Fechar comanda de R$ 100,00
+Comissão calculada = R$ 60,00 (não os 50% padrão)
+Q22
+Campos editáveis salvam corretamente
+1. Editar nome, telefone e observação de um cliente
+2. Sair da tela e voltar
+Todos os campos exibem os valores editados
+
+8.6 Resultado Final do QA
+Preencher a tabela abaixo ao final dos testes:
+
+Total de Testes
+✅ Passou
+❌ Falhou
+Observações
+22
+___
+___
+ 
+
+CRITÉRIO DE CONCLUSÃO: O PR/commit só pode ser considerado concluído quando todos os 22 testes marcarem ✅ Passou. Qualquer ❌ deve ser corrigido antes de finalizar.
+
+9. Restrições e Premissas
+
+Não remover o SQLite — mantê-lo como cache offline obrigatório.
+Não quebrar nenhuma funcionalidade existente (comandas, estoque, financeiro, agenda).
+Todo texto para o usuário em pt-BR.
+Seguir padrão de cores: #D4AF37 (amarelo mecânico), #1A1A1A (preto), #FFFFFF.
+Manter arquitetura: UI → Controller → Service → Firestore/SQLite.
+Não fazer migrations destrutivas no SQLite — usar ALTER TABLE com ADD COLUMN.
+Testar em dispositivo Android real (não apenas emulador) para validar Firebase Auth.
+— Fim do Documento —
+💈 Severus Barber · PRD v2.0 · Firebase Integration · Confidencial

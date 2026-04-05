@@ -25,6 +25,7 @@ dependencies:
   firebase_core: ^3.1.0
   firebase_auth: ^5.1.0
   cloud_firestore: ^5.1.0
+  connectivity_plus: ^6.1.5
 
   # Graficos interativos
   fl_chart: ^0.68.0

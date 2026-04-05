@@ -1,0 +1,93 @@
+﻿rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userPath(shopId) {
+      return /databases/$(database)/documents/barbearias/$(shopId)/usuarios/$(request.auth.uid);
+    }
+
+    function isInShop(shopId) {
+      return isAuth() && exists(userPath(shopId));
+    }
+
+    function getUser(shopId) {
+      return get(userPath(shopId)).data;
+    }
+
+    function isAdmin(shopId) {
+      return isInShop(shopId) && getUser(shopId).role == 'admin';
+    }
+
+    function isBarbeiro(shopId) {
+      return isInShop(shopId) && getUser(shopId).role == 'barbeiro';
+    }
+
+    match /barbearias/{shopId}/usuarios/{uid} {
+      allow read: if isInShop(shopId) && (isAdmin(shopId) || request.auth.uid == uid);
+      allow write: if isInShop(shopId) && isAdmin(shopId);
+    }
+
+    match /barbearias/{shopId}/clientes/{id} {
+      allow read: if isInShop(shopId);
+      allow write: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+    }
+
+    match /barbearias/{shopId}/servicos/{id} {
+      allow read: if isInShop(shopId);
+      allow write: if isInShop(shopId) && isAdmin(shopId);
+    }
+
+    match /barbearias/{shopId}/produtos/{id} {
+      allow read: if isInShop(shopId);
+      allow write: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+    }
+
+    match /barbearias/{shopId}/comandas/{id} {
+      allow read: if isInShop(shopId);
+      allow create: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow update: if isInShop(shopId)
+        && (isAdmin(shopId)
+          || resource.data.barbeiro_uid == request.auth.uid
+          || request.resource.data.barbeiro_uid == request.auth.uid);
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
+
+      match /itens/{itemId} {
+        allow read: if isInShop(shopId);
+        allow write: if isInShop(shopId)
+          && (isAdmin(shopId)
+            || get(/databases/$(database)/documents/barbearias/$(shopId)/comandas/$(id)).data.barbeiro_uid == request.auth.uid);
+      }
+    }
+
+    match /barbearias/{shopId}/despesas/{id} {
+      allow read, write: if isInShop(shopId) && isAdmin(shopId);
+    }
+
+    match /barbearias/{shopId}/caixas/{id} {
+      allow read, write: if isInShop(shopId) && isAdmin(shopId);
+    }
+
+    match /barbearias/{shopId}/agendamentos/{id} {
+      allow read: if isInShop(shopId);
+      allow create: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow update: if isInShop(shopId)
+        && (isAdmin(shopId)
+          || resource.data.barbeiro_id == request.auth.uid
+          || request.resource.data.barbeiro_id == request.auth.uid);
+      allow delete: if isInShop(shopId) && (isAdmin(shopId) || resource.data.barbeiro_id == request.auth.uid);
+    }
+
+    match /barbearias/{shopId}/estoque/{id} {
+      allow read, write: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+    }
+
+    match /barbearias/{shopId}/{collection}/{id} {
+      allow read, write: if isInShop(shopId);
+    }
+  }
+}
+

@@ -154,6 +154,16 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
                             ?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(children: [const Icon(Icons.phone, size: 18), const SizedBox(width: 6), Text(cliente.telefone)]),
+                    if (cliente.dataNascimento != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.cake_outlined, size: 18),
+                          const SizedBox(width: 6),
+                          Text(AppFormatters.date(cliente.dataNascimento!)),
+                        ],
+                      ),
+                    ],
                     if ((cliente.observacoes ?? '').isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(cliente.observacoes!),

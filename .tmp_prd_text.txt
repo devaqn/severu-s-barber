@@ -1,0 +1,207 @@
+💈
+SEVERUS BARBER
+Product Requirements Document
+Modificações Cirúrgicas — Sprint Atual
+Versão
+1.0
+Data
+04/04/2026
+Status
+Em Execução
+Stack
+Flutter 3.x · Dart 3.x · Firebase Auth · Cloud Firestore · SQLite
+Cor Principal
+#D4AF37 (Amarelo Mecânico)  |  Secundária: #1A1A1A (Preto)  |  Apoio: #FFFFFF
+Destinatário
+OpenAI Codex / Agente de Desenvolvimento
+
+1. Visão Geral
+
+Este documento descreve as modificações a serem implementadas no aplicativo Severus Barber, sistema profissional de gestão de barbearia desenvolvido em Flutter com Firebase/SQLite. As alterações abaixo foram solicitadas pelo dono do produto e devem ser executadas de forma cirúrgica, sem quebrar funcionalidades existentes.
+
+O aplicativo possui duas roles de usuário: Admin (dono da barbearia) e Barbeiro. Toda modificação de controle deve respeitar essa hierarquia de acesso.
+
+2. Feature 1 — Sistema de Comissão por Barbeiro (Maleável)
+
+2.1 Contexto Atual
+O sistema atual já possui comissão por serviço e por produto (campos comissao_percentual nas tabelas servicos e produtos). A comissão é calculada de forma global, sem possibilidade de definir uma taxa diferente por barbeiro.
+2.2 Objetivo
+Adicionar um campo de percentual de comissão individual por barbeiro, editável exclusivamente pelo Admin. Esse percentual pode sobrescrever (ou coexistir com) a comissão padrão por serviço.
+2.3 Requisitos Funcionais
+Adicionar campo comissao_percentual (REAL, default 50.0) na tabela usuarios do SQLite e no documento Firestore do barbeiro.
+Na tela de listagem/edição de barbeiros (screens/admin/), exibir um campo editável de '% de Comissão' somente visível para usuários com role == admin.
+Ao fechar comanda, usar o comissao_percentual do barbeiro responsável para calcular a comissão, em vez do percentual fixo do serviço. Caso o campo do barbeiro esteja nulo, manter fallback para o percentual do serviço.
+Barbeiros NÃO devem visualizar nem editar esse campo — proteger com guarda de role no widget e no Firestore Rules.
+Exibir no Dashboard do Admin o percentual de comissão configurado para cada barbeiro no ranking de performance.
+2.4 Regras de Negócio
+Somente Admin pode alterar comissao_percentual do barbeiro.
+Valor mínimo: 0% · Valor máximo: 100% · Casas decimais: até 2.
+Alteração deve ser salva em tempo real no Firestore e no SQLite local.
+Histórico de comandas já fechadas NÃO é retroativo — a mudança vale apenas para comandas futuras.
+2.5 Arquivos a Modificar
+models/usuario.dart — adicionar campo comissaoPercentual
+database/database_helper.dart — migration: ALTER TABLE usuarios ADD COLUMN comissao_percentual REAL DEFAULT 50.0
+services/auth_service.dart — ler/salvar comissaoPercentual no Firestore
+services/comanda_service.dart — usar comissao do barbeiro no fechamento
+screens/admin/ — UI de edição do campo (somente Admin)
+2.6 Critério de Aceite
+Admin consegue abrir perfil de qualquer barbeiro e alterar % de comissão via slider ou campo numérico.
+Ao fechar comanda, o valor de comissão calculado reflete o percentual do barbeiro, não o padrão do serviço.
+Barbeiro logado não enxerga nem consegue editar o campo de comissão.
+Valor persiste após fechar e reabrir o app (SQLite + Firestore).
+
+3. Feature 2 — Aniversário do Cliente e Notificação
+
+3.1 Contexto Atual
+O cadastro de clientes possui: nome, telefone e observações. Não há campo de data de nascimento nem lógica de aniversariante.
+3.2 Objetivo
+Adicionar campo de data de nascimento no cadastro do cliente e notificar o dono/barbeiro quando um cliente aniversaria no dia.
+3.3 Requisitos Funcionais
+Adicionar campo data_nascimento (TEXT, formato ISO 8601: YYYY-MM-DD) na tabela clientes do SQLite e no Firestore.
+Na tela de cadastro e edição de clientes (screens/clientes/), adicionar um DatePicker com label 'Data de Nascimento' — campo opcional.
+Criar um serviço ou função aniversariantesHoje() no cliente_service.dart que retorna a lista de clientes cujo dia e mês (independente do ano) coincide com a data atual.
+No Dashboard do Admin e do Barbeiro, exibir um card/banner de alerta caso haja aniversariantes no dia, com nome e telefone do cliente para facilitar contato.
+(Opcional/Futuro) Integrar com FCM para push notification local no início do dia informando os aniversariantes.
+3.4 Regras de Negócio
+Campo opcional — cadastros existentes sem data de nascimento não são afetados.
+A verificação de aniversário compara apenas dia e mês, ignorando o ano.
+Card de aniversariantes deve aparecer no topo do dashboard, acima das estatísticas, com destaque visual (cor dourada #D4AF37).
+3.5 Arquivos a Modificar
+models/cliente.dart — adicionar campo dataNascimento (DateTime?)
+database/database_helper.dart — migration: ALTER TABLE clientes ADD COLUMN data_nascimento TEXT
+services/cliente_service.dart — adicionar método aniversariantesHoje()
+screens/clientes/ — adicionar DatePicker no form de cadastro/edição
+screens/admin/dashboard e screens/barbeiro/dashboard — adicionar card de aniversariantes
+3.6 Critério de Aceite
+Formulário de cadastro de cliente exibe campo 'Data de Nascimento' com DatePicker em pt-BR.
+Dado salvo corretamente no SQLite e recuperado na tela de detalhes do cliente.
+Dashboard exibe card de aniversariante no dia correto com nome e telefone.
+Clientes sem data de nascimento cadastrada não aparecem nem geram erros.
+
+4. Feature 3 — Correção Visual: Fundo com Logo Severus
+
+4.1 Contexto Atual
+Na tela que exibe o menu de 3 pontinhos (kebab menu / AppBar actions) no topo do aplicativo, o fundo/background está aparecendo na cor vermelha, o que está fora do padrão visual do app.
+4.2 Objetivo
+Substituir o fundo vermelho pelo logo da Severus Barber, mantendo a identidade visual correta do aplicativo (#D4AF37 amarelo mecânico + #1A1A1A preto).
+4.3 Requisitos
+Localizar o widget responsável pelo fundo vermelho — provavelmente um PopupMenuButton, BottomSheet ou Dialog acionado pelos 3 pontos.
+Substituir a cor de fundo por Color(0xFF1A1A1A) (preto) ou inserir a logo da Severus como imagem de fundo/watermark centralizada.
+A logo deve estar em assets/images/severus_logo.png (adicionar ao pubspec.yaml se necessário). Caso o arquivo ainda não exista, usar um placeholder com as iniciais 'SB' estilizadas na cor #D4AF37.
+Garantir que o texto e ícones do menu permaneçam legíveis (contraste adequado sobre fundo escuro).
+4.4 Arquivos a Modificar
+widgets/app_drawer.dart — verificar configurações de cor
+utils/app_theme.dart — verificar se há color override vermelho
+Qualquer screen que use PopupMenuButton ou showModalBottomSheet com backgroundColor incorreto
+pubspec.yaml — garantir que assets/images/ está declarado
+4.5 Critério de Aceite
+Ao tocar nos 3 pontinhos, nenhuma tela/overlay exibe fundo vermelho.
+Fundo do menu/drawer segue o tema dark do app: #1A1A1A com elementos em #D4AF37.
+Logo da Severus visível (ou placeholder 'SB') sem quebrar o layout do menu.
+
+5. Feature 4 — Sistema de Criação de Conta (Somente Admin)
+
+5.1 Contexto Atual
+O README menciona que o Admin pode adicionar barbeiros via 'App como Admin → Barbeiros → Adicionar Barbeiro'. Porém, a lógica de criação de conta Firebase para novos barbeiros pode estar incompleta ou permitir criação direta sem passar pelo Admin.
+5.2 Objetivo
+Garantir que SOMENTE o Admin consiga criar novas contas de usuário (barbeiros) dentro do aplicativo. Nenhum barbeiro deve conseguir criar conta por conta própria.
+5.3 Requisitos Funcionais
+Na tela de login (screens/auth/login), remover ou ocultar qualquer botão/link de 'Criar conta' que não seja o fluxo inicial do primeiro Admin.
+Criar (ou revisar) a tela screens/admin/criar_barbeiro.dart com formulário: Nome completo, Email, Senha temporária, Telefone, % Comissão (já integrado com Feature 1).
+O Admin cria a conta via Firebase Auth usando Admin SDK ou Cloud Function, ou via createUserWithEmailAndPassword com reautenticação para não deslogar o Admin.
+Após criar a conta, salvar dados do barbeiro na coleção Firestore usuarios/ e na tabela SQLite local.
+O barbeiro recebe o email com a senha temporária e, no primeiro login, é obrigado a redefinir a senha (flag firstLogin no Firestore).
+Somente usuários com role == admin visualizam o botão de 'Adicionar Barbeiro' no menu/drawer.
+5.4 Regras de Negócio
+Admin não pode ser deslogado durante a criação de conta do barbeiro.
+Email deve ser único — validar antes de criar (verificar no Firestore se já existe).
+Senha temporária deve ter mínimo 8 caracteres.
+Barbeiro criado fica com status ativo por padrão.
+5.5 Arquivos a Modificar
+services/auth_service.dart — método criarBarbeiro(email, senha, dados) com reautenticação
+screens/auth/ — ocultar 'Criar conta' para acesso público
+screens/admin/criar_barbeiro.dart — tela de criação (criar se não existir)
+widgets/app_drawer.dart — exibir 'Adicionar Barbeiro' somente para Admin
+models/usuario.dart — adicionar flag firstLogin
+5.6 Critério de Aceite
+Tela de login pública NÃO possui opção de 'Criar conta' visível.
+Admin logado consegue criar novo barbeiro sem ser deslogado.
+Dados do novo barbeiro aparecem na listagem de barbeiros após criação.
+Novo barbeiro consegue logar com a senha temporária fornecida pelo Admin.
+Barbeiro não enxerga o botão 'Adicionar Barbeiro' no menu.
+
+6. Feature 5 — QA: Verificação Completa de Campos e Persistência
+
+6.1 Contexto
+Antes de qualquer release, é necessário realizar uma varredura completa em todos os formulários do app para garantir que campos editáveis funcionam corretamente: exibição, edição, validação e salvamento.
+6.2 Escopo da Verificação
+Para cada tela listada abaixo, verificar:
+Todos os campos exibem o valor atual corretamente (sem campos em branco quando há dado salvo)
+É possível editar o valor (teclado abre, seleção de data funciona, dropdown responde)
+Validação ocorre ao tentar salvar com campo obrigatório vazio
+Valor é salvo corretamente no SQLite e/ou Firestore
+Valor persiste após fechar e reabrir o app
+Não há crash ou exception ao inserir valores extremos (0, valores negativos, strings muito longas)
+6.3 Telas a Verificar
+6.3.1 Clientes (screens/clientes/)
+Nome, Telefone, Observações, Data de Nascimento (novo campo)
+6.3.2 Serviços (screens/servicos/)
+Nome, Preço, Duração (minutos), % Comissão do serviço
+6.3.3 Produtos (screens/produtos/)
+Nome, Preço de venda, Custo, Estoque inicial, % Comissão, Fornecedor
+6.3.4 Barbeiros (screens/admin/)
+Nome, Email, Telefone, % Comissão (novo campo do Admin)
+6.3.5 Despesas (screens/financeiro/)
+Descrição, Valor, Categoria, Data
+6.3.6 Agendamentos (screens/agenda/)
+Cliente, Barbeiro, Serviço, Data/Hora, Status
+6.3.7 Comanda (screens/comanda/)
+Adição/remoção de itens, quantidade, forma de pagamento, fechamento
+6.3.8 Caixa (screens/caixa/)
+Valor de abertura, fechamento, observações
+6.4 Como Reportar Bugs Encontrados
+Para cada bug encontrado durante a verificação, corrigir imediatamente e documentar o fix no commit com o padrão:
+fix(qa): [nome da tela] - [descrição do problema] - [solução aplicada]
+6.5 Critério de Aceite
+100% dos campos listados na seção 6.3 passam pela checklist de 6 pontos sem falhas.
+Nenhum campo retorna dados incorretos após salvar e reabrir.
+Nenhum crash reportado durante a sessão de QA.
+
+7. Tabela Resumo de Execução
+
+#
+Tarefa
+Arquivo(s) Afetado(s)
+Critério de Aceite
+F1
+Comissão maleável por barbeiro — campo + UI Admin + cálculo no fechamento
+usuario.dart, database_helper.dart, comanda_service.dart, screens/admin/
+Admin altera %, comanda usa o novo %, barbeiro não vê o campo
+F2
+Data de nascimento no cadastro de cliente + card de aniversariante no dashboard
+cliente.dart, database_helper.dart, cliente_service.dart, screens/clientes/, screens/*/dashboard
+Campo salvo, card aparece no dia do aniversário
+F3
+Corrigir fundo vermelho dos 3 pontos — substituir pela logo Severus
+app_drawer.dart, app_theme.dart, pubspec.yaml
+Fundo segue tema dark, sem vermelho, logo visível
+F4
+Criação de conta de barbeiro restrita ao Admin — sem cadastro público
+auth_service.dart, screens/auth/, screens/admin/criar_barbeiro.dart, app_drawer.dart
+Somente Admin cria contas; tela pública sem 'Criar conta'
+F5
+QA completo de todos os formulários — edição, validação e persistência
+Todas as screens de formulário
+Checklist de 6 pontos aprovada em 100% das telas
+
+8. Restrições e Premissas
+
+Não alterar a arquitetura geral do projeto (UI → Controller → Service → DB).
+Manter compatibilidade com modo offline (SQLite) — todas as novas tabelas/colunas precisam de migration no database_helper.dart.
+Não remover nenhuma funcionalidade existente.
+Seguir o padrão de cores: #D4AF37 (amarelo mecânico), #1A1A1A (preto), #FFFFFF (branco).
+Textos em pt-BR usando o pacote intl já configurado no projeto.
+Testes em Android (emulador/dispositivo) e Windows Desktop.
+
+— Fim do Documento —
+💈 Severus Barber · PRD v1.0 · Confidencial

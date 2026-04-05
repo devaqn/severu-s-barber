@@ -7,7 +7,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/despesa.dart';
-import '../../services/atendimento_service.dart';
 import '../../services/financeiro_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
@@ -27,7 +26,6 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
     with SingleTickerProviderStateMixin {
   // Services de financeiro e atendimentos para consolidacao de dados.
   final FinanceiroService _service = FinanceiroService();
-  final AtendimentoService _atendimentoService = AtendimentoService();
 
   // Controlador de abas da tela financeira.
   late TabController _tabController;
@@ -99,9 +97,11 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       final fim = DateTime(hoje.year, hoje.month, hoje.day)
           .subtract(Duration(days: i * 7));
       final inicio = fim.subtract(const Duration(days: 6));
-      final receita = await _atendimentoService.getFaturamentoPeriodo(inicio, fim);
-      final despesa = await _service.getTotalDespesas(inicio, fim);
-      serie.add({'receita': receita, 'despesa': despesa});
+      final resumo = await _service.getResumo(inicio, fim);
+      serie.add({
+        'receita': resumo['faturamento'] ?? 0.0,
+        'despesa': resumo['despesas'] ?? 0.0,
+      });
     }
     return serie;
   }

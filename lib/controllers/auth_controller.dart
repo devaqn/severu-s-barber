@@ -45,6 +45,7 @@ class AuthController extends ChangeNotifier {
   bool get isBarbeiro => _usuario?.isBarbeiro ?? false;
   String get usuarioId => _usuario?.id ?? '';
   String get usuarioNome => _usuario?.nome ?? '';
+  String get barbeariaId => _usuario?.barbeariaId ?? '';
 
   // ── Inicialização ─────────────────────────────────────────────────
 
@@ -136,7 +137,9 @@ class AuthController extends ChangeNotifier {
     required String nome,
     required String email,
     required String password,
-    double comissaoPercentual = 0.50,
+    String? telefone,
+    double comissaoPercentual = 50.0,
+    bool firstLogin = true,
   }) async {
     _loading = true;
     _errorMsg = null;
@@ -149,14 +152,16 @@ class AuthController extends ChangeNotifier {
         comissaoPercentual,
         fieldName: 'Comissao',
         min: 0,
-        max: 1,
+        max: 100,
       );
 
       await _authService.cadastrarBarbeiro(
         nome: safeNome,
         email: safeEmail,
         password: password,
+        telefone: telefone,
         comissaoPercentual: safeComissao,
+        firstLogin: firstLogin,
       );
       return true;
     } catch (e) {
@@ -194,6 +199,10 @@ class AuthController extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  Future<bool> podeCadastrarAdminPublicamente() {
+    return _authService.podeCadastrarAdminPublicamente();
   }
 
   /// Limpa mensagem de erro

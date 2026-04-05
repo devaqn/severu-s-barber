@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
+import '../../models/cliente.dart';
 import '../../models/comanda.dart';
+import '../../services/cliente_service.dart';
 import '../../services/comanda_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
@@ -27,6 +29,7 @@ class BarbeiroDashboardScreen extends StatefulWidget {
 
 class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
   final ComandaService _comandaService = ComandaService();
+  final ClienteService _clienteService = ClienteService();
   late Future<Map<String, dynamic>> _futureDados;
 
   @override
@@ -55,6 +58,7 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
       _comandaService.getComissaoBarbeiro(barbeiroId, inicioMes, agora),
       _comandaService.getComandasHoje(barbeiroId: barbeiroId),
       _comandaService.getComandaAberta(barbeiroId: barbeiroId),
+      _clienteService.aniversariantesHoje(),
     ]);
 
     return {
@@ -64,6 +68,7 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
       'comissaoMes': results[3] as double,
       'comandasHoje': results[4] as List<Comanda>,
       'comandaAberta': results[5] as Comanda?,
+      'aniversariantesHoje': results[6] as List<Cliente>,
     };
   }
 
@@ -150,6 +155,8 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
           final comissaoMes = data['comissaoMes'] as double;
           final comandasHoje = data['comandasHoje'] as List<Comanda>;
           final comandaAberta = data['comandaAberta'] as Comanda?;
+          final aniversariantesHoje =
+              (data['aniversariantesHoje'] as List).cast<Cliente>();
 
           return AppPageContainer(
             child: RefreshIndicator(
@@ -160,6 +167,10 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (aniversariantesHoje.isNotEmpty)
+                      _buildBannerAniversariantes(aniversariantesHoje),
+                    if (aniversariantesHoje.isNotEmpty)
+                      const SizedBox(height: 12),
                     // Alerta de comanda aberta
                     if (comandaAberta != null)
                       _buildAlertaComanda(comandaAberta),
@@ -281,6 +292,57 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildBannerAniversariantes(List<Cliente> clientes) {
+    final nomes = clientes.map((c) => c.nome).join(', ');
+    final contatos = clientes
+        .map((c) => '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
+        .join('  •  ');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD4AF37).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD4AF37)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cake, color: Color(0xFFD4AF37)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Aniversariantes de Hoje',
+                  style: GoogleFonts.poppins(
+                    color: const Color(0xFFD4AF37),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  nomes,
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textPrimary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  contatos,
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

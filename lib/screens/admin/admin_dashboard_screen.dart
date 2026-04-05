@@ -1,6 +1,6 @@
-// ============================================================
+﻿// ============================================================
 // admin_dashboard_screen.dart
-// Dashboard administrativo: visão total da barbearia,
+// Dashboard administrativo: visÃ£o total da barbearia,
 // ranking de barbeiros, faturamento e comandas abertas.
 // ============================================================
 
@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
+import '../../models/cliente.dart';
 import '../../main.dart' show themeModeNotifier;
+import '../../services/cliente_service.dart';
 import '../../services/comanda_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../utils/app_theme.dart';
@@ -19,7 +21,7 @@ import '../../widgets/stat_card.dart';
 import '../../widgets/ui_helpers.dart';
 import '../comanda/comandas_screen.dart';
 
-/// Dashboard do administrador com visão completa da barbearia.
+/// Dashboard do administrador com visÃ£o completa da barbearia.
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -30,6 +32,7 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final DashboardService _dashboardService = DashboardService();
   final ComandaService _comandaService = ComandaService();
+  final ClienteService _clienteService = ClienteService();
   late Future<Map<String, dynamic>> _future;
 
   @override
@@ -50,12 +53,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _dashboardService.getDadosDashboard(),
       _comandaService.getRankingBarbeiros(inicioMes, agora),
       _comandaService.getCountComandasAbertas(),
+      _clienteService.aniversariantesHoje(),
     ]);
 
     return {
       ...results[0] as Map<String, dynamic>,
       'rankingBarbeiros': results[1],
       'comandasAbertas': results[2],
+      'aniversariantesHoje': results[3],
     };
   }
 
@@ -126,7 +131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return AppPageContainer(
               child: AppErrorState(
                 title: 'Falha ao carregar o dashboard',
-                subtitle: 'Verifique a conexão e tente novamente.',
+                subtitle: 'Verifique a conexÃ£o e tente novamente.',
                 onRetry: _recarregar,
               ),
             );
@@ -145,6 +150,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           final rankingBarbeiros =
               (data['rankingBarbeiros'] as List).cast<Map<String, dynamic>>();
           final comandasAbertas = data['comandasAbertas'] as int;
+          final aniversariantesHoje =
+              (data['aniversariantesHoje'] as List).cast<Cliente>();
 
           return AppPageContainer(
             child: RefreshIndicator(
@@ -155,6 +162,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (aniversariantesHoje.isNotEmpty)
+                      _buildBannerAniversariantes(aniversariantesHoje),
+                    if (aniversariantesHoje.isNotEmpty)
+                      const SizedBox(height: 12),
                     // Alerta de comandas abertas
                     if (comandasAbertas > 0)
                       _buildAlertaComandasAbertas(comandasAbertas),
@@ -172,7 +183,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         gradient: const [AppTheme.infoColor, AppTheme.infoDark],
                       ),
                       StatCard(
-                        title: 'Faturado no Mês',
+                        title: 'Faturado no MÃªs',
                         value: AppFormatters.currency(fatMes),
                         icon: Icons.calendar_month,
                         color: AppTheme.accentColor,
@@ -199,7 +210,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             : const [AppTheme.errorColor, AppTheme.accentDark],
                       ),
                       StatCard(
-                        title: 'Despesas do Mês',
+                        title: 'Despesas do MÃªs',
                         value: AppFormatters.currency(despesas),
                         icon: Icons.money_off,
                         color: AppTheme.errorColor,
@@ -241,7 +252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Gráfico de faturamento
+                    // GrÃ¡fico de faturamento
                     _buildGrafico(faturamentoPorDia),
                     const SizedBox(height: 20),
 
@@ -312,7 +323,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '$count comanda(s) em aberto — Toque para ver',
+                '$count comanda(s) em aberto â€” Toque para ver',
                 style: GoogleFonts.inter(
                   color: AppTheme.warningColor,
                   fontWeight: FontWeight.w600,
@@ -334,6 +345,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildBannerAniversariantes(List<Cliente> clientes) {
+    final nomes = clientes.map((c) => c.nome).join(', ');
+    final telefones = clientes
+        .map((c) => '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
+        .join('  â€¢  ');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD4AF37).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD4AF37)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cake, color: Color(0xFFD4AF37)),
+              const SizedBox(width: 8),
+              Text(
+                'Aniversariantes de Hoje',
+                style: GoogleFonts.poppins(
+                  color: const Color(0xFFD4AF37),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            nomes,
+            style: GoogleFonts.inter(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            telefones,
+            style: GoogleFonts.inter(
+              color: AppTheme.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -414,7 +476,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     SizedBox(
                       width: 28,
                       child: Text(
-                        '${i + 1}º',
+                        '${i + 1}Âº',
                         style: GoogleFonts.poppins(
                           color: posColor,
                           fontWeight: FontWeight.w700,
@@ -452,9 +514,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
                         Text(
-                          'Comissão: ${AppFormatters.currency((r['comissao'] as num?)?.toDouble() ?? 0)}',
+                          'ComissÃ£o: ${AppFormatters.currency((r['comissao'] as num?)?.toDouble() ?? 0)}',
                           style: GoogleFonts.inter(
                               color: AppTheme.goldColor, fontSize: 11),
+                        ),
+                        Text(
+                          '% Config.: ${((r['comissao_percentual'] as num?)?.toDouble() ?? 50).toStringAsFixed(1)}%',
+                          style: GoogleFonts.inter(
+                            color: AppTheme.textSecondary,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),

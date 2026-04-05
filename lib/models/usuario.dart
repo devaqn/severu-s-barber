@@ -1,100 +1,134 @@
-// ============================================================
+﻿// ============================================================
 // usuario.dart
-// Model que representa um usuário do sistema (Admin ou Barbeiro).
-// Usado para controle de acesso e comissões.
+// Modelo de usuario (Admin/Barbeiro) com dados de comissao.
 // ============================================================
 
 class Usuario {
   final String id;
   final String nome;
   final String email;
+  final String? telefone;
+  final String? barbeariaId;
   /// 'admin' ou 'barbeiro'
   final String role;
   final bool ativo;
-  /// Percentual padrão de comissão do barbeiro (0.0 a 1.0)
+  /// Percentual de comissao em escala 0..100.
   final double comissaoPercentual;
+  final bool firstLogin;
   final DateTime createdAt;
 
   const Usuario({
     required this.id,
     required this.nome,
     required this.email,
+    this.telefone,
+    this.barbeariaId,
     required this.role,
     this.ativo = true,
-    this.comissaoPercentual = 0.50,
+    this.comissaoPercentual = 50.0,
+    this.firstLogin = false,
     required this.createdAt,
   });
 
-  /// Verifica se o usuário é administrador
-  bool get isAdmin => role == 'admin';
+  /// Valor em escala decimal (0..1), com compatibilidade retroativa.
+  double get comissaoDecimal {
+    final base =
+        comissaoPercentual > 1 ? comissaoPercentual / 100 : comissaoPercentual;
+    return base.clamp(0.0, 1.0).toDouble();
+  }
 
-  /// Verifica se o usuário é barbeiro
+  bool get isAdmin => role == 'admin';
   bool get isBarbeiro => role == 'barbeiro';
 
   factory Usuario.fromMap(Map<String, dynamic> map) {
+    final ativoRaw = map['ativo'];
+    final firstLoginRaw = map['first_login'];
+
     return Usuario(
       id: map['id'] as String,
       nome: map['nome'] as String,
       email: map['email'] as String,
+      telefone: map['telefone'] as String?,
+      barbeariaId: map['barbearia_id'] as String?,
       role: (map['role'] as String?) ?? 'barbeiro',
-      ativo: (map['ativo'] as int?) == 1,
-      comissaoPercentual: (map['comissao_percentual'] as num?)?.toDouble() ?? 0.50,
+      ativo: ativoRaw is bool ? ativoRaw : ((ativoRaw as int?) ?? 1) == 1,
+      comissaoPercentual:
+          (map['comissao_percentual'] as num?)?.toDouble() ?? 50.0,
+      firstLogin: firstLoginRaw is bool
+          ? firstLoginRaw
+          : ((firstLoginRaw as int?) ?? 0) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
 
-  /// Converte para Map para persistência local (SQLite)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'nome': nome,
       'email': email,
+      'telefone': telefone,
+      'barbearia_id': barbeariaId,
       'role': role,
       'ativo': ativo ? 1 : 0,
       'comissao_percentual': comissaoPercentual,
+      'first_login': firstLogin ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
     };
   }
 
-  /// Converte para Map para Firestore (sem ativo como int)
   Map<String, dynamic> toFirestore() {
     return {
       'id': id,
       'nome': nome,
       'email': email,
+      'telefone': telefone,
+      'barbearia_id': barbeariaId,
       'role': role,
       'ativo': ativo,
       'comissao_percentual': comissaoPercentual,
+      'first_login': firstLogin,
       'created_at': createdAt.toIso8601String(),
     };
   }
 
   factory Usuario.fromFirestore(Map<String, dynamic> data) {
     return Usuario(
-      id: data['id'] as String,
-      nome: data['nome'] as String,
-      email: data['email'] as String,
+      id: (data['id'] ?? '') as String,
+      nome: (data['nome'] ?? '') as String,
+      email: (data['email'] ?? '') as String,
+      telefone: data['telefone'] as String?,
+      barbeariaId: data['barbearia_id'] as String?,
       role: (data['role'] as String?) ?? 'barbeiro',
       ativo: (data['ativo'] as bool?) ?? true,
-      comissaoPercentual: (data['comissao_percentual'] as num?)?.toDouble() ?? 0.50,
-      createdAt: DateTime.parse(data['created_at'] as String),
+      comissaoPercentual:
+          (data['comissao_percentual'] as num?)?.toDouble() ?? 50.0,
+      firstLogin: (data['first_login'] as bool?) ?? false,
+      createdAt: data['created_at'] == null
+          ? DateTime.now()
+          : DateTime.parse(data['created_at'] as String),
     );
   }
 
   Usuario copyWith({
     String? nome,
     String? email,
+    String? telefone,
+    String? barbeariaId,
     String? role,
     bool? ativo,
     double? comissaoPercentual,
+    bool? firstLogin,
   }) {
     return Usuario(
       id: id,
       nome: nome ?? this.nome,
       email: email ?? this.email,
+      telefone: telefone ?? this.telefone,
+      barbeariaId: barbeariaId ?? this.barbeariaId,
       role: role ?? this.role,
       ativo: ativo ?? this.ativo,
       comissaoPercentual: comissaoPercentual ?? this.comissaoPercentual,
+      firstLogin: firstLogin ?? this.firstLogin,
       createdAt: createdAt,
     );
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +7,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/security_utils.dart';
 import '../../widgets/ui_helpers.dart';
 import 'cadastro_screen.dart';
+import 'primeiro_login_screen.dart';
 import 'recuperar_senha_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,6 +22,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _senhaCtrl = TextEditingController();
   bool _senhaVisivel = false;
+  bool _podeCadastrarAdminPublicamente = false;
+  bool _checandoCadastroPublico = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarDisponibilidadeCadastro();
+  }
 
   @override
   void dispose() {
@@ -43,6 +52,32 @@ class _LoginScreenState extends State<LoginScreen> {
         ctrl.errorMsg ?? 'Falha ao autenticar. Verifique seus dados.',
         type: AppNoticeType.error,
       );
+      return;
+    }
+
+    if (ok && mounted && (ctrl.usuario?.firstLogin ?? false)) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PrimeiroLoginScreen()),
+      );
+    }
+  }
+
+  Future<void> _carregarDisponibilidadeCadastro() async {
+    try {
+      final ctrl = context.read<AuthController>();
+      final pode = await ctrl.podeCadastrarAdminPublicamente();
+      if (!mounted) return;
+      setState(() {
+        _podeCadastrarAdminPublicamente = pode;
+        _checandoCadastroPublico = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _podeCadastrarAdminPublicamente = false;
+        _checandoCadastroPublico = false;
+      });
     }
   }
 
@@ -73,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             gradient: const LinearGradient(
                               colors: [
                                 AppTheme.accentColor,
-                                AppTheme.accentDark
+                                AppTheme.accentDark,
                               ],
                             ),
                             borderRadius: BorderRadius.circular(24),
@@ -103,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Gestão profissional da barbearia',
+                          'Gestao profissional da barbearia',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             color: AppTheme.textSecondary,
@@ -133,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     textInputAction: TextInputAction.next,
                     autofillHints: const [
                       AutofillHints.username,
-                      AutofillHints.email
+                      AutofillHints.email,
                     ],
                     style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: const InputDecoration(
@@ -150,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       try {
                         SecurityUtils.sanitizeEmail(value);
                       } catch (_) {
-                        return 'E-mail inválido.';
+                        return 'E-mail invalido.';
                       }
                       return null;
                     },
@@ -225,33 +260,44 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Center(
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          'Primeiro acesso? ',
-                          style:
-                              GoogleFonts.inter(color: AppTheme.textSecondary),
-                        ),
-                        InkWell(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CadastroScreen(),
-                            ),
-                          ),
-                          child: Text(
-                            'Criar conta de administrador',
-                            style: GoogleFonts.inter(
-                              color: AppTheme.accentColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                  if (_checandoCadastroPublico)
+                    const Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
-                  ),
+                  if (!_checandoCadastroPublico &&
+                      _podeCadastrarAdminPublicamente)
+                    Center(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Primeiro acesso? ',
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CadastroScreen(),
+                              ),
+                            ),
+                            child: Text(
+                              'Criar conta de administrador',
+                              style: GoogleFonts.inter(
+                                color: AppTheme.accentColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

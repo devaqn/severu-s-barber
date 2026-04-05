@@ -1,17 +1,19 @@
-// ============================================================
+﻿// ============================================================
 // cliente.dart
 // Model que representa um cliente da barbearia.
-// Contém dados pessoais, histórico e programa de fidelidade.
 // ============================================================
 
 class Cliente {
+  static const Object _noValue = Object();
+
   final int? id;
   final String nome;
   final String telefone;
   final String? observacoes;
+  final DateTime? dataNascimento;
   /// Total acumulado gasto na barbearia (em reais)
   final double totalGasto;
-  /// Data do último atendimento
+  /// Data do ultimo atendimento
   final DateTime? ultimaVisita;
   /// Pontos do programa de fidelidade
   final int pontosFidelidade;
@@ -25,6 +27,7 @@ class Cliente {
     required this.nome,
     required this.telefone,
     this.observacoes,
+    this.dataNascimento,
     this.totalGasto = 0.0,
     this.ultimaVisita,
     this.pontosFidelidade = 0,
@@ -33,13 +36,16 @@ class Cliente {
     required this.updatedAt,
   });
 
-  /// Cria um Cliente a partir de um Map do SQLite
   factory Cliente.fromMap(Map<String, dynamic> map) {
+    final dataNascimentoRaw = map['data_nascimento'] as String?;
     return Cliente(
       id: map['id'] as int?,
       nome: map['nome'] as String,
       telefone: map['telefone'] as String,
       observacoes: map['observacoes'] as String?,
+      dataNascimento: dataNascimentoRaw == null || dataNascimentoRaw.isEmpty
+          ? null
+          : DateTime.tryParse(dataNascimentoRaw),
       totalGasto: (map['total_gasto'] as num?)?.toDouble() ?? 0.0,
       ultimaVisita: map['ultima_visita'] != null
           ? DateTime.parse(map['ultima_visita'] as String)
@@ -51,13 +57,19 @@ class Cliente {
     );
   }
 
-  /// Converte o Cliente para Map (para salvar no SQLite)
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
       'nome': nome,
       'telefone': telefone,
       'observacoes': observacoes,
+      'data_nascimento': dataNascimento == null
+          ? null
+          : DateTime(
+              dataNascimento!.year,
+              dataNascimento!.month,
+              dataNascimento!.day,
+            ).toIso8601String().split('T').first,
       'total_gasto': totalGasto,
       'ultima_visita': ultimaVisita?.toIso8601String(),
       'pontos_fidelidade': pontosFidelidade,
@@ -67,12 +79,12 @@ class Cliente {
     };
   }
 
-  /// Retorna uma cópia com campos atualizados (imutabilidade)
   Cliente copyWith({
     int? id,
     String? nome,
     String? telefone,
     String? observacoes,
+    Object? dataNascimento = _noValue,
     double? totalGasto,
     DateTime? ultimaVisita,
     int? pontosFidelidade,
@@ -85,6 +97,9 @@ class Cliente {
       nome: nome ?? this.nome,
       telefone: telefone ?? this.telefone,
       observacoes: observacoes ?? this.observacoes,
+      dataNascimento: identical(dataNascimento, _noValue)
+          ? this.dataNascimento
+          : dataNascimento as DateTime?,
       totalGasto: totalGasto ?? this.totalGasto,
       ultimaVisita: ultimaVisita ?? this.ultimaVisita,
       pontosFidelidade: pontosFidelidade ?? this.pontosFidelidade,
@@ -94,10 +109,7 @@ class Cliente {
     );
   }
 
-  /// Verifica se o cliente tem direito a corte grátis (fidelidade)
   bool get temCorteGratis => pontosFidelidade >= 10;
-
-  /// Quantos cortes faltam para ganhar o bônus
   int get cortesParaBrinde => 10 - (pontosFidelidade % 10);
 
   @override

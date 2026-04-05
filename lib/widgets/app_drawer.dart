@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // app_drawer.dart
 // Main side menu with role-based navigation.
 // ============================================================
@@ -17,6 +17,7 @@ class AppDrawer extends StatelessWidget {
   static const String comandas = 'comandas';
   static const String agenda = 'agenda';
   static const String clientes = 'clientes';
+  static const String barbeiros = 'barbeiros';
   static const String servicos = 'servicos';
   static const String produtos = 'produtos';
   static const String estoque = 'estoque';
@@ -62,10 +63,16 @@ class AppDrawer extends StatelessWidget {
                       width: 1.5,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.content_cut,
-                    color: AppTheme.textPrimary,
-                    size: 40,
+                  child: Center(
+                    child: Text(
+                      'SB',
+                      style: GoogleFonts.poppins(
+                        color: AppTheme.goldColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -146,8 +153,19 @@ class AppDrawer extends StatelessWidget {
                 ),
                 if (isAdmin) ...[
                   _DrawerItem(
+                    icon: Icons.badge_outlined,
+                    label: 'Adicionar Barbeiro',
+                    color: AppTheme.goldColor,
+                    isActive: selectedItem == barbeiros,
+                    onTap: () => _navigateTo(
+                      context,
+                      '/admin/barbeiros',
+                      AppDrawer.barbeiros,
+                    ),
+                  ),
+                  _DrawerItem(
                     icon: Icons.design_services,
-                    label: 'Serviços',
+                    label: 'ServiÃ§os',
                     color: AppTheme.warningColor,
                     isActive: selectedItem == servicos,
                     onTap: () =>
@@ -205,7 +223,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                   _DrawerItem(
                     icon: Icons.summarize,
-                    label: 'Relatórios',
+                    label: 'RelatÃ³rios',
                     color: AppTheme.errorColor,
                     isActive: selectedItem == relatorios,
                     onTap: () => _navigateTo(
@@ -407,3 +425,4 @@ class _DrawerItem extends StatelessWidget {
     );
   }
 }
+

@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import '../../models/cliente.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/formatters.dart';
 import '../../utils/security_utils.dart';
 
 /// Tela de formulario para novo cliente ou edicao de cadastro existente.
@@ -29,6 +30,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
   final _nomeCtrl = TextEditingController();
   final _telefoneCtrl = TextEditingController();
   final _obsCtrl = TextEditingController();
+  DateTime? _dataNascimento;
 
   // Flag para diferenciar titulo e comportamento de salvar.
   bool get _edicao => widget.cliente != null;
@@ -41,6 +43,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
       _nomeCtrl.text = widget.cliente!.nome;
       _telefoneCtrl.text = widget.cliente!.telefone;
       _obsCtrl.text = widget.cliente!.observacoes ?? '';
+      _dataNascimento = widget.cliente!.dataNascimento;
     }
   }
 
@@ -91,6 +94,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
       nome: safeNome,
       telefone: safeTelefone,
       observacoes: safeObs,
+      dataNascimento: _dataNascimento,
       totalGasto: base?.totalGasto ?? 0,
       ultimaVisita: base?.ultimaVisita,
       pontosFidelidade: base?.pontosFidelidade ?? 0,
@@ -101,6 +105,27 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
 
     // Fecha tela retornando cliente validado para persistencia externa.
     Navigator.pop(context, cliente);
+  }
+
+  Future<void> _selecionarDataNascimento() async {
+    final hoje = DateTime.now();
+    final inicial = _dataNascimento ?? DateTime(hoje.year - 25, hoje.month, 1);
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: inicial.isAfter(hoje) ? hoje : inicial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: DateTime(hoje.year, hoje.month, hoje.day),
+      locale: const Locale('pt', 'BR'),
+      helpText: 'Data de nascimento',
+    );
+    if (selecionada == null) return;
+    setState(() {
+      _dataNascimento = DateTime(
+        selecionada.year,
+        selecionada.month,
+        selecionada.day,
+      );
+    });
   }
 
   @override
@@ -174,6 +199,28 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                 labelText: 'Observacoes',
                 alignLabelWithHint: true,
                 prefixIcon: Icon(Icons.sticky_note_2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _selecionarDataNascimento,
+              borderRadius: BorderRadius.circular(12),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Data de Nascimento (opcional)',
+                  prefixIcon: const Icon(Icons.cake_outlined),
+                  suffixIcon: _dataNascimento == null
+                      ? const Icon(Icons.calendar_month)
+                      : IconButton(
+                          onPressed: () => setState(() => _dataNascimento = null),
+                          icon: const Icon(Icons.close),
+                        ),
+                ),
+                child: Text(
+                  _dataNascimento == null
+                      ? 'Selecionar data'
+                      : AppFormatters.date(_dataNascimento!),
+                ),
               ),
             ),
             const SizedBox(height: 24),

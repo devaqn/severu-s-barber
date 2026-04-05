@@ -9,10 +9,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Paleta principal definida para identidade SaaS premium.
-  static const Color primaryColor = Color(0xFF1A1A2E);
-  static const Color secondaryColor = Color(0xFF16213E);
-  static const Color accentColor = Color(0xFFE94560);
-  static const Color goldColor = Color(0xFFF5A623);
+  static const Color primaryColor = Color(0xFF1A1A1A);
+  static const Color secondaryColor = Color(0xFF232323);
+  static const Color accentColor = Color(0xFFD4AF37);
+  static const Color goldColor = Color(0xFFD4AF37);
   static const Color successColor = Color(0xFF00B894);
   static const Color infoColor = Color(0xFF0984E3);
   static const Color warningColor = Color(0xFFFDCB6E);
@@ -21,7 +21,7 @@ class AppTheme {
   static const Color textSecondary = Color(0xFFA0A3BD);
 
   // Cores auxiliares para gradientes e variacoes visuais consistentes.
-  static const Color accentDark = Color(0xFFC0392B);
+  static const Color accentDark = Color(0xFFB8912E);
   static const Color infoDark = Color(0xFF0652DD);
   static const Color successDark = Color(0xFF00695C);
   static const Color warningDark = Color(0xFFE17055);
@@ -162,6 +162,16 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: secondaryColor,
+        surfaceTintColor: Colors.transparent,
+        textStyle: GoogleFonts.inter(color: textPrimary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: secondaryColor,
+        surfaceTintColor: Colors.transparent,
+      ),
     );
   }
 
@@ -283,6 +293,15 @@ class AppTheme {
         contentTextStyle: GoogleFonts.inter(color: lightTextPrimary),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: lightCard,
+        textStyle: GoogleFonts.inter(color: lightTextPrimary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: lightCard,
+        surfaceTintColor: Colors.transparent,
       ),
     );
   }

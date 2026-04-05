@@ -1,23 +1,21 @@
-// ============================================================
+﻿// ============================================================
 // dashboard_service.dart
-// Serviço que agrega dados para o Dashboard principal.
-// Consolida faturamento, atendimentos, alertas e gráficos.
+// Serviço agregador do dashboard com base em comandas + financeiro.
 // ============================================================
 
-import 'atendimento_service.dart';
+import 'agenda_service.dart';
+import 'cliente_service.dart';
+import 'comanda_service.dart';
 import 'financeiro_service.dart';
 import 'produto_service.dart';
-import 'cliente_service.dart';
-import 'agenda_service.dart';
 
 class DashboardService {
-  final AtendimentoService _atendimentoService = AtendimentoService();
+  final ComandaService _comandaService = ComandaService();
   final FinanceiroService _financeiroService = FinanceiroService();
   final ProdutoService _produtoService = ProdutoService();
   final ClienteService _clienteService = ClienteService();
   final AgendaService _agendaService = AgendaService();
 
-  /// Carrega todos os dados necessários para o dashboard
   Future<Map<String, dynamic>> getDadosDashboard() async {
     final agora = DateTime.now();
     final inicioDia = DateTime(agora.year, agora.month, agora.day);
@@ -25,16 +23,15 @@ class DashboardService {
     final inicioSemana = agora.subtract(Duration(days: agora.weekday - 1));
     final inicioMes = DateTime(agora.year, agora.month, 1);
 
-    // Carrega dados em paralelo para melhor performance
     final results = await Future.wait([
-      _atendimentoService.getFaturamentoPeriodo(inicioDia, fimDia),
-      _atendimentoService.getFaturamentoPeriodo(inicioSemana, agora),
-      _atendimentoService.getFaturamentoPeriodo(inicioMes, agora),
-      _atendimentoService.getCountPeriodo(inicioDia, fimDia),
-      _atendimentoService.getCountPeriodo(inicioMes, agora),
+      _comandaService.getFaturamentoPeriodo(inicioDia, fimDia),
+      _comandaService.getFaturamentoPeriodo(inicioSemana, agora),
+      _comandaService.getFaturamentoPeriodo(inicioMes, agora),
+      _comandaService.getCountComandasFechadasPeriodo(inicioDia, fimDia),
+      _comandaService.getCountComandasFechadasPeriodo(inicioMes, agora),
       _produtoService.getValorTotalEstoque(),
       _produtoService.getProdutosEstoqueBaixo(),
-      _atendimentoService.getFaturamentoPorDia(30),
+      _comandaService.getFaturamentoPorDia(30),
       _agendaService.getProximos(limit: 5),
       _clienteService.getRanking(limit: 5),
     ]);
@@ -46,7 +43,6 @@ class DashboardService {
     final atendimentosMes = results[4] as int;
     final valorEstoque = results[5] as double;
 
-    // Cálculo de despesas do mês para lucro estimado
     final despesasMes =
         await _financeiroService.getTotalDespesas(inicioMes, agora);
     final lucroEstimado = faturamentoMes - despesasMes;
@@ -67,3 +63,4 @@ class DashboardService {
     };
   }
 }
+

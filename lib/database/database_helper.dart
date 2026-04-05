@@ -62,6 +62,12 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await _createTablesV2(db);
     }
+    if (oldVersion < 3) {
+      await _migrateToV3(db);
+    }
+    if (oldVersion < 4) {
+      await _migrateToV4(db);
+    }
     await _createIndexes(db);
   }
 
@@ -69,9 +75,13 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableClientes} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         nome TEXT NOT NULL,
         telefone TEXT NOT NULL,
         observacoes TEXT,
+        data_nascimento TEXT,
         total_gasto REAL DEFAULT 0.0,
         ultima_visita TEXT,
         pontos_fidelidade INTEGER DEFAULT 0,
@@ -84,11 +94,16 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableServicos} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         nome TEXT NOT NULL,
         preco REAL NOT NULL,
         duracao_minutos INTEGER DEFAULT 30,
         comissao_percentual REAL DEFAULT 0.50,
-        ativo INTEGER DEFAULT 1
+        ativo INTEGER DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
       )
     ''');
 
@@ -106,6 +121,9 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableProdutos} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         nome TEXT NOT NULL,
         preco_venda REAL NOT NULL,
         preco_custo REAL DEFAULT 0.0,
@@ -123,6 +141,9 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableAtendimentos} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         cliente_id INTEGER,
         cliente_nome TEXT NOT NULL,
         barbeiro_id TEXT,
@@ -155,6 +176,9 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableAgendamentos} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         cliente_id INTEGER,
         cliente_nome TEXT NOT NULL,
         servico_id INTEGER,
@@ -165,6 +189,7 @@ class DatabaseHelper {
         status TEXT DEFAULT 'Pendente',
         observacoes TEXT,
         created_at TEXT NOT NULL,
+        updated_at TEXT,
         FOREIGN KEY (cliente_id) REFERENCES ${AppConstants.tableClientes}(id),
         FOREIGN KEY (servico_id) REFERENCES ${AppConstants.tableServicos}(id)
       )
@@ -173,17 +198,25 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableDespesas} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         descricao TEXT NOT NULL,
         categoria TEXT NOT NULL,
         valor REAL NOT NULL,
         data TEXT NOT NULL,
-        observacoes TEXT
+        observacoes TEXT,
+        created_at TEXT,
+        updated_at TEXT
       )
     ''');
 
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableMovimentosEstoque} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         produto_id INTEGER NOT NULL,
         produto_nome TEXT NOT NULL,
         tipo TEXT NOT NULL,
@@ -191,6 +224,7 @@ class DatabaseHelper {
         valor_unitario REAL DEFAULT 0.0,
         data TEXT NOT NULL,
         observacao TEXT,
+        updated_at TEXT,
         FOREIGN KEY (produto_id) REFERENCES ${AppConstants.tableProdutos}(id)
       )
     ''');
@@ -198,13 +232,18 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableCaixas} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         data_abertura TEXT NOT NULL,
         data_fechamento TEXT,
         valor_inicial REAL DEFAULT 0.0,
         valor_final REAL,
         status TEXT DEFAULT 'aberto',
         resumo_pagamentos TEXT,
-        observacoes TEXT
+        observacoes TEXT,
+        created_at TEXT,
+        updated_at TEXT
       )
     ''');
 
@@ -217,9 +256,12 @@ class DatabaseHelper {
         id TEXT PRIMARY KEY,
         nome TEXT NOT NULL,
         email TEXT NOT NULL,
+        telefone TEXT,
+        barbearia_id TEXT,
         role TEXT NOT NULL DEFAULT 'barbeiro',
         ativo INTEGER DEFAULT 1,
-        comissao_percentual REAL DEFAULT 0.50,
+        comissao_percentual REAL DEFAULT 50.0,
+        first_login INTEGER DEFAULT 0,
         created_at TEXT NOT NULL
       )
     ''');
@@ -227,10 +269,14 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableComandas} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         cliente_id INTEGER,
         cliente_nome TEXT NOT NULL,
         barbeiro_id TEXT,
         barbeiro_nome TEXT,
+        barbeiro_uid TEXT,
         status TEXT DEFAULT 'aberta',
         total REAL DEFAULT 0.0,
         comissao_total REAL DEFAULT 0.0,
@@ -238,6 +284,7 @@ class DatabaseHelper {
         data_abertura TEXT NOT NULL,
         data_fechamento TEXT,
         observacoes TEXT,
+        updated_at TEXT,
         FOREIGN KEY (cliente_id) REFERENCES ${AppConstants.tableClientes}(id)
       )
     ''');
@@ -245,6 +292,9 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableComandasItens} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         comanda_id INTEGER NOT NULL,
         tipo TEXT NOT NULL,
         item_id INTEGER NOT NULL,
@@ -253,6 +303,7 @@ class DatabaseHelper {
         preco_unitario REAL NOT NULL,
         comissao_percentual REAL DEFAULT 0.0,
         comissao_valor REAL DEFAULT 0.0,
+        updated_at TEXT,
         FOREIGN KEY (comanda_id) REFERENCES ${AppConstants.tableComandas}(id)
           ON DELETE CASCADE
       )
@@ -261,6 +312,9 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableComissoes} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebase_id TEXT,
+        barbearia_id TEXT,
+        created_by TEXT,
         barbeiro_id TEXT NOT NULL,
         barbeiro_nome TEXT NOT NULL,
         comanda_id INTEGER,
@@ -273,10 +327,344 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _migrateToV3(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableClientes,
+      'data_nascimento',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableUsuarios,
+      'telefone',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableUsuarios,
+      'first_login',
+      'INTEGER DEFAULT 0',
+    );
+
+    // Converte bases antigas que salvavam 0.50 para a escala atual (50.0).
+    await db.execute('''
+      UPDATE ${AppConstants.tableUsuarios}
+      SET comissao_percentual = comissao_percentual * 100
+      WHERE comissao_percentual IS NOT NULL
+        AND comissao_percentual > 0
+        AND comissao_percentual <= 1
+    ''');
+  }
+
+  Future<void> _migrateToV4(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableUsuarios,
+      'barbearia_id',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableClientes,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableClientes,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableClientes,
+      'created_by',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableServicos,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableServicos,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableServicos,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableServicos,
+      'created_at',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableServicos,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableProdutos,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableProdutos,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableProdutos,
+      'created_by',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAtendimentos,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAtendimentos,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAtendimentos,
+      'created_by',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAgendamentos,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAgendamentos,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAgendamentos,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAgendamentos,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'created_at',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableMovimentosEstoque,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableMovimentosEstoque,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableMovimentosEstoque,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableMovimentosEstoque,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableCaixas,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableCaixas,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableCaixas,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableCaixas,
+      'created_at',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableCaixas,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandas,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandas,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandas,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandas,
+      'barbeiro_uid',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandas,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandasItens,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandasItens,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandasItens,
+      'created_by',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComandasItens,
+      'updated_at',
+      'TEXT',
+    );
+
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComissoes,
+      'firebase_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComissoes,
+      'barbearia_id',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableComissoes,
+      'created_by',
+      'TEXT',
+    );
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final info = await db.rawQuery('PRAGMA table_info($tableName)');
+    final exists = info.any((row) => row['name'] == columnName);
+    if (exists) return;
+    await db.execute(
+      'ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition',
+    );
+  }
+
   Future<void> _createIndexes(Database db) async {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_clientes_nome
       ON ${AppConstants.tableClientes}(nome)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_firebase_unique
+      ON ${AppConstants.tableClientes}(firebase_id)
+      WHERE firebase_id IS NOT NULL
     ''');
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_atendimentos_data
@@ -299,6 +687,16 @@ class DatabaseHelper {
       ON ${AppConstants.tableProdutos}(ativo, nome)
     ''');
     await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_produtos_firebase_unique
+      ON ${AppConstants.tableProdutos}(firebase_id)
+      WHERE firebase_id IS NOT NULL
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_servicos_firebase_unique
+      ON ${AppConstants.tableServicos}(firebase_id)
+      WHERE firebase_id IS NOT NULL
+    ''');
+    await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_movimentos_produto_data
       ON ${AppConstants.tableMovimentosEstoque}(produto_id, data)
     ''');
@@ -311,6 +709,11 @@ class DatabaseHelper {
       ON ${AppConstants.tableDespesas}(data, categoria)
     ''');
     await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_despesas_firebase_unique
+      ON ${AppConstants.tableDespesas}(firebase_id)
+      WHERE firebase_id IS NOT NULL
+    ''');
+    await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email_unique
       ON ${AppConstants.tableUsuarios}(email)
     ''');
@@ -319,12 +722,22 @@ class DatabaseHelper {
       ON ${AppConstants.tableComandas}(status, data_abertura)
     ''');
     await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_comandas_firebase_unique
+      ON ${AppConstants.tableComandas}(firebase_id)
+      WHERE firebase_id IS NOT NULL
+    ''');
+    await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_comandas_barbeiro_status
       ON ${AppConstants.tableComandas}(barbeiro_id, status)
     ''');
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_comandas_itens_comanda
       ON ${AppConstants.tableComandasItens}(comanda_id)
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_agendamentos_firebase_unique
+      ON ${AppConstants.tableAgendamentos}(firebase_id)
+      WHERE firebase_id IS NOT NULL
     ''');
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_comissoes_barbeiro_data
@@ -340,49 +753,49 @@ class DatabaseHelper {
         'nome': 'Corte de Cabelo',
         'preco': 35.0,
         'duracao_minutos': 30,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Barba',
         'preco': 25.0,
         'duracao_minutos': 20,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Corte + Barba',
         'preco': 55.0,
         'duracao_minutos': 50,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Sobrancelha',
         'preco': 15.0,
         'duracao_minutos': 15,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Lavagem',
         'preco': 20.0,
         'duracao_minutos': 20,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Hidratacao',
         'preco': 30.0,
         'duracao_minutos': 25,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
       {
         'nome': 'Relaxamento',
         'preco': 45.0,
         'duracao_minutos': 40,
-        'comissao_percentual': 0.50,
+        'comissao_percentual': 50.0,
         'ativo': 1
       },
     ];
@@ -403,9 +816,12 @@ class DatabaseHelper {
       'id': 'admin_local',
       'nome': 'Administrador',
       'email': 'admin@severusbarber.com',
+      'telefone': null,
+      'barbearia_id': AppConstants.localBarbeariaId,
       'role': AppConstants.roleAdmin,
       'ativo': 1,
       'comissao_percentual': 0.0,
+      'first_login': 0,
       'created_at': now,
     });
   }

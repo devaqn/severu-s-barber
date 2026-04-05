@@ -1,8 +1,7 @@
-// ============================================================
+﻿// ============================================================
 // auth_service.dart
-// Authentication service with Firebase Auth + Firestore.
-// Includes offline fallback only when secure credentials are
-// provided via --dart-define.
+// Authentication service with Firebase Auth + Firestore
+// (multi-tenant by barbearia) and SQLite offline fallback.
 // ============================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,15 +12,16 @@ import '../database/database_helper.dart';
 import '../models/usuario.dart';
 import '../utils/constants.dart';
 import '../utils/security_utils.dart';
+import 'firebase_context_service.dart';
 
 class AuthService {
   AuthService();
 
   final DatabaseHelper _db = DatabaseHelper();
+  final FirebaseContextService _context = FirebaseContextService();
+
   static Usuario? _usuarioLocalLogado;
 
-  // Default offline credentials for UI/design testing.
-  // Use --dart-define to override in real environments.
   static const String _offlineAdminEmailDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_EMAIL',
     defaultValue: 'admin@offline.test',
@@ -30,7 +30,6 @@ class AuthService {
     'OFFLINE_ADMIN_PASSWORD',
     defaultValue: '123456',
   );
-  static const String _provisioningAppName = 'severus_provisioning';
 
   bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
 
@@ -48,10 +47,6 @@ class AuthService {
     return FirebaseFirestore.instance;
   }
 
-  // ---------------------------------------------------------------------------
-  // Estado do usuario
-  // ---------------------------------------------------------------------------
-
   Stream<User?> get authStateChanges => _firebaseDisponivel
       ? _auth.authStateChanges()
       : const Stream<User?>.empty();
@@ -60,14 +55,22 @@ class AuthService {
 
   Future<Usuario?> getCurrentUsuario() async {
     if (!_firebaseDisponivel) return _usuarioLocalLogado;
-    final user = _auth.currentUser;
-    if (user == null) return null;
-    return getUsuarioPorId(user.uid);
-  }
 
-  // ---------------------------------------------------------------------------
-  // Autenticacao
-  // ---------------------------------------------------------------------------
+    final user = _auth.currentUser;
+    if (user == null) return _usuarioLocalLogado;
+
+    final remoto = await _buscarUsuarioFirestore(user.uid);
+    if (remoto != null) {
+      await _upsertUsuarioLocal(remoto);
+      FirebaseContextService.setCachedBarbeariaId(remoto.barbeariaId);
+      _usuarioLocalLogado = remoto;
+      return remoto;
+    }
+
+    final local = await _getUsuarioLocalPorId(user.uid);
+    _usuarioLocalLogado = local;
+    return local;
+  }
 
   Future<Usuario> login({
     required String email,
@@ -89,7 +92,7 @@ class AuthService {
         password: password,
       );
 
-      final usuario = await getUsuarioPorId(credential.user!.uid);
+      final usuario = await _buscarUsuarioFirestore(credential.user!.uid);
       if (usuario == null) {
         throw Exception(
           'Conta autenticada sem perfil no sistema. Contate o administrador.',
@@ -100,9 +103,96 @@ class AuthService {
         throw Exception('Usuario inativo. Contate o administrador.');
       }
 
+      await _upsertUsuarioLocal(usuario);
+      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      _usuarioLocalLogado = usuario;
       return usuario;
     } on FirebaseAuthException catch (e) {
       throw _traduzirErroAuth(e);
+    }
+  }
+
+  Future<UserCredential> criarContaBarbeiro({
+    required String email,
+    required String senha,
+    required String nome,
+    required String telefone,
+    required double comissaoPercentual,
+  }) async {
+    _garantirFirebaseInicializado();
+    final admin = await _assertAdminSession();
+
+    final sanitizedNome = SecurityUtils.sanitizeName(nome, fieldName: 'Nome');
+    final sanitizedEmail = SecurityUtils.sanitizeEmail(email);
+    SecurityUtils.ensureStrongPassword(senha);
+    final sanitizedTelefone = SecurityUtils.sanitizePhone(telefone);
+    final sanitizedComissao = SecurityUtils.sanitizeDoubleRange(
+      comissaoPercentual,
+      fieldName: 'Comissao',
+      min: 0,
+      max: 100,
+    );
+
+    final shopId = _resolveBarbeariaId(admin);
+
+    SecurityUtils.ensure(
+      !(await _emailEmUso(sanitizedEmail)),
+      'Este email ja esta em uso.',
+    );
+
+    final secondaryApp = await Firebase.initializeApp(
+      name: 'secondaryApp_${DateTime.now().millisecondsSinceEpoch}',
+      options: Firebase.app().options,
+    );
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+    try {
+      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+        email: sanitizedEmail,
+        password: senha,
+      );
+
+      await _ensureBarbeariaDocument(shopId, admin.id);
+
+      await _usuariosCollection(shopId).doc(credential.user!.uid).set({
+        'uid': credential.user!.uid,
+        'id': credential.user!.uid,
+        'nome': sanitizedNome,
+        'email': sanitizedEmail,
+        'telefone': sanitizedTelefone,
+        'role': AppConstants.roleBarbeiro,
+        'comissao_percentual': sanitizedComissao,
+        'first_login': true,
+        'ativo': true,
+        'barbearia_id': shopId,
+        'created_by': admin.id,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+
+      final usuario = Usuario(
+        id: credential.user!.uid,
+        nome: sanitizedNome,
+        email: sanitizedEmail,
+        telefone: sanitizedTelefone,
+        role: AppConstants.roleBarbeiro,
+        ativo: true,
+        comissaoPercentual: sanitizedComissao,
+        firstLogin: true,
+        barbeariaId: shopId,
+        createdAt: DateTime.now(),
+      );
+      await _upsertUsuarioLocal(usuario);
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      throw _traduzirErroAuth(e);
+    } finally {
+      try {
+        await secondaryAuth.signOut();
+      } catch (_) {}
+      try {
+        await secondaryApp.delete();
+      } catch (_) {}
     }
   }
 
@@ -110,49 +200,39 @@ class AuthService {
     required String nome,
     required String email,
     required String password,
-    double comissaoPercentual = 0.50,
+    String? telefone,
+    double comissaoPercentual = 50.0,
+    bool firstLogin = true,
   }) async {
-    _garantirFirebaseInicializado();
-    await _assertAdminSession();
-
-    final sanitizedNome = SecurityUtils.sanitizeName(nome, fieldName: 'Nome');
-    final sanitizedEmail = SecurityUtils.sanitizeEmail(email);
-    SecurityUtils.ensureStrongPassword(password);
-    final sanitizedComissao = SecurityUtils.sanitizeDoubleRange(
-      comissaoPercentual,
-      fieldName: 'Comissao',
-      min: 0.0,
-      max: 1.0,
+    final safeTelefone = SecurityUtils.sanitizeOptionalText(
+      telefone,
+      maxLength: 20,
+      allowNewLines: false,
     );
 
-    try {
-      final provisioningAuth = await _getProvisioningAuth();
-      final credential = await provisioningAuth.createUserWithEmailAndPassword(
-        email: sanitizedEmail,
-        password: password,
-      );
-      await credential.user!.updateDisplayName(sanitizedNome);
+    final cred = await criarContaBarbeiro(
+      email: email,
+      senha: password,
+      nome: nome,
+      telefone: safeTelefone ?? '0000000000',
+      comissaoPercentual: comissaoPercentual,
+    );
 
-      final usuario = Usuario(
-        id: credential.user!.uid,
-        nome: sanitizedNome,
-        email: sanitizedEmail,
-        role: AppConstants.roleBarbeiro,
-        ativo: true,
-        comissaoPercentual: sanitizedComissao,
-        createdAt: DateTime.now(),
-      );
-
-      await _firestore
-          .collection(AppConstants.tableUsuarios)
-          .doc(usuario.id)
-          .set(usuario.toFirestore());
-
-      await provisioningAuth.signOut();
-      return usuario;
-    } on FirebaseAuthException catch (e) {
-      throw _traduzirErroAuth(e);
+    final usuario = await _buscarUsuarioFirestore(cred.user!.uid);
+    if (usuario == null) {
+      throw Exception('Conta criada sem perfil no Firestore.');
     }
+
+    if (!firstLogin && usuario.firstLogin) {
+      await _usuariosCollection(_resolveBarbeariaId(usuario))
+          .doc(usuario.id)
+          .update({'first_login': false, 'updated_at': FieldValue.serverTimestamp()});
+      final atualizado = usuario.copyWith(firstLogin: false);
+      await _upsertUsuarioLocal(atualizado);
+      return atualizado;
+    }
+
+    return usuario;
   }
 
   Future<Usuario> cadastrarAdmin({
@@ -171,39 +251,76 @@ class AuthService {
       await _assertAdminSession();
     }
 
-    try {
-      final credential = existeAdmin
-          ? await (await _getProvisioningAuth()).createUserWithEmailAndPassword(
-              email: sanitizedEmail,
-              password: password,
-            )
-          : await _auth.createUserWithEmailAndPassword(
-              email: sanitizedEmail,
-              password: password,
-            );
+    SecurityUtils.ensure(
+      !(await _emailEmUso(sanitizedEmail)),
+      'Este email ja esta em uso.',
+    );
 
-      await credential.user!.updateDisplayName(sanitizedNome);
+    try {
+      UserCredential credential;
+      if (existeAdmin) {
+        final app = await Firebase.initializeApp(
+          name: 'secondaryApp_admin_${DateTime.now().millisecondsSinceEpoch}',
+          options: Firebase.app().options,
+        );
+        final secondaryAuth = FirebaseAuth.instanceFor(app: app);
+        try {
+          credential = await secondaryAuth.createUserWithEmailAndPassword(
+            email: sanitizedEmail,
+            password: password,
+          );
+        } finally {
+          try {
+            await secondaryAuth.signOut();
+          } catch (_) {}
+          try {
+            await app.delete();
+          } catch (_) {}
+        }
+      } else {
+        credential = await _auth.createUserWithEmailAndPassword(
+          email: sanitizedEmail,
+          password: password,
+        );
+      }
+
+      final shopId = existeAdmin
+          ? _resolveBarbeariaId(await _assertAdminSession())
+          : 'shop_${credential.user!.uid}';
+
+      await _ensureBarbeariaDocument(shopId, credential.user!.uid);
+
+      await _usuariosCollection(shopId).doc(credential.user!.uid).set({
+        'uid': credential.user!.uid,
+        'id': credential.user!.uid,
+        'nome': sanitizedNome,
+        'email': sanitizedEmail,
+        'telefone': null,
+        'role': AppConstants.roleAdmin,
+        'ativo': true,
+        'comissao_percentual': 0.0,
+        'first_login': false,
+        'barbearia_id': shopId,
+        'created_by': credential.user!.uid,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
 
       final usuario = Usuario(
         id: credential.user!.uid,
         nome: sanitizedNome,
         email: sanitizedEmail,
+        telefone: null,
         role: AppConstants.roleAdmin,
         ativo: true,
         comissaoPercentual: 0.0,
+        firstLogin: false,
+        barbeariaId: shopId,
         createdAt: DateTime.now(),
       );
-
-      await _firestore
-          .collection(AppConstants.tableUsuarios)
-          .doc(usuario.id)
-          .set(usuario.toFirestore());
-
-      if (existeAdmin) {
-        final provisioningAuth = await _getProvisioningAuth();
-        await provisioningAuth.signOut();
-      }
-
+      await _upsertUsuarioLocal(usuario);
+      FirebaseContextService.setCachedBarbeariaId(shopId);
+      _usuarioLocalLogado = usuario;
       return usuario;
     } on FirebaseAuthException catch (e) {
       throw _traduzirErroAuth(e);
@@ -215,6 +332,7 @@ class AuthService {
       await _auth.signOut();
     }
     _usuarioLocalLogado = null;
+    FirebaseContextService.setCachedBarbeariaId(null);
   }
 
   Future<void> recuperarSenha(String email) async {
@@ -224,7 +342,6 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: sanitizedEmail);
     } on FirebaseAuthException catch (e) {
-      // Evita enumeracao de contas.
       if (e.code == 'user-not-found') {
         return;
       }
@@ -243,60 +360,108 @@ class AuthService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Gestao de usuarios (Firestore)
-  // ---------------------------------------------------------------------------
+  Future<void> concluirPrimeiroLogin() async {
+    if (!_firebaseDisponivel) return;
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final perfil = await _buscarUsuarioFirestore(user.uid);
+    if (perfil == null) return;
+
+    final shopId = _resolveBarbeariaId(perfil);
+    await _usuariosCollection(shopId).doc(user.uid).update({
+      'first_login': false,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+
+    await _upsertUsuarioLocal(perfil.copyWith(firstLogin: false));
+  }
 
   Future<Usuario?> getUsuarioPorId(String id) async {
-    if (!_firebaseDisponivel) return null;
     final sanitizedId =
         SecurityUtils.sanitizeIdentifier(id, fieldName: 'ID do usuario');
-    final doc = await _firestore
-        .collection(AppConstants.tableUsuarios)
-        .doc(sanitizedId)
-        .get();
-    if (!doc.exists || doc.data() == null) return null;
-    return Usuario.fromFirestore(doc.data()!);
+
+    if (!_firebaseDisponivel) {
+      return _getUsuarioLocalPorId(sanitizedId);
+    }
+
+    final remoto = await _buscarUsuarioFirestore(sanitizedId);
+    if (remoto != null) {
+      await _upsertUsuarioLocal(remoto);
+      return remoto;
+    }
+
+    return _getUsuarioLocalPorId(sanitizedId);
   }
 
   Future<List<Usuario>> listarUsuarios() async {
-    _garantirFirebaseInicializado();
-    await _assertAdminSession();
+    final admin = await _assertAdminSession();
 
-    final snap = await _firestore
-        .collection(AppConstants.tableUsuarios)
-        .orderBy('nome')
-        .get();
-    return snap.docs.map((d) => Usuario.fromFirestore(d.data())).toList();
+    if (!_firebaseDisponivel) {
+      return _listarUsuariosLocais();
+    }
+
+    final shopId = _resolveBarbeariaId(admin);
+    final snap = await _usuariosCollection(shopId).orderBy('nome').get();
+    final usuarios = snap.docs.map((d) {
+      final data = <String, dynamic>{...d.data()};
+      data['id'] = data['id'] ?? d.id;
+      data['uid'] = data['uid'] ?? d.id;
+      data['barbearia_id'] = data['barbearia_id'] ?? shopId;
+      data['created_at'] = _normalizeDateValue(data['created_at']);
+      return Usuario.fromFirestore(data);
+    }).toList(growable: false);
+
+    await _syncUsuariosLocais(usuarios);
+    return usuarios;
   }
 
   Future<List<Usuario>> listarBarbeiros({bool apenasAtivos = true}) async {
-    if (!_firebaseDisponivel) return <Usuario>[];
-    if (_auth.currentUser == null) {
+    if (!_firebaseDisponivel) {
+      final usuarios = await _listarUsuariosLocais();
+      return usuarios
+          .where((u) => u.isBarbeiro && (!apenasAtivos || u.ativo))
+          .toList(growable: false);
+    }
+
+    final atual = await getCurrentUsuario();
+    if (atual == null) {
       throw Exception('Autenticacao obrigatoria.');
     }
 
-    Query query = _firestore
-        .collection(AppConstants.tableUsuarios)
-        .where('role', isEqualTo: AppConstants.roleBarbeiro);
+    Query<Map<String, dynamic>> query = _usuariosCollection(
+      _resolveBarbeariaId(atual),
+    ).where('role', isEqualTo: AppConstants.roleBarbeiro);
 
     if (apenasAtivos) {
       query = query.where('ativo', isEqualTo: true);
     }
 
     final snap = await query.orderBy('nome').get();
-    return snap.docs
-        .map((d) => Usuario.fromFirestore(d.data() as Map<String, dynamic>))
-        .toList();
+    final usuarios = snap.docs.map((d) {
+      final data = <String, dynamic>{...d.data()};
+      data['id'] = data['id'] ?? d.id;
+      data['uid'] = data['uid'] ?? d.id;
+      data['barbearia_id'] = data['barbearia_id'] ?? _resolveBarbeariaId(atual);
+      data['created_at'] = _normalizeDateValue(data['created_at']);
+      return Usuario.fromFirestore(data);
+    }).toList(growable: false);
+
+    await _syncUsuariosLocais(usuarios);
+    return usuarios;
   }
 
   Future<void> atualizarUsuario(Usuario usuario) async {
-    _garantirFirebaseInicializado();
-    await _assertAdminSession();
+    final admin = await _assertAdminSession();
 
     final sanitizedNome =
         SecurityUtils.sanitizeName(usuario.nome, fieldName: 'Nome');
     final sanitizedEmail = SecurityUtils.sanitizeEmail(usuario.email);
+    final sanitizedTelefone = SecurityUtils.sanitizeOptionalText(
+      usuario.telefone,
+      maxLength: 20,
+      allowNewLines: false,
+    );
     final sanitizedRole = SecurityUtils.sanitizeEnumValue(
       usuario.role,
       fieldName: 'Perfil',
@@ -306,37 +471,53 @@ class AuthService {
       usuario.comissaoPercentual,
       fieldName: 'Comissao',
       min: 0.0,
-      max: 1.0,
+      max: 100.0,
     );
+
+    final shopId = _resolveBarbeariaId(admin);
 
     final safeUsuario = usuario.copyWith(
       nome: sanitizedNome,
       email: sanitizedEmail,
+      telefone: sanitizedTelefone,
       role: sanitizedRole,
       comissaoPercentual: sanitizedComissao,
+      barbeariaId: shopId,
     );
 
-    await _firestore
-        .collection(AppConstants.tableUsuarios)
-        .doc(safeUsuario.id)
-        .update(safeUsuario.toFirestore());
+    if (_firebaseDisponivel) {
+      await _usuariosCollection(shopId).doc(safeUsuario.id).set({
+        ...safeUsuario.toFirestore(),
+        'uid': safeUsuario.id,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    await _upsertUsuarioLocal(safeUsuario);
   }
 
   Future<void> toggleAtivo(String userId, bool ativo) async {
-    _garantirFirebaseInicializado();
-    await _assertAdminSession();
+    final admin = await _assertAdminSession();
 
     final sanitizedId =
         SecurityUtils.sanitizeIdentifier(userId, fieldName: 'ID do usuario');
-    await _firestore
-        .collection(AppConstants.tableUsuarios)
-        .doc(sanitizedId)
-        .update({'ativo': ativo});
+    final shopId = _resolveBarbeariaId(admin);
+
+    if (_firebaseDisponivel) {
+      await _usuariosCollection(shopId).doc(sanitizedId).update({
+        'ativo': ativo,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    }
+
+    final local = await _getUsuarioLocalPorId(sanitizedId);
+    if (local != null) {
+      await _upsertUsuarioLocal(local.copyWith(ativo: ativo));
+    }
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  Future<bool> podeCadastrarAdminPublicamente() async {
+    return !(await _hasAnyAdmin());
+  }
 
   Exception _traduzirErroAuth(FirebaseAuthException e) {
     switch (e.code) {
@@ -368,33 +549,158 @@ class AuthService {
   }
 
   Future<bool> _hasAnyAdmin() async {
-    final snap = await _firestore
-        .collection(AppConstants.tableUsuarios)
-        .where('role', isEqualTo: AppConstants.roleAdmin)
-        .limit(1)
-        .get();
-    return snap.docs.isNotEmpty;
+    if (_firebaseDisponivel) {
+      final snap = await _firestore
+          .collectionGroup(AppConstants.tableUsuarios)
+          .where('role', isEqualTo: AppConstants.roleAdmin)
+          .limit(1)
+          .get();
+      return snap.docs.isNotEmpty;
+    }
+
+    final rows = await _db.rawQuery('''
+      SELECT COUNT(*) as total
+      FROM ${AppConstants.tableUsuarios}
+      WHERE role = ?
+    ''', [AppConstants.roleAdmin]);
+    final total = (rows.first['total'] as num?)?.toInt() ?? 0;
+    return total > 0;
   }
 
-  Future<void> _assertAdminSession() async {
+  Future<bool> _emailEmUso(String email) async {
+    final normalized = SecurityUtils.sanitizeEmail(email);
+
+    if (_firebaseDisponivel) {
+      final firestoreRows = await _firestore
+          .collectionGroup(AppConstants.tableUsuarios)
+          .where('email', isEqualTo: normalized)
+          .limit(1)
+          .get();
+      if (firestoreRows.docs.isNotEmpty) {
+        return true;
+      }
+    }
+
+    final localRows = await _db.queryAll(
+      AppConstants.tableUsuarios,
+      where: 'email = ?',
+      whereArgs: [normalized],
+      limit: 1,
+    );
+    return localRows.isNotEmpty;
+  }
+
+  Future<Usuario> _assertAdminSession() async {
     final usuario = await getCurrentUsuario();
     if (usuario == null || !usuario.ativo || !usuario.isAdmin) {
       throw Exception('Apenas administradores podem executar esta acao.');
     }
+    return usuario;
   }
 
-  Future<FirebaseAuth> _getProvisioningAuth() async {
-    _garantirFirebaseInicializado();
-    FirebaseApp app;
-    try {
-      app = Firebase.app(_provisioningAppName);
-    } catch (_) {
-      app = await Firebase.initializeApp(
-        name: _provisioningAppName,
-        options: Firebase.app().options,
-      );
+  String _resolveBarbeariaId(Usuario usuario) {
+    final id = usuario.barbeariaId;
+    if (id != null && id.trim().isNotEmpty) {
+      return id;
     }
-    return FirebaseAuth.instanceFor(app: app);
+    return AppConstants.localBarbeariaId;
+  }
+
+  CollectionReference<Map<String, dynamic>> _usuariosCollection(
+    String barbeariaId,
+  ) {
+    return _context.collection(
+      barbeariaId: barbeariaId,
+      nome: AppConstants.tableUsuarios,
+    );
+  }
+
+  Future<void> _ensureBarbeariaDocument(String shopId, String uidCriador) async {
+    await _context.barbeariaDoc(shopId).set({
+      'id': shopId,
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+      'created_by': uidCriador,
+    }, SetOptions(merge: true));
+  }
+
+  Future<Usuario?> _buscarUsuarioFirestore(String uid) async {
+    if (!_firebaseDisponivel) return null;
+
+    final cachedShop = await _context.getBarbeariaIdAtual();
+    if (cachedShop != null && cachedShop.trim().isNotEmpty) {
+      final doc = await _usuariosCollection(cachedShop).doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = <String, dynamic>{...doc.data()!};
+        data['id'] = data['id'] ?? uid;
+        data['uid'] = data['uid'] ?? uid;
+        data['barbearia_id'] = data['barbearia_id'] ?? cachedShop;
+        data['created_at'] = _normalizeDateValue(data['created_at']);
+        return Usuario.fromFirestore(data);
+      }
+    }
+
+    final group = await _firestore
+        .collectionGroup(AppConstants.tableUsuarios)
+        .where('uid', isEqualTo: uid)
+        .limit(1)
+        .get();
+    if (group.docs.isNotEmpty) {
+      final doc = group.docs.first;
+      final data = <String, dynamic>{...doc.data()};
+      final shopId = (data['barbearia_id'] as String?) ??
+          doc.reference.parent.parent?.id ??
+          AppConstants.localBarbeariaId;
+      data['id'] = data['id'] ?? uid;
+      data['uid'] = data['uid'] ?? uid;
+      data['barbearia_id'] = shopId;
+      data['created_at'] = _normalizeDateValue(data['created_at']);
+      return Usuario.fromFirestore(data);
+    }
+
+    return null;
+  }
+
+  String _normalizeDateValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toIso8601String();
+    }
+    if (value is DateTime) {
+      return value.toIso8601String();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return value;
+    }
+    return DateTime.now().toIso8601String();
+  }
+
+  Future<void> _syncUsuariosLocais(List<Usuario> usuarios) async {
+    for (final usuario in usuarios) {
+      await _upsertUsuarioLocal(usuario);
+    }
+  }
+
+  Future<void> _upsertUsuarioLocal(Usuario usuario) async {
+    await _db.insert(AppConstants.tableUsuarios, usuario.toMap());
+  }
+
+  Future<Usuario?> _getUsuarioLocalPorId(String id) async {
+    final rows = await _db.queryAll(
+      AppConstants.tableUsuarios,
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Usuario.fromMap(rows.first);
+  }
+
+  Future<List<Usuario>> _listarUsuariosLocais() async {
+    final rows = await _db.queryAll(
+      AppConstants.tableUsuarios,
+      orderBy: 'nome ASC',
+    );
+    return rows.map((e) => Usuario.fromMap(e)).toList(growable: false);
   }
 
   Future<Usuario> _loginOffline({
@@ -431,6 +737,8 @@ class AuthService {
             role: AppConstants.roleAdmin,
             ativo: true,
             comissaoPercentual: 0.0,
+            firstLogin: false,
+            barbeariaId: AppConstants.localBarbeariaId,
             createdAt: DateTime.now(),
           );
 
@@ -439,7 +747,9 @@ class AuthService {
           'Usuario offline inativo ou sem permissao administrativa.');
     }
 
+    await _upsertUsuarioLocal(usuario);
     _usuarioLocalLogado = usuario;
+    FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
     return usuario;
   }
 }

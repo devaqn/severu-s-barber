@@ -1,4 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/fornecedor.dart';
@@ -6,12 +10,29 @@ import '../models/movimento_estoque.dart';
 import '../models/produto.dart';
 import '../utils/constants.dart';
 import '../utils/security_utils.dart';
+import 'connectivity_service.dart';
+import 'firebase_context_service.dart';
 import 'service_exceptions.dart';
 
 class ProdutoService {
+  static const String _estoqueCollection = 'estoque';
+
   final DatabaseHelper _db = DatabaseHelper();
+  final FirebaseContextService _context = FirebaseContextService();
+  final ConnectivityService _connectivity = ConnectivityService();
+  final Uuid _uuid = const Uuid();
+
+  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  Future<bool> _isFirebaseOnline() async {
+    if (!_firebaseDisponivel) return false;
+    return _connectivity.isOnline();
+  }
 
   Future<List<Produto>> getAll({bool apenasAtivos = true}) async {
+    await _syncFromFirestoreIfOnline();
+
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
@@ -29,6 +50,8 @@ class ProdutoService {
       min: 1,
       max: 1 << 30,
     );
+    await _syncFromFirestoreIfOnline();
+
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
@@ -42,6 +65,37 @@ class ProdutoService {
 
   Future<int> insert(Produto produto) async {
     final safeProduto = _sanitizarProduto(produto);
+    if (await _isFirebaseOnline()) {
+      final shopId = await _context.getBarbeariaIdAtual();
+      final uid = _auth.currentUser?.uid;
+      if (shopId != null && uid != null) {
+        final firebaseId = _uuid.v4();
+        await _context
+            .collection(barbeariaId: shopId, nome: AppConstants.tableProdutos)
+            .doc(firebaseId)
+            .set({
+          'nome': safeProduto.nome,
+          'preco_venda': safeProduto.precoVenda,
+          'preco_custo': safeProduto.precoCusto,
+          'quantidade': safeProduto.quantidade,
+          'estoque_minimo': safeProduto.estoqueMinimo,
+          'comissao_percentual': safeProduto.comissaoPercentual,
+          'fornecedor_id': safeProduto.fornecedorId,
+          'ativo': safeProduto.ativo,
+          'barbearia_id': shopId,
+          'created_by': uid,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+
+        return _db.insert(AppConstants.tableProdutos, {
+          ...safeProduto.toMap(),
+          'firebase_id': firebaseId,
+          'barbearia_id': shopId,
+          'created_by': uid,
+        });
+      }
+    }
     return _db.insert(AppConstants.tableProdutos, safeProduto.toMap());
   }
 
@@ -50,6 +104,36 @@ class ProdutoService {
     final safeProduto = _sanitizarProduto(
       produto.copyWith(updatedAt: DateTime.now()),
     );
+    if (await _isFirebaseOnline()) {
+      final row = await _db.queryAll(
+        AppConstants.tableProdutos,
+        where: 'id = ?',
+        whereArgs: [safeProduto.id],
+        limit: 1,
+      );
+      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final shopId = await _context.getBarbeariaIdAtual();
+      final uid = _auth.currentUser?.uid;
+      if (firebaseId != null && shopId != null && uid != null) {
+        await _context
+            .collection(barbeariaId: shopId, nome: AppConstants.tableProdutos)
+            .doc(firebaseId)
+            .set({
+          'nome': safeProduto.nome,
+          'preco_venda': safeProduto.precoVenda,
+          'preco_custo': safeProduto.precoCusto,
+          'quantidade': safeProduto.quantidade,
+          'estoque_minimo': safeProduto.estoqueMinimo,
+          'comissao_percentual': safeProduto.comissaoPercentual,
+          'fornecedor_id': safeProduto.fornecedorId,
+          'ativo': safeProduto.ativo,
+          'barbearia_id': shopId,
+          'created_by': uid,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
+
     await _db.update(
       AppConstants.tableProdutos,
       safeProduto.toMap(),
@@ -65,6 +149,26 @@ class ProdutoService {
       min: 1,
       max: 1 << 30,
     );
+    if (await _isFirebaseOnline()) {
+      final row = await _db.queryAll(
+        AppConstants.tableProdutos,
+        where: 'id = ?',
+        whereArgs: [safeId],
+        limit: 1,
+      );
+      final firebaseId = row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final shopId = await _context.getBarbeariaIdAtual();
+      if (firebaseId != null && shopId != null) {
+        await _context
+            .collection(barbeariaId: shopId, nome: AppConstants.tableProdutos)
+            .doc(firebaseId)
+            .set({
+          'ativo': false,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
+
     await _db.update(
       AppConstants.tableProdutos,
       {'ativo': 0},
@@ -101,6 +205,7 @@ class ProdutoService {
         observacao: observacao,
       );
     });
+    await _syncProdutoAndLastMovimentoIfOnline(produtoId);
   }
 
   Future<void> baixarEstoque({
@@ -118,6 +223,7 @@ class ProdutoService {
         observacao: observacao,
       );
     });
+    await _syncProdutoAndLastMovimentoIfOnline(produtoId);
   }
 
   Future<void> baixarEstoqueComExecutor({
@@ -136,6 +242,16 @@ class ProdutoService {
       observacaoPadrao: 'Venda em atendimento',
       observacao: observacao,
     );
+  }
+
+  Future<void> syncProdutoByIdIfOnline(int produtoId) async {
+    final safeProdutoId = SecurityUtils.sanitizeIntRange(
+      produtoId,
+      fieldName: 'ID do produto',
+      min: 1,
+      max: 1 << 30,
+    );
+    await _syncProdutoAndLastMovimentoIfOnline(safeProdutoId);
   }
 
   Future<void> _registrarMovimentoEstoque({
@@ -386,6 +502,164 @@ class ProdutoService {
         'quantidade_sugerida': sugestao < 1 ? 1 : sugestao,
       };
     }).toList();
+  }
+
+  Future<void> _syncFromFirestoreIfOnline() async {
+    if (!await _isFirebaseOnline()) return;
+    await _syncPendingLocalProdutosIfOnline();
+
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return;
+
+    final snap = await _context
+        .collection(barbeariaId: shopId, nome: AppConstants.tableProdutos)
+        .orderBy('nome')
+        .get();
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final existing = await _db.queryAll(
+        AppConstants.tableProdutos,
+        where: 'firebase_id = ?',
+        whereArgs: [doc.id],
+        limit: 1,
+      );
+
+      final map = <String, dynamic>{
+        'firebase_id': doc.id,
+        'barbearia_id': (data['barbearia_id'] as String?) ?? shopId,
+        'created_by': data['created_by'] as String?,
+        'nome': (data['nome'] ?? '') as String,
+        'preco_venda': (data['preco_venda'] as num?)?.toDouble() ?? 0.0,
+        'preco_custo': (data['preco_custo'] as num?)?.toDouble() ?? 0.0,
+        'quantidade': (data['quantidade'] as num?)?.toInt() ?? 0,
+        'estoque_minimo': (data['estoque_minimo'] as num?)?.toInt() ?? 3,
+        'comissao_percentual':
+            (data['comissao_percentual'] as num?)?.toDouble() ?? 0.20,
+        'fornecedor_id': (data['fornecedor_id'] as num?)?.toInt(),
+        'ativo': ((data['ativo'] as bool?) ?? true) ? 1 : 0,
+        'created_at': data['created_at'] is Timestamp
+            ? (data['created_at'] as Timestamp).toDate().toIso8601String()
+            : DateTime.now().toIso8601String(),
+        'updated_at': data['updated_at'] is Timestamp
+            ? (data['updated_at'] as Timestamp).toDate().toIso8601String()
+            : DateTime.now().toIso8601String(),
+      };
+
+      if (existing.isEmpty) {
+        await _db.insert(AppConstants.tableProdutos, map);
+      } else {
+        await _db.update(
+          AppConstants.tableProdutos,
+          map,
+          'id = ?',
+          [existing.first['id']],
+        );
+      }
+    }
+  }
+
+  Future<void> _syncPendingLocalProdutosIfOnline() async {
+    if (!await _isFirebaseOnline()) return;
+    final rows = await _db.queryAll(
+      AppConstants.tableProdutos,
+      orderBy: 'updated_at DESC',
+    );
+    for (final row in rows) {
+      final id = (row['id'] as num?)?.toInt();
+      if (id == null) continue;
+      await _syncProdutoAndLastMovimentoIfOnline(id);
+    }
+  }
+
+  Future<void> _syncProdutoAndLastMovimentoIfOnline(int produtoId) async {
+    if (!await _isFirebaseOnline()) return;
+
+    final shopId = await _context.getBarbeariaIdAtual();
+    final uid = _auth.currentUser?.uid;
+    if (shopId == null || uid == null) return;
+
+    final produtoRows = await _db.queryAll(
+      AppConstants.tableProdutos,
+      where: 'id = ?',
+      whereArgs: [produtoId],
+      limit: 1,
+    );
+    if (produtoRows.isEmpty) return;
+    final produto = produtoRows.first;
+    String? firebaseId = produto['firebase_id'] as String?;
+    if (firebaseId == null || firebaseId.trim().isEmpty) {
+      firebaseId = _uuid.v4();
+      await _db.update(
+        AppConstants.tableProdutos,
+        {
+          'firebase_id': firebaseId,
+          'barbearia_id': shopId,
+          'created_by': uid,
+        },
+        'id = ?',
+        [produtoId],
+      );
+    }
+
+    await _context
+        .collection(barbeariaId: shopId, nome: AppConstants.tableProdutos)
+        .doc(firebaseId)
+        .set({
+      'nome': produto['nome'],
+      'preco_venda': (produto['preco_venda'] as num?)?.toDouble() ?? 0.0,
+      'preco_custo': (produto['preco_custo'] as num?)?.toDouble() ?? 0.0,
+      'quantidade': (produto['quantidade'] as num?)?.toInt() ?? 0,
+      'estoque_minimo': (produto['estoque_minimo'] as num?)?.toInt() ?? 3,
+      'comissao_percentual':
+          (produto['comissao_percentual'] as num?)?.toDouble() ?? 0.0,
+      'fornecedor_id': (produto['fornecedor_id'] as num?)?.toInt(),
+      'ativo': ((produto['ativo'] as num?)?.toInt() ?? 1) == 1,
+      'barbearia_id': shopId,
+      'created_by': uid,
+      'updated_at': FieldValue.serverTimestamp(),
+      if (produto['created_at'] == null) 'created_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final movimentos = await _db.queryAll(
+      AppConstants.tableMovimentosEstoque,
+      where: 'produto_id = ?',
+      whereArgs: [produtoId],
+      orderBy: 'data DESC',
+      limit: 1,
+    );
+    if (movimentos.isEmpty) return;
+    final mov = movimentos.first;
+    final movFirebaseId =
+        (mov['firebase_id'] as String?)?.trim().isNotEmpty == true
+            ? mov['firebase_id'] as String
+            : _uuid.v4();
+
+    await _context
+        .collection(
+          barbeariaId: shopId,
+          nome: _estoqueCollection,
+        )
+        .doc(movFirebaseId)
+        .set({
+      'produto_id': produtoId,
+      'produto_nome': mov['produto_nome'],
+      'tipo': mov['tipo'],
+      'quantidade': (mov['quantidade'] as num?)?.toInt() ?? 0,
+      'valor_unitario': (mov['valor_unitario'] as num?)?.toDouble() ?? 0.0,
+      'data': mov['data'],
+      'observacao': mov['observacao'],
+      'barbearia_id': shopId,
+      'created_by': uid,
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await _db.update(
+      AppConstants.tableMovimentosEstoque,
+      {'firebase_id': movFirebaseId, 'barbearia_id': shopId, 'created_by': uid},
+      'id = ?',
+      [mov['id']],
+    );
   }
 
   Produto _sanitizarProduto(Produto produto) {

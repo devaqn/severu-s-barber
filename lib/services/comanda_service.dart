@@ -1,3 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:uuid/uuid.dart';
+
 import '../database/database_helper.dart';
 import '../models/comanda.dart';
 import '../models/item_comanda.dart';
@@ -5,15 +10,34 @@ import '../utils/constants.dart';
 import '../utils/security_utils.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'cliente_service.dart';
+import 'connectivity_service.dart';
+import 'firebase_context_service.dart';
 import 'produto_service.dart';
 import 'service_exceptions.dart';
 
 class ComandaService {
+  static const String _comandaItensSubcollection = 'itens';
+  static const String _legacyComandaItensSubcollection =
+      AppConstants.tableComandasItens;
+
   final DatabaseHelper _db = DatabaseHelper();
   final ProdutoService _produtoService = ProdutoService();
   final ClienteService _clienteService = ClienteService();
+  final FirebaseContextService _context = FirebaseContextService();
+  final ConnectivityService _connectivity = ConnectivityService();
+  final Uuid _uuid = const Uuid();
+
+  bool get _firebaseDisponivel => Firebase.apps.isNotEmpty;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  Future<bool> _isFirebaseOnline() async {
+    if (!_firebaseDisponivel) return false;
+    return _connectivity.isOnline();
+  }
 
   Future<List<Comanda>> getAll({String? barbeiroId, String? status}) async {
+    await _syncFromFirestoreIfOnline();
+
     final safeBarbeiroId = barbeiroId == null
         ? null
         : SecurityUtils.sanitizeIdentifier(
@@ -63,6 +87,8 @@ class ComandaService {
       min: 1,
       max: 1 << 30,
     );
+    await _syncFromFirestoreIfOnline();
+
     final maps = await _db.queryAll(
       AppConstants.tableComandas,
       where: 'id = ?',
@@ -76,6 +102,8 @@ class ComandaService {
   }
 
   Future<Comanda?> getComandaAberta({String? barbeiroId}) async {
+    await _syncFromFirestoreIfOnline();
+
     final safeBarbeiroId = barbeiroId == null
         ? null
         : SecurityUtils.sanitizeIdentifier(
@@ -105,6 +133,8 @@ class ComandaService {
   }
 
   Future<List<Comanda>> getComandasHoje({String? barbeiroId}) async {
+    await _syncFromFirestoreIfOnline();
+
     final hoje = DateTime.now();
     final inicio = DateTime(hoje.year, hoje.month, hoje.day).toIso8601String();
     final fim =
@@ -180,7 +210,45 @@ class ComandaService {
       observacoes: safeObs,
     );
 
-    final id = await _db.insert(AppConstants.tableComandas, comanda.toMap());
+    final localMap = <String, dynamic>{
+      ...comanda.toMap(),
+      'barbeiro_uid': safeBarbeiroId,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (await _isFirebaseOnline()) {
+      final shopId = await _context.getBarbeariaIdAtual();
+      final uid = _auth.currentUser?.uid;
+      if (shopId != null && uid != null) {
+        final firebaseId = _uuid.v4();
+        await _context
+            .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
+            .doc(firebaseId)
+            .set({
+          'cliente_id': clienteId,
+          'cliente_nome': safeClienteNome,
+          'barbeiro_id': safeBarbeiroId,
+          'barbeiro_nome': safeBarbeiroNome,
+          'barbeiro_uid': safeBarbeiroId,
+          'status': AppConstants.comandaAberta,
+          'total': 0.0,
+          'comissao_total': 0.0,
+          'forma_pagamento': null,
+          'data_abertura': comanda.dataAbertura.toIso8601String(),
+          'data_fechamento': null,
+          'observacoes': safeObs,
+          'barbearia_id': shopId,
+          'created_by': uid,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+        localMap['firebase_id'] = firebaseId;
+        localMap['barbearia_id'] = shopId;
+        localMap['created_by'] = uid;
+      }
+    }
+
+    final id = await _db.insert(AppConstants.tableComandas, localMap);
     return comanda.copyWith(id: id);
   }
 
@@ -196,7 +264,7 @@ class ComandaService {
     await _db.transaction((txn) async {
       final comandaRows = await txn.query(
         AppConstants.tableComandas,
-        columns: ['id', 'status'],
+        columns: ['id', 'status', 'barbeiro_id'],
         where: 'id = ?',
         whereArgs: [safeComandaId],
         limit: 1,
@@ -210,10 +278,24 @@ class ComandaService {
           'Nao e possivel adicionar itens em comanda fechada/cancelada.',
         );
       }
+      final barbeiroId = comandaRows.first['barbeiro_id'] as String?;
+      final comissaoFinal = await _resolverComissaoPercentual(
+        txn,
+        barbeiroId: barbeiroId,
+        fallback: safeItem.comissaoPercentual,
+      );
 
       await txn.insert(
         AppConstants.tableComandasItens,
-        safeItem.copyWith(comandaId: safeComandaId).toMap(),
+        {
+          ...safeItem
+            .copyWith(
+              comandaId: safeComandaId,
+              comissaoPercentual: comissaoFinal,
+            )
+            .toMap(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
       );
 
       final totais = await _calcularTotaisComanda(txn, safeComandaId);
@@ -227,6 +309,7 @@ class ComandaService {
         whereArgs: [safeComandaId],
       );
     });
+    await _syncComandaByLocalIdIfOnline(safeComandaId);
   }
 
   Future<void> removerItem(int comandaId, int itemId) async {
@@ -278,6 +361,7 @@ class ComandaService {
         whereArgs: [safeComandaId],
       );
     });
+    await _syncComandaByLocalIdIfOnline(safeComandaId);
   }
 
   Future<void> fecharComanda({
@@ -303,6 +387,7 @@ class ComandaService {
     );
 
     final agora = DateTime.now();
+    final produtosAbaixados = <int>{};
     await _db.transaction((txn) async {
       final comandaRows = await txn.query(
         AppConstants.tableComandas,
@@ -338,6 +423,7 @@ class ComandaService {
 
       for (final item in itens) {
         if (item.tipo != 'produto') continue;
+        produtosAbaixados.add(item.itemId);
         await _produtoService.baixarEstoqueComExecutor(
           executor: txn,
           produtoId: item.itemId,
@@ -363,6 +449,7 @@ class ComandaService {
           'comissao_total': comissao,
           'forma_pagamento': safeFormaPagamento,
           'data_fechamento': agora.toIso8601String(),
+          'updated_at': agora.toIso8601String(),
           if (safeObs != null) 'observacoes': safeObs,
         },
         where: 'id = ? AND status = ?',
@@ -375,7 +462,11 @@ class ComandaService {
       }
 
       if (comanda.barbeiroId != null && comissao > 0) {
+        final comandaRow = comandaRows.first;
         await txn.insert(AppConstants.tableComissoes, {
+          'firebase_id': _uuid.v4(),
+          'barbearia_id': comandaRow['barbearia_id'],
+          'created_by': comandaRow['created_by'],
           'barbeiro_id': comanda.barbeiroId,
           'barbeiro_nome': comanda.barbeiroNome ?? 'Barbeiro',
           'comanda_id': safeComandaId,
@@ -385,6 +476,10 @@ class ComandaService {
         });
       }
     });
+    await _syncComandaByLocalIdIfOnline(safeComandaId);
+    for (final produtoId in produtosAbaixados) {
+      await _produtoService.syncProdutoByIdIfOnline(produtoId);
+    }
   }
 
   Future<void> cancelarComanda(int comandaId) async {
@@ -399,6 +494,7 @@ class ComandaService {
       {
         'status': AppConstants.comandaCancelada,
         'data_fechamento': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       },
       'id = ? AND status = ?',
       [safeComandaId, AppConstants.comandaAberta],
@@ -408,6 +504,7 @@ class ComandaService {
         'Somente comanda aberta pode ser cancelada.',
       );
     }
+    await _syncComandaByLocalIdIfOnline(safeComandaId);
   }
 
   Future<double> getFaturamentoBarbeiro(
@@ -421,13 +518,14 @@ class ComandaService {
       minLength: 1,
     );
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    await _syncFromFirestoreIfOnline();
 
     final result = await _db.rawQuery('''
       SELECT SUM(total) as total
       FROM ${AppConstants.tableComandas}
       WHERE barbeiro_id = ?
         AND status = 'fechada'
-        AND data_abertura BETWEEN ? AND ?
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
     ''', [safeBarbeiroId, inicio.toIso8601String(), fim.toIso8601String()]);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -443,12 +541,14 @@ class ComandaService {
       minLength: 1,
     );
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    await _syncFromFirestoreIfOnline();
 
     final result = await _db.rawQuery('''
-      SELECT SUM(valor) as total
-      FROM ${AppConstants.tableComissoes}
+      SELECT SUM(comissao_total) as total
+      FROM ${AppConstants.tableComandas}
       WHERE barbeiro_id = ?
-        AND data BETWEEN ? AND ?
+        AND status = 'fechada'
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
     ''', [safeBarbeiroId, inicio.toIso8601String(), fim.toIso8601String()]);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -458,28 +558,173 @@ class ComandaService {
     DateTime fim,
   ) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    await _syncFromFirestoreIfOnline();
     return _db.rawQuery('''
       SELECT
-        barbeiro_id,
-        barbeiro_nome,
+        c.barbeiro_id,
+        c.barbeiro_nome,
         COUNT(*) as total_comandas,
-        SUM(total) as faturamento,
-        SUM(comissao_total) as comissao
-      FROM ${AppConstants.tableComandas}
-      WHERE status = 'fechada'
-        AND data_abertura BETWEEN ? AND ?
-        AND barbeiro_id IS NOT NULL
-      GROUP BY barbeiro_id
+        SUM(c.total) as faturamento,
+        SUM(c.comissao_total) as comissao,
+        MAX(u.comissao_percentual) as comissao_percentual
+      FROM ${AppConstants.tableComandas} c
+      LEFT JOIN ${AppConstants.tableUsuarios} u
+        ON u.id = c.barbeiro_id
+      WHERE c.status = 'fechada'
+        AND COALESCE(c.data_fechamento, c.data_abertura) BETWEEN ? AND ?
+        AND c.barbeiro_id IS NOT NULL
+      GROUP BY c.barbeiro_id
       ORDER BY faturamento DESC
     ''', [inicio.toIso8601String(), fim.toIso8601String()]);
   }
 
   Future<int> getCountComandasAbertas() async {
+    await _syncFromFirestoreIfOnline();
     final result = await _db.rawQuery('''
       SELECT COUNT(*) as total FROM ${AppConstants.tableComandas}
       WHERE status = 'aberta'
     ''');
-    return (result.first['total'] as int?) ?? 0;
+    return (result.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<double> getFaturamentoPeriodo(
+    DateTime inicio,
+    DateTime fim, {
+    String? barbeiroId,
+  }) async {
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    final safeBarbeiroId = barbeiroId == null
+        ? null
+        : SecurityUtils.sanitizeIdentifier(
+            barbeiroId,
+            fieldName: 'ID do barbeiro',
+            minLength: 1,
+          );
+    await _syncFromFirestoreIfOnline();
+
+    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
+    if (safeBarbeiroId != null) {
+      whereArgs.add(safeBarbeiroId);
+    }
+
+    final result = await _db.rawQuery('''
+      SELECT SUM(total) as total
+      FROM ${AppConstants.tableComandas}
+      WHERE status = 'fechada'
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        $whereBarbeiro
+    ''', whereArgs);
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  Future<int> getCountComandasFechadasPeriodo(
+    DateTime inicio,
+    DateTime fim, {
+    String? barbeiroId,
+  }) async {
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    final safeBarbeiroId = barbeiroId == null
+        ? null
+        : SecurityUtils.sanitizeIdentifier(
+            barbeiroId,
+            fieldName: 'ID do barbeiro',
+            minLength: 1,
+          );
+    await _syncFromFirestoreIfOnline();
+
+    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
+    if (safeBarbeiroId != null) {
+      whereArgs.add(safeBarbeiroId);
+    }
+
+    final result = await _db.rawQuery('''
+      SELECT COUNT(*) as total
+      FROM ${AppConstants.tableComandas}
+      WHERE status = 'fechada'
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        $whereBarbeiro
+    ''', whereArgs);
+    return (result.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<List<Map<String, dynamic>>> getFaturamentoPorDia(
+    int dias, {
+    String? barbeiroId,
+  }) async {
+    final safeDias = SecurityUtils.sanitizeIntRange(
+      dias,
+      fieldName: 'Quantidade de dias',
+      min: 1,
+      max: 3650,
+    );
+    final safeBarbeiroId = barbeiroId == null
+        ? null
+        : SecurityUtils.sanitizeIdentifier(
+            barbeiroId,
+            fieldName: 'ID do barbeiro',
+            minLength: 1,
+          );
+    await _syncFromFirestoreIfOnline();
+
+    final inicio =
+        DateTime.now().subtract(Duration(days: safeDias)).toIso8601String();
+    final whereArgs = <dynamic>[inicio];
+    final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
+    if (safeBarbeiroId != null) {
+      whereArgs.add(safeBarbeiroId);
+    }
+
+    return _db.rawQuery('''
+      SELECT 
+        DATE(COALESCE(data_fechamento, data_abertura)) as dia,
+        SUM(total) as total,
+        COUNT(*) as quantidade
+      FROM ${AppConstants.tableComandas}
+      WHERE status = 'fechada'
+        AND COALESCE(data_fechamento, data_abertura) >= ?
+        $whereBarbeiro
+      GROUP BY DATE(COALESCE(data_fechamento, data_abertura))
+      ORDER BY dia ASC
+    ''', whereArgs);
+  }
+
+  Future<Map<String, double>> getFaturamentoPorPagamento(
+    DateTime inicio,
+    DateTime fim, {
+    String? barbeiroId,
+  }) async {
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    final safeBarbeiroId = barbeiroId == null
+        ? null
+        : SecurityUtils.sanitizeIdentifier(
+            barbeiroId,
+            fieldName: 'ID do barbeiro',
+            minLength: 1,
+          );
+    await _syncFromFirestoreIfOnline();
+
+    final whereArgs = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
+    if (safeBarbeiroId != null) {
+      whereArgs.add(safeBarbeiroId);
+    }
+
+    final result = await _db.rawQuery('''
+      SELECT forma_pagamento, SUM(total) as total
+      FROM ${AppConstants.tableComandas}
+      WHERE status = 'fechada'
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        $whereBarbeiro
+      GROUP BY forma_pagamento
+    ''', whereArgs);
+
+    return {
+      for (final row in result)
+        (row['forma_pagamento'] as String?) ?? AppConstants.pgDinheiro:
+            (row['total'] as num?)?.toDouble() ?? 0.0,
+    };
   }
 
   Future<List<Comanda>> _anexarItens(List<Comanda> comandas) async {
@@ -513,6 +758,272 @@ class ComandaService {
       (result[comandaId] ??= <ItemComanda>[]).add(item);
     }
     return result;
+  }
+
+  Future<void> _syncFromFirestoreIfOnline() async {
+    if (!await _isFirebaseOnline()) return;
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return;
+    await _syncPendingLocalComandasIfOnline();
+
+    final comandasSnap = await _context
+        .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
+        .orderBy('data_abertura', descending: true)
+        .get();
+
+    for (final doc in comandasSnap.docs) {
+      final data = doc.data();
+      final existing = await _db.queryAll(
+        AppConstants.tableComandas,
+        where: 'firebase_id = ?',
+        whereArgs: [doc.id],
+        limit: 1,
+      );
+
+      final map = <String, dynamic>{
+        'firebase_id': doc.id,
+        'barbearia_id': (data['barbearia_id'] as String?) ?? shopId,
+        'created_by': data['created_by'] as String?,
+        'cliente_id': (data['cliente_id'] as num?)?.toInt(),
+        'cliente_nome': (data['cliente_nome'] ?? '') as String,
+        'barbeiro_id': data['barbeiro_id'] as String?,
+        'barbeiro_nome': data['barbeiro_nome'] as String?,
+        'barbeiro_uid': data['barbeiro_uid'] as String?,
+        'status': (data['status'] ?? AppConstants.comandaAberta) as String,
+        'total': (data['total'] as num?)?.toDouble() ?? 0.0,
+        'comissao_total': (data['comissao_total'] as num?)?.toDouble() ?? 0.0,
+        'forma_pagamento': data['forma_pagamento'] as String?,
+        'data_abertura': _normalizeDate(data['data_abertura']),
+        'data_fechamento': _normalizeOptionalDate(data['data_fechamento']),
+        'observacoes': data['observacoes'] as String?,
+        'updated_at': _normalizeDate(data['updated_at']),
+      };
+
+      int localComandaId;
+      if (existing.isEmpty) {
+        localComandaId = await _db.insert(AppConstants.tableComandas, map);
+      } else {
+        localComandaId = (existing.first['id'] as num).toInt();
+        await _db.update(
+          AppConstants.tableComandas,
+          map,
+          'id = ?',
+          [localComandaId],
+        );
+      }
+
+      final comandaRef = _context
+          .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
+          .doc(doc.id);
+      final itensSnap = await _getItensSnapshot(comandaRef);
+      for (final itemDoc in itensSnap.docs) {
+        final itemData = itemDoc.data();
+        final existingItem = await _db.queryAll(
+          AppConstants.tableComandasItens,
+          where: 'firebase_id = ?',
+          whereArgs: [itemDoc.id],
+          limit: 1,
+        );
+        final itemMap = <String, dynamic>{
+          'firebase_id': itemDoc.id,
+          'barbearia_id': (itemData['barbearia_id'] as String?) ?? shopId,
+          'created_by': itemData['created_by'] as String?,
+          'comanda_id': localComandaId,
+          'tipo': (itemData['tipo'] ?? 'servico') as String,
+          'item_id': (itemData['item_id'] as num?)?.toInt() ?? 0,
+          'nome': (itemData['nome'] ?? '') as String,
+          'quantidade': (itemData['quantidade'] as num?)?.toInt() ?? 1,
+          'preco_unitario':
+              (itemData['preco_unitario'] as num?)?.toDouble() ?? 0.0,
+          'comissao_percentual':
+              (itemData['comissao_percentual'] as num?)?.toDouble() ?? 0.0,
+          'comissao_valor':
+              (itemData['comissao_valor'] as num?)?.toDouble() ?? 0.0,
+          'updated_at': _normalizeDate(itemData['updated_at']),
+        };
+        if (existingItem.isEmpty) {
+          await _db.insert(AppConstants.tableComandasItens, itemMap);
+        } else {
+          await _db.update(
+            AppConstants.tableComandasItens,
+            itemMap,
+            'id = ?',
+            [existingItem.first['id']],
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _syncComandaByLocalIdIfOnline(int comandaId) async {
+    if (!await _isFirebaseOnline()) return;
+
+    final shopId = await _context.getBarbeariaIdAtual();
+    final uid = _auth.currentUser?.uid;
+    if (shopId == null || uid == null) return;
+
+    final rows = await _db.queryAll(
+      AppConstants.tableComandas,
+      where: 'id = ?',
+      whereArgs: [comandaId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final row = rows.first;
+
+    String? firebaseId = row['firebase_id'] as String?;
+    if (firebaseId == null || firebaseId.trim().isEmpty) {
+      firebaseId = _uuid.v4();
+      await _db.update(
+        AppConstants.tableComandas,
+        {'firebase_id': firebaseId, 'barbearia_id': shopId, 'created_by': uid},
+        'id = ?',
+        [comandaId],
+      );
+    }
+
+    final comandaRef = _context
+        .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
+        .doc(firebaseId);
+    final createdBy =
+        (row['created_by'] as String?)?.trim().isNotEmpty == true
+            ? row['created_by'] as String
+            : uid;
+
+    await comandaRef.set({
+      'cliente_id': row['cliente_id'],
+      'cliente_nome': row['cliente_nome'],
+      'barbeiro_id': row['barbeiro_id'],
+      'barbeiro_nome': row['barbeiro_nome'],
+      'barbeiro_uid': row['barbeiro_uid'] ?? row['barbeiro_id'],
+      'status': row['status'],
+      'total': (row['total'] as num?)?.toDouble() ?? 0.0,
+      'comissao_total': (row['comissao_total'] as num?)?.toDouble() ?? 0.0,
+      'forma_pagamento': row['forma_pagamento'],
+      'data_abertura': row['data_abertura'],
+      'data_fechamento': row['data_fechamento'],
+      'observacoes': row['observacoes'],
+      'barbearia_id': shopId,
+      'created_by': createdBy,
+      'updated_at': FieldValue.serverTimestamp(),
+      if (row['created_at'] == null) 'created_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final itemRows = await _db.queryAll(
+      AppConstants.tableComandasItens,
+      where: 'comanda_id = ?',
+      whereArgs: [comandaId],
+      orderBy: 'id ASC',
+    );
+
+    final localFirebaseIds = <String>{};
+    for (final item in itemRows) {
+      String? itemFirebaseId = item['firebase_id'] as String?;
+      if (itemFirebaseId == null || itemFirebaseId.trim().isEmpty) {
+        itemFirebaseId = _uuid.v4();
+        await _db.update(
+          AppConstants.tableComandasItens,
+          {
+            'firebase_id': itemFirebaseId,
+            'barbearia_id': shopId,
+            'created_by': uid,
+          },
+          'id = ?',
+          [item['id']],
+        );
+      }
+      localFirebaseIds.add(itemFirebaseId);
+
+      await comandaRef
+          .collection(_comandaItensSubcollection)
+          .doc(itemFirebaseId)
+          .set({
+        'tipo': item['tipo'],
+        'item_id': item['item_id'],
+        'nome': item['nome'],
+        'quantidade': item['quantidade'],
+        'preco_unitario': item['preco_unitario'],
+        'comissao_percentual': item['comissao_percentual'],
+        'comissao_valor': item['comissao_valor'],
+        'barbearia_id': shopId,
+        'created_by': uid,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    final cloudItems = await comandaRef.collection(_comandaItensSubcollection).get();
+    for (final cloudDoc in cloudItems.docs) {
+      if (!localFirebaseIds.contains(cloudDoc.id)) {
+        await cloudDoc.reference.delete();
+      }
+    }
+  }
+
+  Future<void> _syncPendingLocalComandasIfOnline() async {
+    if (!await _isFirebaseOnline()) return;
+    final rows = await _db.queryAll(
+      AppConstants.tableComandas,
+      orderBy: 'updated_at DESC',
+    );
+    for (final row in rows) {
+      final id = (row['id'] as num?)?.toInt();
+      if (id == null) continue;
+      await _syncComandaByLocalIdIfOnline(id);
+    }
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _getItensSnapshot(
+    DocumentReference<Map<String, dynamic>> comandaRef,
+  ) async {
+    final itens = await comandaRef.collection(_comandaItensSubcollection).get();
+    if (itens.docs.isNotEmpty) {
+      return itens;
+    }
+    return comandaRef.collection(_legacyComandaItensSubcollection).get();
+  }
+
+  String _normalizeDate(dynamic value) {
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    if (value is DateTime) return value.toIso8601String();
+    if (value is String && value.trim().isNotEmpty) return value;
+    return DateTime.now().toIso8601String();
+  }
+
+  String? _normalizeOptionalDate(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    if (value is DateTime) return value.toIso8601String();
+    if (value is String && value.trim().isNotEmpty) return value;
+    return null;
+  }
+
+  Future<double> _resolverComissaoPercentual(
+    DatabaseExecutor executor, {
+    required String? barbeiroId,
+    required double fallback,
+  }) async {
+    final fallbackSanitizado = fallback.clamp(0.0, 1.0).toDouble();
+    if (barbeiroId == null || barbeiroId.trim().isEmpty) {
+      return fallbackSanitizado;
+    }
+
+    final rows = await executor.query(
+      AppConstants.tableUsuarios,
+      columns: ['comissao_percentual'],
+      where: 'id = ?',
+      whereArgs: [barbeiroId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return fallbackSanitizado;
+    }
+
+    final valorRaw = (rows.first['comissao_percentual'] as num?)?.toDouble();
+    if (valorRaw == null) {
+      return fallbackSanitizado;
+    }
+    final escalaDecimal = valorRaw > 1 ? valorRaw / 100 : valorRaw;
+    return escalaDecimal.clamp(0.0, 1.0).toDouble();
   }
 
   Future<_TotaisComanda> _calcularTotaisComanda(

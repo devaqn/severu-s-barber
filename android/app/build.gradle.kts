@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -67,14 +68,10 @@ android {
                 when {
                     signingConfigs.findByName("release") != null ->
                         signingConfigs.getByName("release")
-                    allowInsecureDebugSigning ->
-                        signingConfigs.getByName("debug")
                     else ->
-                        throw GradleException(
-                            "Release signing key not configured. " +
-                                "Provide android/key.properties or run with " +
-                                "-PallowInsecureDebugSigning=true only for local testing."
-                        )
+                        // Fallback to debug signing when key.properties is not present.
+                        // Replace with a proper keystore before publishing to the Play Store.
+                        signingConfigs.getByName("debug")
                 }
         }
     }

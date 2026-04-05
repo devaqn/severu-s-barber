@@ -11,7 +11,7 @@ class AppConstants {
 
   // ── Nome do banco de dados ──────────────────────────────────────────
   static const String dbName = 'barbearia_pro.db';
-  static const int dbVersion = 2;
+  static const int dbVersion = 4;
 
   // ── Nomes das tabelas do banco ──────────────────────────────────────
   static const String tableClientes = 'clientes';
@@ -28,6 +28,8 @@ class AppConstants {
   static const String tableComandas = 'comandas';
   static const String tableComandasItens = 'comandas_itens';
   static const String tableComissoes = 'comissoes';
+  static const String collectionBarbearias = 'barbearias';
+  static const String localBarbeariaId = 'barbearia_local';
 
   // ── Tipos de usuário ────────────────────────────────────────────────
   static const String roleAdmin = 'admin';

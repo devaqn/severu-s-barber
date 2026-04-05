@@ -65,16 +65,25 @@ class ItemComanda {
     };
   }
 
-  ItemComanda copyWith({int? id, int? comandaId}) {
+  ItemComanda copyWith({
+    int? id,
+    int? comandaId,
+    String? tipo,
+    int? itemId,
+    String? nome,
+    int? quantidade,
+    double? precoUnitario,
+    double? comissaoPercentual,
+  }) {
     return ItemComanda(
       id: id ?? this.id,
       comandaId: comandaId ?? this.comandaId,
-      tipo: tipo,
-      itemId: itemId,
-      nome: nome,
-      quantidade: quantidade,
-      precoUnitario: precoUnitario,
-      comissaoPercentual: comissaoPercentual,
+      tipo: tipo ?? this.tipo,
+      itemId: itemId ?? this.itemId,
+      nome: nome ?? this.nome,
+      quantidade: quantidade ?? this.quantidade,
+      precoUnitario: precoUnitario ?? this.precoUnitario,
+      comissaoPercentual: comissaoPercentual ?? this.comissaoPercentual,
     );
   }
 }
