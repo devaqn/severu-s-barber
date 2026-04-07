@@ -170,7 +170,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
       final temServico = _servicosSelecionados.values.any((v) => v);
       final temProduto = _qtdProdutos.values.any((q) => q > 0);
       if (!temServico && !temProduto) {
-        _erro('Selecione ao menos um servico ou produto');
+        _erro('Selecione ao menos um serviço ou produto');
         return false;
       }
     }
@@ -180,7 +180,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
   /// Finaliza atendimento persistindo registro e efeitos colaterais.
   Future<void> _finalizar() async {
     if (_total <= 0) {
-      _erro('Total invalido para finalizar atendimento');
+      _erro('Total inválido para finalizar atendimento');
       return;
     }
 
@@ -495,7 +495,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Servicos', style: Theme.of(context).textTheme.titleSmall),
+        Text('Serviços', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 6),
         ..._servicos.map(
           (s) {
@@ -517,7 +517,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
                 value: checked,
                 activeColor: AppTheme.accentColor,
                 title: Text('${s.nome} - ${AppFormatters.currency(s.preco)}'),
-                subtitle: Text('Duracao: ${s.duracaoMinutos} min'),
+                subtitle: Text('Duração: ${s.duracaoMinutos} min'),
                 onChanged: (v) {
                   setState(() => _servicosSelecionados[s.id!] = v ?? false);
                 },
@@ -631,7 +631,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
             ButtonSegment(
                 value: AppConstants.pgDinheiro, label: Text('Dinheiro')),
             ButtonSegment(value: AppConstants.pgPix, label: Text('PIX')),
-            ButtonSegment(value: AppConstants.pgCredito, label: Text('Cartao')),
+            ButtonSegment(value: AppConstants.pgCredito, label: Text('Cartão')),
           ],
           selected: {_formaPagamento},
           onSelectionChanged: (value) {
@@ -644,7 +644,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
           minLines: 2,
           maxLines: 4,
           decoration: const InputDecoration(
-            labelText: 'Observacoes',
+            labelText: 'Observações',
             alignLabelWithHint: true,
           ),
         ),

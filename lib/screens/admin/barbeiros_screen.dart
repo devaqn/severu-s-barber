@@ -330,9 +330,9 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.primaryColor,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: AppTheme.textPrimary,
         title: Text(
           'Barbeiros',
@@ -362,7 +362,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
         ),
       ),
       body: Container(
-        color: Colors.black,
+        color: AppTheme.primaryColor,
         child: AppPageContainer(
           child: _loading
               ? const Center(child: CircularProgressIndicator())

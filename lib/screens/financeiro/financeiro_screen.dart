@@ -250,7 +250,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       }
       final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.'));
       if (valor == null || valor <= 0) {
-        _erro('Valor invalido');
+        _erro('Valor inválido');
         return;
       }
 

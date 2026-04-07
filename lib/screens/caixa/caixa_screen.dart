@@ -37,7 +37,16 @@ class _CaixaScreenState extends State<CaixaScreen> {
 
   void _erro(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: AppTheme.errorColor, content: Text(msg)),
+      SnackBar(
+        backgroundColor: AppTheme.errorColor,
+        content: Text(
+          msg,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
   }
 
@@ -141,9 +150,12 @@ class _CaixaScreenState extends State<CaixaScreen> {
           await _carregar();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 backgroundColor: AppTheme.successColor,
-                content: Text('Caixa aberto com sucesso!'),
+                content: Text(
+                  'Caixa aberto com sucesso!',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
               ),
             );
           }
@@ -208,9 +220,12 @@ class _CaixaScreenState extends State<CaixaScreen> {
         await _carregar();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               backgroundColor: AppTheme.successColor,
-              content: Text('Caixa fechado com sucesso!'),
+              content: Text(
+                'Caixa fechado com sucesso!',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+              ),
             ),
           );
         }
@@ -306,7 +321,9 @@ class _CaixaScreenState extends State<CaixaScreen> {
               SnackBar(
                 backgroundColor: AppTheme.successColor,
                 content: Text(
-                    'Sangria de R\$ ${valor.toStringAsFixed(2)} registrada.'),
+                  'Sangria de R\$ ${valor.toStringAsFixed(2)} registrada.',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
               ),
             );
           }
@@ -404,7 +421,9 @@ class _CaixaScreenState extends State<CaixaScreen> {
               SnackBar(
                 backgroundColor: AppTheme.successColor,
                 content: Text(
-                    'Reforço de R\$ ${valor.toStringAsFixed(2)} registrado.'),
+                  'Reforço de R\$ ${valor.toStringAsFixed(2)} registrado.',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
               ),
             );
           }

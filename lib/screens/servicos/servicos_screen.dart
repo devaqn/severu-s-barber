@@ -425,9 +425,15 @@ class _ServicosScreenState extends State<ServicosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: AppTheme.primaryColor,
+        surfaceTintColor: AppTheme.primaryColor,
+        foregroundColor: AppTheme.textPrimary,
         title: Text(
           'Serviços',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
+          ),
         ),
         actions: [
           Row(
