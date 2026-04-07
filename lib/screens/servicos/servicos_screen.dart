@@ -1,8 +1,3 @@
-// ============================================================
-// servicos_screen.dart
-// Gestao de servicos com CRUD e validacao.
-// ============================================================
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -26,7 +21,7 @@ class _ServicosScreenState extends State<ServicosScreen> {
 
   List<Servico> _servicos = [];
   bool _loading = true;
-  bool _apenasAtivos = true;
+  bool _apenasAtivos = false;
 
   @override
   void initState() {
@@ -39,7 +34,7 @@ class _ServicosScreenState extends State<ServicosScreen> {
     try {
       _servicos = await _service.getAll(apenasAtivos: _apenasAtivos);
     } catch (e) {
-      _showSnack('Falha ao carregar servicos: $e', isError: true);
+      _showSnack('Falha ao carregar serviços: $e', isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -118,12 +113,12 @@ class _ServicosScreenState extends State<ServicosScreen> {
                 if (!mounted) return;
                 _showSnack(
                   servico == null
-                      ? 'Servico criado com sucesso.'
-                      : 'Servico atualizado com sucesso.',
+                      ? 'Serviço criado com sucesso'
+                      : 'Serviço atualizado',
                 );
               } catch (e) {
                 if (!mounted) return;
-                _showSnack('Falha ao salvar servico: $e', isError: true);
+                _showSnack('Falha ao salvar serviço: $e', isError: true);
               } finally {
                 if (ctx.mounted) {
                   setModalState(() => salvando = false);
@@ -145,7 +140,7 @@ class _ServicosScreenState extends State<ServicosScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        servico == null ? 'Novo Servico' : 'Editar Servico',
+                        servico == null ? 'Novo serviço' : 'Editar serviço',
                         style: GoogleFonts.poppins(
                           color: AppTheme.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -158,15 +153,13 @@ class _ServicosScreenState extends State<ServicosScreen> {
                         textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
-                            return 'Informe o nome do servico.';
+                            return 'Informe o nome do serviço.';
                           }
                           try {
-                            SecurityUtils.sanitizeName(
-                              v,
-                              fieldName: 'Nome do servico',
-                            );
+                            SecurityUtils.sanitizeName(v,
+                                fieldName: 'Nome do serviço');
                           } catch (_) {
-                            return 'Nome do servico invalido.';
+                            return 'Nome do serviço inválido.';
                           }
                           return null;
                         },
@@ -174,16 +167,15 @@ class _ServicosScreenState extends State<ServicosScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: precoCtrl,
-                        decoration: const InputDecoration(labelText: 'Preco *'),
+                        decoration: const InputDecoration(labelText: 'Preço *'),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         textInputAction: TextInputAction.next,
                         validator: (v) {
                           final n = double.tryParse(
-                            (v ?? '').trim().replaceAll(',', '.'),
-                          );
+                              (v ?? '').trim().replaceAll(',', '.'));
                           if (n == null || n <= 0) {
-                            return 'Informe um preco maior que zero.';
+                            return 'Informe um preço maior que zero.';
                           }
                           return null;
                         },
@@ -192,13 +184,13 @@ class _ServicosScreenState extends State<ServicosScreen> {
                       TextFormField(
                         controller: duracaoCtrl,
                         decoration:
-                            const InputDecoration(labelText: 'Duracao (min) *'),
+                            const InputDecoration(labelText: 'Duração (min) *'),
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.next,
                         validator: (v) {
                           final n = int.tryParse((v ?? '').trim());
                           if (n == null || n <= 0) {
-                            return 'Informe uma duracao valida.';
+                            return 'Informe uma duração válida.';
                           }
                           return null;
                         },
@@ -207,16 +199,15 @@ class _ServicosScreenState extends State<ServicosScreen> {
                       TextFormField(
                         controller: comissaoCtrl,
                         decoration:
-                            const InputDecoration(labelText: 'Comissao (%) *'),
+                            const InputDecoration(labelText: 'Comissão (%) *'),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         textInputAction: TextInputAction.done,
                         validator: (v) {
                           final n = double.tryParse(
-                            (v ?? '').trim().replaceAll(',', '.'),
-                          );
+                              (v ?? '').trim().replaceAll(',', '.'));
                           if (n == null || n < 0 || n > 100) {
-                            return 'Comissao deve estar entre 0 e 100.';
+                            return 'Comissão deve estar entre 0 e 100.';
                           }
                           return null;
                         },
@@ -228,7 +219,7 @@ class _ServicosScreenState extends State<ServicosScreen> {
                         activeThumbColor: AppTheme.accentColor,
                         onChanged: (v) => setModalState(() => ativo = v),
                         title: Text(
-                          ativo ? 'Servico ativo' : 'Servico inativo',
+                          ativo ? 'Serviço ativo' : 'Serviço inativo',
                           style: GoogleFonts.inter(color: AppTheme.textPrimary),
                         ),
                       ),
@@ -268,7 +259,7 @@ class _ServicosScreenState extends State<ServicosScreen> {
     try {
       await _service.update(servico.copyWith(ativo: ativo));
       if (!mounted) return;
-      _showSnack(ativo ? 'Servico ativado.' : 'Servico inativado.');
+      _showSnack(ativo ? 'Serviço ativado.' : 'Serviço inativado.');
       await _carregar();
     } catch (e) {
       _showSnack('Falha ao alterar status: $e', isError: true);
@@ -280,10 +271,13 @@ class _ServicosScreenState extends State<ServicosScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Excluir servico',
+          'Excluir serviço',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
-        content: Text('Deseja excluir "${servico.nome}"?'),
+        content: Text(
+          'Deseja inativar o serviço "${servico.nome}"?\n'
+          'Ele não aparecerá mais nas listas, mas o histórico será preservado.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -303,15 +297,19 @@ class _ServicosScreenState extends State<ServicosScreen> {
     try {
       await _service.delete(servico.id!);
       if (!mounted) return;
-      _showSnack('Servico excluido.');
+      _showSnack('Serviço excluído');
       await _carregar();
     } catch (e) {
-      _showSnack('Falha ao excluir servico: $e', isError: true);
+      _showSnack('Falha ao excluir serviço: $e', isError: true);
     }
   }
 
   Widget _buildServicoCard(Servico servico) {
-    final leadingColor = servico.ativo ? AppTheme.accentColor : Colors.grey;
+    final leadingColor =
+        servico.ativo ? AppTheme.accentColor : Colors.grey.shade500;
+    final nome =
+        servico.nome.trim().isEmpty ? 'Serviço sem nome' : servico.nome.trim();
+
     return Dismissible(
       key: ValueKey('servico_${servico.id}'),
       direction: DismissDirection.endToStart,
@@ -331,67 +329,93 @@ class _ServicosScreenState extends State<ServicosScreen> {
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppTheme.secondaryColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppTheme.accentColor.withValues(alpha: 0.15),
+            color: AppTheme.accentColor.withValues(alpha: 0.18),
           ),
         ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(12),
-          leading: Container(
-            width: 8,
-            height: 56,
-            decoration: BoxDecoration(
-              color: leadingColor,
-              borderRadius: BorderRadius.circular(8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 8,
+              height: 78,
+              decoration: BoxDecoration(
+                color: leadingColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-          ),
-          title: Text(
-            servico.nome,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          subtitle: Text(
-            '${AppFormatters.duration(servico.duracaoMinutos)}  -  Comissao ${(servico.comissaoPercentual * 100).toStringAsFixed(0)}%',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(color: AppTheme.textSecondary),
-          ),
-          trailing: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 128),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Expanded(
-                  child: Text(
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nome,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => _abrirFormulario(servico: servico),
+                        icon: const Icon(Icons.edit_outlined,
+                            color: AppTheme.accentColor),
+                        tooltip: 'Editar',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${AppFormatters.duration(servico.duracaoMinutos)} • Comissão ${(servico.comissaoPercentual * 100).toStringAsFixed(0)}%',
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
                     AppFormatters.currency(servico.preco),
-                    textAlign: TextAlign.right,
                     style: GoogleFonts.poppins(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.w700,
+                      fontSize: 16,
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _abrirFormulario(servico: servico),
-                  icon: const Icon(Icons.edit_outlined,
-                      color: AppTheme.accentColor),
-                  tooltip: 'Editar',
-                ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 Switch.adaptive(
                   value: servico.ativo,
                   activeThumbColor: AppTheme.accentColor,
                   onChanged: (v) => _alternarStatus(servico, v),
                 ),
+                Text(
+                  servico.ativo ? 'Ativo' : 'Inativo',
+                  style: GoogleFonts.inter(
+                    color: servico.ativo
+                        ? AppTheme.successColor
+                        : AppTheme.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -402,15 +426,16 @@ class _ServicosScreenState extends State<ServicosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Servicos',
+          'Serviços',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
         actions: [
           Row(
             children: [
               Text(
-                'Apenas ativos',
-                style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                'Mostrar apenas ativos',
+                style: GoogleFonts.inter(
+                    color: AppTheme.textSecondary, fontSize: 12),
               ),
               Switch.adaptive(
                 value: _apenasAtivos,
@@ -432,30 +457,29 @@ class _ServicosScreenState extends State<ServicosScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.accentColor),
-            )
-          : _servicos.isEmpty
-              ? AppPageContainer(
-                  child: AppEmptyState(
-                    icon: Icons.content_cut_outlined,
-                    title: 'Nenhum servico cadastrado',
-                    subtitle:
-                        'Cadastre um novo servico para comecar os atendimentos.',
-                    actionLabel: 'Novo servico',
-                    onAction: () => _abrirFormulario(),
-                  ),
-                )
-              : RefreshIndicator(
-                  color: AppTheme.accentColor,
-                  onRefresh: _carregar,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                    itemCount: _servicos.length,
-                    itemBuilder: (context, index) {
-                      return _buildServicoCard(_servicos[index]);
-                    },
-                  ),
-                ),
+              child: CircularProgressIndicator(color: AppTheme.accentColor))
+          : AppPageContainer(
+              child: _servicos.isEmpty
+                  ? AppEmptyState(
+                      icon: Icons.content_cut_outlined,
+                      title: 'Nenhum serviço cadastrado',
+                      subtitle:
+                          'Cadastre um novo serviço para começar os atendimentos.',
+                      actionLabel: 'Novo serviço',
+                      onAction: () => _abrirFormulario(),
+                    )
+                  : RefreshIndicator(
+                      color: AppTheme.accentColor,
+                      onRefresh: _carregar,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(0, 4, 0, 20),
+                        itemCount: _servicos.length,
+                        itemBuilder: (context, index) {
+                          return _buildServicoCard(_servicos[index]);
+                        },
+                      ),
+                    ),
+            ),
     );
   }
 }

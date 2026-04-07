@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // financeiro_screen.dart
 // Painel financeiro com resumo, despesas e simulador de lucro.
 // ============================================================
@@ -9,6 +9,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/despesa.dart';
 import '../../services/financeiro_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/app_drawer.dart';
 
@@ -50,9 +51,12 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   String _filtroCategoria = 'Todas';
 
   // Controllers da aba simulador de lucro.
-  final TextEditingController _precoAtualCtrl = TextEditingController(text: '35');
-  final TextEditingController _novoPrecoCtrl = TextEditingController(text: '40');
+  final TextEditingController _precoAtualCtrl =
+      TextEditingController(text: '35');
+  final TextEditingController _novoPrecoCtrl =
+      TextEditingController(text: '40');
   final TextEditingController _qtdCtrl = TextEditingController(text: '60');
+  static const Color _lightBg = Color(0xFFF7F7FA);
 
   @override
   void initState() {
@@ -160,105 +164,116 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
     final obsCtrl = TextEditingController();
     String categoria = 'Aluguel';
     DateTime data = DateTime.now();
-
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Nova despesa', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  TextField(controller: descricaoCtrl, decoration: const InputDecoration(labelText: 'Descricao *')),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: categoria,
-                    decoration: const InputDecoration(labelText: 'Categoria'),
-                    items: const [
-                      DropdownMenuItem(value: 'Aluguel', child: Text('Aluguel')),
-                      DropdownMenuItem(value: 'Luz', child: Text('Luz')),
-                      DropdownMenuItem(value: 'Internet', child: Text('Internet')),
-                      DropdownMenuItem(value: 'Compra de Produtos', child: Text('Compra de Produtos')),
-                      DropdownMenuItem(value: 'Outros', child: Text('Outros')),
-                    ],
-                    onChanged: (v) => setModalState(() => categoria = v!),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: valorCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Valor *'),
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Data'),
-                    subtitle: Text(AppFormatters.date(data)),
-                    trailing: const Icon(Icons.calendar_month),
-                    onTap: () async {
-                      final d = await showDatePicker(
-                        context: ctx,
-                        initialDate: data,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2035),
-                      );
-                      if (d != null) setModalState(() => data = d);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(controller: obsCtrl, decoration: const InputDecoration(labelText: 'Observacoes')),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      icon: const Icon(Icons.save),
-                      label: const Text('Salvar despesa'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (ok != true) return;
-    if (descricaoCtrl.text.trim().isEmpty) {
-      _erro('Descricao obrigatoria');
-      return;
-    }
-    final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.'));
-    if (valor == null || valor <= 0) {
-      _erro('Valor invalido');
-      return;
-    }
-
     try {
-      await _service.insertDespesa(
-        Despesa(
-          descricao: descricaoCtrl.text.trim(),
-          categoria: categoria,
-          valor: valor,
-          data: data,
-          observacoes: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
-        ),
+      final ok = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Nova despesa',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    TextField(
+                        controller: descricaoCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Descrição *')),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: categoria,
+                      decoration: const InputDecoration(labelText: 'Categoria'),
+                      items: AppConstants.categoriasDespesa
+                          .map((cat) =>
+                              DropdownMenuItem(value: cat, child: Text(cat)))
+                          .toList(),
+                      onChanged: (v) => setModalState(() => categoria = v!),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: valorCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Valor *'),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Data'),
+                      subtitle: Text(AppFormatters.date(data)),
+                      trailing: const Icon(Icons.calendar_month),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: data,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                        );
+                        if (d != null) setModalState(() => data = d);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                        controller: obsCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Observações')),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        icon: const Icon(Icons.save),
+                        label: const Text('Salvar despesa'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       );
-      _sucesso('Despesa cadastrada com sucesso');
-      await _carregar();
-    } catch (e) {
-      _erro('Falha ao salvar despesa: $e');
+
+      if (ok != true) return;
+      if (descricaoCtrl.text.trim().isEmpty) {
+        _erro('Descrição obrigatória');
+        return;
+      }
+      final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.'));
+      if (valor == null || valor <= 0) {
+        _erro('Valor invalido');
+        return;
+      }
+
+      try {
+        await _service.insertDespesa(
+          Despesa(
+            descricao: descricaoCtrl.text.trim(),
+            categoria: categoria,
+            valor: valor,
+            data: data,
+            observacoes:
+                obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+          ),
+        );
+        _sucesso('Despesa cadastrada com sucesso');
+        await _carregar();
+      } catch (e) {
+        _erro('Falha ao salvar despesa: $e');
+      }
+    } finally {
+      descricaoCtrl.dispose();
+      valorCtrl.dispose();
+      obsCtrl.dispose();
     }
   }
 
@@ -271,10 +286,13 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         title: const Text('Excluir despesa'),
         content: Text('Deseja excluir "${d.descricao}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
             child: const Text('Excluir'),
           ),
         ],
@@ -293,12 +311,20 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Estrutura da tela financeira com tabs e drawer.
     return Scaffold(
+      backgroundColor: _lightBg,
       appBar: AppBar(
-        title: const Text('Financeiro'),
+        backgroundColor: _lightBg,
+        surfaceTintColor: _lightBg,
+        title: const Text(
+          'Controle de Caixa',
+          style: TextStyle(color: AppTheme.lightTextPrimary),
+        ),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: AppTheme.lightTextPrimary,
+          unselectedLabelColor: AppTheme.lightTextSecondary,
+          indicatorColor: AppTheme.accentColor,
           tabs: const [
             Tab(text: 'Resumo'),
             Tab(text: 'Despesas'),
@@ -310,14 +336,23 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       floatingActionButton: _tabController.index == 1
           ? FloatingActionButton(
               onPressed: _novaDespesa,
+              backgroundColor: AppTheme.accentColor,
+              foregroundColor: Colors.black,
               child: const Icon(Icons.add),
             )
           : null,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [_abaResumo(), _abaDespesas(), _abaSimulador()],
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.accentColor))
+          : Theme(
+              data: AppTheme.lightTheme,
+              child: Container(
+                color: _lightBg,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [_abaResumo(), _abaDespesas(), _abaSimulador()],
+                ),
+              ),
             ),
     );
   }
@@ -335,26 +370,88 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
           spacing: 8,
           runSpacing: 8,
           children: [
-            ActionChip(label: const Text('Este mes'), onPressed: () => _setPeriodoRapido('mes')),
-            ActionChip(label: const Text('Ultimos 30 dias'), onPressed: () => _setPeriodoRapido('30')),
-            ActionChip(label: const Text('Personalizado'), onPressed: _periodoCustomizado),
+            ActionChip(
+                label: const Text('Este mês'),
+                onPressed: () => _setPeriodoRapido('mes')),
+            ActionChip(
+                label: const Text('Últimos 30 dias'),
+                onPressed: () => _setPeriodoRapido('30')),
+            ActionChip(
+                label: const Text('Personalizado'),
+                onPressed: _periodoCustomizado),
           ],
         ),
         const SizedBox(height: 8),
-        Text('Periodo: ${AppFormatters.date(_inicio)} a ${AppFormatters.date(_fim)}'),
+        Text(
+          'Período: ${AppFormatters.date(_inicio)} a ${AppFormatters.date(_fim)}',
+          style: const TextStyle(color: AppTheme.lightTextSecondary),
+        ),
+        const SizedBox(height: 12),
+        _cardResumo(
+          'Faturado no Mês',
+          faturamento,
+          AppTheme.accentDark,
+          Icons.payments_outlined,
+        ),
         const SizedBox(height: 10),
-        _cardResumo('Faturamento Bruto', faturamento, AppTheme.infoColor, Icons.attach_money),
-        _cardResumo('Total de Despesas', despesas, AppTheme.errorColor, Icons.money_off),
-        _cardResumo('Lucro Liquido', lucro, lucro >= 0 ? AppTheme.successColor : AppTheme.errorColor, Icons.trending_up),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFE67E22),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33E67E22),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: Color(0x22FFFFFF),
+              child: Icon(Icons.money_off, color: Colors.white),
+            ),
+            title: const Text(
+              'Despesas do Mês',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: const Text(
+              'Custos e saídas do período atual',
+              style: TextStyle(color: Color(0xE6FFFFFF)),
+            ),
+            trailing: Text(
+              AppFormatters.currency(despesas),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _cardResumo(
+          'Lucro Líquido',
+          lucro,
+          lucro >= 0 ? AppTheme.successColor : AppTheme.errorColor,
+          Icons.trending_up,
+        ),
         const SizedBox(height: 8),
         Card(
+          color: Colors.white,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Receitas vs Despesas (semanal)',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 SizedBox(height: 220, child: _graficoSemanal()),
               ],
@@ -368,12 +465,19 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   /// Construtor reutilizavel para cards de resumo financeiro.
   Widget _cardResumo(String titulo, double valor, Color cor, IconData icone) {
     return Card(
+      color: Colors.white,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: cor.withValues(alpha: 0.2),
           child: Icon(icone, color: cor),
         ),
-        title: Text(titulo),
+        title: Text(
+          titulo,
+          style: const TextStyle(
+            color: AppTheme.lightTextPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         trailing: Text(
           AppFormatters.currency(valor),
           style: TextStyle(fontWeight: FontWeight.bold, color: cor),
@@ -384,10 +488,13 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Monta grafico de barras com duas series: receita e despesa por semana.
   Widget _graficoSemanal() {
-    if (_semanas.isEmpty) return const Center(child: Text('Sem dados semanais'));
+    if (_semanas.isEmpty) {
+      return const Center(child: Text('Sem dados semanais'));
+    }
 
     final maxY = _semanas
-            .map((e) => (e['receita']! > e['despesa']! ? e['receita']! : e['despesa']!))
+            .map((e) =>
+                (e['receita']! > e['despesa']! ? e['receita']! : e['despesa']!))
             .reduce((a, b) => a > b ? a : b) *
         1.3;
 
@@ -396,13 +503,17 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         maxY: maxY <= 0 ? 10 : maxY,
         gridData: FlGridData(
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.withValues(alpha: 0.2)),
+          getDrawingHorizontalLine: (_) =>
+              FlLine(color: Colors.grey.withValues(alpha: 0.2)),
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -418,8 +529,10 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
             x: idx,
             barsSpace: 4,
             barRods: [
-              BarChartRodData(toY: receita, width: 12, color: AppTheme.infoColor),
-              BarChartRodData(toY: despesa, width: 12, color: AppTheme.errorColor),
+              BarChartRodData(
+                  toY: receita, width: 12, color: AppTheme.infoColor),
+              BarChartRodData(
+                  toY: despesa, width: 12, color: AppTheme.errorColor),
             ],
           );
         }).toList(),
@@ -429,7 +542,14 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Aba 2: lista de despesas com filtro por categoria e remocao por slide.
   Widget _abaDespesas() {
-    final categorias = ['Todas', 'Aluguel', 'Luz', 'Internet', 'Compra de Produtos', 'Outros'];
+    final categorias = [
+      'Todas',
+      'Aluguel',
+      'Luz',
+      'Internet',
+      'Compra de Produtos',
+      'Outros'
+    ];
 
     return Column(
       children: [
@@ -444,6 +564,8 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
                     child: ChoiceChip(
                       label: Text(c),
                       selected: _filtroCategoria == c,
+                      selectedColor:
+                          AppTheme.accentColor.withValues(alpha: 0.2),
                       onSelected: (_) => setState(() => _filtroCategoria = c),
                     ),
                   ),
@@ -453,7 +575,12 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         ),
         Expanded(
           child: _despesasFiltradas.isEmpty
-              ? const Center(child: Text('Nenhuma despesa para o filtro atual'))
+              ? const Center(
+                  child: Text(
+                    'Nenhuma despesa para o filtro atual',
+                    style: TextStyle(color: AppTheme.lightTextSecondary),
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _despesasFiltradas.length,
@@ -474,10 +601,13 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
                         ],
                       ),
                       child: Card(
+                        color: Colors.white,
                         child: ListTile(
-                          leading: const Icon(Icons.receipt),
+                          leading: const Icon(Icons.receipt,
+                              color: AppTheme.lightTextSecondary),
                           title: Text(d.descricao),
-                          subtitle: Text('${d.categoria} - ${AppFormatters.date(d.data)}'),
+                          subtitle: Text(
+                              '${d.categoria} - ${AppFormatters.date(d.data)}'),
                           trailing: Text(
                             AppFormatters.currency(d.valor),
                             style: const TextStyle(
@@ -497,7 +627,8 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Aba 3: simulador standalone de impacto de preco mensal e anual.
   Widget _abaSimulador() {
-    final precoAtual = double.tryParse(_precoAtualCtrl.text.replaceAll(',', '.'));
+    final precoAtual =
+        double.tryParse(_precoAtualCtrl.text.replaceAll(',', '.'));
     final novoPreco = double.tryParse(_novoPrecoCtrl.text.replaceAll(',', '.'));
     final qtdMes = int.tryParse(_qtdCtrl.text);
 
@@ -512,40 +643,45 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         TextField(
           controller: _precoAtualCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Preco Atual'),
+          decoration: const InputDecoration(labelText: 'Preço Atual'),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _novoPrecoCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Novo Preco'),
+          decoration: const InputDecoration(labelText: 'Novo Preço'),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _qtdCtrl,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Atendimentos/mes'),
+          decoration: const InputDecoration(labelText: 'Atendimentos/mês'),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 16),
         Card(
+          color: Colors.white,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Diferenca mensal: ${AppFormatters.currency(mensal)}',
+                Text('Diferença mensal: ${AppFormatters.currency(mensal)}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: mensal >= 0 ? AppTheme.successColor : AppTheme.errorColor,
+                      color: mensal >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
                     )),
                 const SizedBox(height: 8),
-                Text('Diferenca anual: ${AppFormatters.currency(anual)}',
+                Text('Diferença anual: ${AppFormatters.currency(anual)}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: anual >= 0 ? AppTheme.successColor : AppTheme.errorColor,
+                      color: anual >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
                     )),
               ],
             ),
@@ -555,8 +691,3 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
     );
   }
 }
-
-
-
-
-

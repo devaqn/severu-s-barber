@@ -74,6 +74,9 @@ class DatabaseHelper {
     if (oldVersion < 6) {
       await _migrateToV6(db);
     }
+    if (oldVersion < 7) {
+      await _migrateToV7(db);
+    }
     await _createIndexes(db);
   }
 
@@ -193,6 +196,7 @@ class DatabaseHelper {
         barbeiro_nome TEXT,
         data_hora TEXT NOT NULL,
         status TEXT DEFAULT 'Pendente',
+        faturamento_registrado INTEGER DEFAULT 0,
         observacoes TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT,
@@ -688,6 +692,21 @@ class DatabaseHelper {
     await db.execute('''
       DELETE FROM ${AppConstants.tableFornecedores}
       WHERE nome = 'Distribuidora Beauty Pro'
+    ''');
+  }
+
+  Future<void> _migrateToV7(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAgendamentos,
+      'faturamento_registrado',
+      'INTEGER DEFAULT 0',
+    );
+
+    await db.execute('''
+      UPDATE ${AppConstants.tableAgendamentos}
+      SET faturamento_registrado = 0
+      WHERE faturamento_registrado IS NULL
     ''');
   }
 

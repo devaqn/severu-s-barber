@@ -48,7 +48,7 @@ Future<void> main() async {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Ocorreu um erro ao iniciar esta tela.\\nReinicie o app e tente novamente.',
+            'Ocorreu um erro ao iniciar esta tela.\nReinicie o app e tente novamente.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white, fontSize: 15),
           ),

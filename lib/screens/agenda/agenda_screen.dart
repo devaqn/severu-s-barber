@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../controllers/auth_controller.dart';
 import '../../models/agendamento.dart';
 import '../../models/cliente.dart';
 import '../../models/servico.dart';
+import '../../models/usuario.dart';
 import '../../services/agenda_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/cliente_service.dart';
 import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
@@ -24,8 +28,10 @@ class _AgendaScreenState extends State<AgendaScreen> {
   final AgendaService _agendaService = AgendaService();
   final ClienteService _clienteService = ClienteService();
   final ServicoService _servicoService = ServicoService();
+  final AuthService _authService = AuthService();
 
   List<Agendamento> _agendamentos = [];
+  List<Usuario> _barbeiros = [];
   DateTime _diaSelecionado = DateTime.now();
   DateTime _foco = DateTime.now();
   bool _loading = true;
@@ -39,7 +45,19 @@ class _AgendaScreenState extends State<AgendaScreen> {
   Future<void> _carregar() async {
     setState(() => _loading = true);
     try {
-      _agendamentos = await _agendaService.getAll();
+      final isAdmin = context.read<AuthController>().isAdmin;
+      final results = await Future.wait([
+        _agendaService.getAll(),
+        isAdmin
+            ? _authService.listarBarbeiros(apenasAtivos: true)
+            : Future.value(<Usuario>[]),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _agendamentos = results[0] as List<Agendamento>;
+        _barbeiros = results[1] as List<Usuario>;
+      });
     } catch (e) {
       if (mounted) {
         UiFeedback.showSnack(
@@ -131,7 +149,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
       if (mounted) {
         UiFeedback.showSnack(
           context,
-          'Status atualizado com sucesso.',
+          status == AppConstants.statusConcluido
+              ? 'Status atualizado e faturamento registrado.'
+              : 'Status atualizado com sucesso.',
           type: AppNoticeType.success,
         );
       }
@@ -147,23 +167,115 @@ class _AgendaScreenState extends State<AgendaScreen> {
     }
   }
 
-  Future<void> _novoAgendamento() async {
-    final buscaClienteCtrl = TextEditingController();
-    final obsCtrl = TextEditingController();
+  Future<void> _cancelarAgendamento(Agendamento agendamento) async {
+    if (agendamento.id == null) return;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar agendamento'),
+        content: Text(
+            'Deseja cancelar o agendamento de ${agendamento.clienteNome}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancelar agendamento'),
+          ),
+        ],
+      ),
+    );
 
-    Cliente? cliente;
-    Servico? servico;
-    DateTime dataHora = DateTime.now().add(const Duration(hours: 1));
-    List<Cliente> sugestoes = [];
-    late final List<Servico> servicos;
-
+    if (confirmar != true) return;
     try {
-      servicos = await _servicoService.getAll(apenasAtivos: true);
+      await _agendaService.updateStatus(
+          agendamento.id!, AppConstants.statusCancelado);
+      if (mounted) {
+        UiFeedback.showSnack(
+          context,
+          'Agendamento cancelado.',
+          type: AppNoticeType.success,
+        );
+      }
+      await _carregar();
     } catch (e) {
       if (mounted) {
         UiFeedback.showSnack(
           context,
-          'Falha ao carregar serviços: $e',
+          'Falha ao cancelar agendamento: $e',
+          type: AppNoticeType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _abrirFormulario({Agendamento? existente}) async {
+    final buscaClienteCtrl =
+        TextEditingController(text: existente?.clienteNome ?? '');
+    final obsCtrl = TextEditingController(text: existente?.observacoes ?? '');
+
+    Cliente? cliente;
+    Servico? servico;
+    Usuario? barbeiroSelecionado;
+    DateTime dataHora =
+        existente?.dataHora ?? DateTime.now().add(const Duration(hours: 1));
+    List<Cliente> sugestoes = [];
+    late final List<Servico> servicos;
+
+    final auth = context.read<AuthController>();
+    final admin = auth.isAdmin;
+
+    try {
+      servicos = await _servicoService.getAll(apenasAtivos: true);
+      if (servicos.isEmpty) {
+        if (mounted) {
+          UiFeedback.showSnack(
+            context,
+            'Cadastre ao menos um serviço ativo antes de agendar.',
+            type: AppNoticeType.error,
+          );
+        }
+        return;
+      }
+
+      if (admin && _barbeiros.isEmpty) {
+        _barbeiros = await _authService.listarBarbeiros(apenasAtivos: true);
+      }
+
+      if (existente?.clienteId != null) {
+        cliente = await _clienteService.getById(existente!.clienteId!);
+      }
+
+      if (existente?.servicoId != null) {
+        for (final item in servicos) {
+          if (item.id == existente!.servicoId) {
+            servico = item;
+            break;
+          }
+        }
+      }
+      servico ??= servicos.first;
+
+      if (admin) {
+        if (existente?.barbeiroId != null) {
+          for (final b in _barbeiros) {
+            if (b.id == existente!.barbeiroId) {
+              barbeiroSelecionado = b;
+              break;
+            }
+          }
+        }
+        barbeiroSelecionado ??= _barbeiros.isNotEmpty ? _barbeiros.first : null;
+      }
+    } catch (e) {
+      if (mounted) {
+        UiFeedback.showSnack(
+          context,
+          'Falha ao carregar dados de agendamento: $e',
           type: AppNoticeType.error,
         );
       }
@@ -172,7 +284,11 @@ class _AgendaScreenState extends State<AgendaScreen> {
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      buscaClienteCtrl.dispose();
+      obsCtrl.dispose();
+      return;
+    }
 
     final salvar = await showModalBottomSheet<bool>(
       context: context,
@@ -180,7 +296,13 @@ class _AgendaScreenState extends State<AgendaScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final podeSalvar = cliente != null && servico != null;
+            final nomeDigitado = buscaClienteCtrl.text.trim();
+            final podeSalvar = (cliente != null ||
+                    nomeDigitado.isNotEmpty ||
+                    ((existente?.clienteNome.trim().isNotEmpty) ?? false)) &&
+                servico != null &&
+                (!admin || barbeiroSelecionado != null);
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -194,7 +316,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Novo agendamento',
+                      existente == null
+                          ? 'Novo agendamento'
+                          : 'Editar agendamento',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 10),
@@ -250,10 +374,28 @@ class _AgendaScreenState extends State<AgendaScreen> {
                               ),
                             ),
                           )
-                          .toList(),
+                          .toList(growable: false),
                       onChanged: (value) =>
                           setModalState(() => servico = value),
                     ),
+                    if (admin) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<Usuario>(
+                        initialValue: barbeiroSelecionado,
+                        decoration:
+                            const InputDecoration(labelText: 'Barbeiro'),
+                        items: _barbeiros
+                            .map(
+                              (item) => DropdownMenuItem<Usuario>(
+                                value: item,
+                                child: Text(item.nome),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) =>
+                            setModalState(() => barbeiroSelecionado = value),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -300,7 +442,11 @@ class _AgendaScreenState extends State<AgendaScreen> {
                         onPressed:
                             podeSalvar ? () => Navigator.pop(ctx, true) : null,
                         icon: const Icon(Icons.save),
-                        label: const Text('Salvar agendamento'),
+                        label: Text(
+                          existente == null
+                              ? 'Salvar agendamento'
+                              : 'Atualizar agendamento',
+                        ),
                       ),
                     ),
                   ],
@@ -317,36 +463,81 @@ class _AgendaScreenState extends State<AgendaScreen> {
       obsCtrl.dispose();
       return;
     }
+
     if (!mounted) {
       buscaClienteCtrl.dispose();
       obsCtrl.dispose();
       return;
     }
-    if (cliente == null || servico == null) {
+
+    final servicoSelecionado = servico;
+    if (servicoSelecionado == null) {
       UiFeedback.showSnack(
         context,
-        'Selecione cliente e serviço para continuar.',
+        'Selecione um serviço para continuar.',
+        type: AppNoticeType.error,
+      );
+      return;
+    }
+
+    final nomeDigitado = buscaClienteCtrl.text.trim();
+    final clienteNome = cliente?.nome ??
+        (nomeDigitado.isNotEmpty
+            ? nomeDigitado
+            : (existente?.clienteNome ?? ''));
+    if (clienteNome.trim().isEmpty) {
+      UiFeedback.showSnack(
+        context,
+        'Selecione um cliente para continuar.',
+        type: AppNoticeType.error,
+      );
+      return;
+    }
+
+    final barbeiroId = admin
+        ? barbeiroSelecionado?.id
+        : (existente?.barbeiroId ?? auth.usuarioId);
+    final barbeiroNome = admin
+        ? barbeiroSelecionado?.nome
+        : (existente?.barbeiroNome ?? auth.usuarioNome);
+
+    if (admin && (barbeiroId == null || barbeiroNome == null)) {
+      UiFeedback.showSnack(
+        context,
+        'Selecione um barbeiro para continuar.',
         type: AppNoticeType.error,
       );
       return;
     }
 
     try {
-      await _agendaService.insert(
-        Agendamento(
-          clienteId: cliente!.id,
-          clienteNome: cliente!.nome,
-          servicoId: servico!.id,
-          servicoNome: servico!.nome,
-          dataHora: dataHora,
-          observacoes: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
-          createdAt: DateTime.now(),
-        ),
+      final payload = Agendamento(
+        id: existente?.id,
+        clienteId: cliente?.id ?? existente?.clienteId,
+        clienteNome: clienteNome,
+        servicoId: servicoSelecionado.id,
+        servicoNome: servicoSelecionado.nome,
+        barbeiroId: barbeiroId,
+        barbeiroNome: barbeiroNome,
+        dataHora: dataHora,
+        status: existente?.status ?? AppConstants.statusPendente,
+        faturamentoRegistrado: existente?.faturamentoRegistrado ?? false,
+        observacoes: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+        createdAt: existente?.createdAt ?? DateTime.now(),
       );
+
+      if (existente == null) {
+        await _agendaService.insert(payload);
+      } else {
+        await _agendaService.update(payload);
+      }
+
       if (mounted) {
         UiFeedback.showSnack(
           context,
-          'Agendamento criado com sucesso.',
+          existente == null
+              ? 'Agendamento criado com sucesso.'
+              : 'Agendamento atualizado com sucesso.',
           type: AppNoticeType.success,
         );
       }
@@ -355,7 +546,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
       if (mounted) {
         UiFeedback.showSnack(
           context,
-          'Falha ao criar agendamento: $e',
+          existente == null
+              ? 'Falha ao criar agendamento: $e'
+              : 'Falha ao atualizar agendamento: $e',
           type: AppNoticeType.error,
         );
       }
@@ -363,6 +556,55 @@ class _AgendaScreenState extends State<AgendaScreen> {
       buscaClienteCtrl.dispose();
       obsCtrl.dispose();
     }
+  }
+
+  Future<void> _novoAgendamento() => _abrirFormulario();
+
+  Future<void> _editarAgendamento(Agendamento agendamento) async {
+    await _abrirFormulario(existente: agendamento);
+  }
+
+  Future<void> _abrirAcoesAgendamento(Agendamento agendamento) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading:
+                    const Icon(Icons.edit_outlined, color: AppTheme.infoColor),
+                title: const Text('Editar agendamento'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _editarAgendamento(agendamento);
+                },
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.sync_alt, color: AppTheme.warningColor),
+                title: const Text('Alterar status'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _alterarStatus(agendamento);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined,
+                    color: AppTheme.errorColor),
+                title: const Text('Cancelar agendamento'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _cancelarAgendamento(agendamento);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -462,10 +704,16 @@ class _AgendaScreenState extends State<AgendaScreen> {
                             itemCount: eventosSelecionados.length,
                             itemBuilder: (context, index) {
                               final agendamento = eventosSelecionados[index];
+                              final barbeiroLabel = (agendamento.barbeiroNome ==
+                                          null ||
+                                      agendamento.barbeiroNome!.trim().isEmpty)
+                                  ? ''
+                                  : ' • ${agendamento.barbeiroNome}';
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
-                                  onTap: () => _alterarStatus(agendamento),
+                                  onTap: () =>
+                                      _abrirAcoesAgendamento(agendamento),
                                   leading: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
@@ -485,7 +733,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
                                     ),
                                   ),
                                   title: Text(agendamento.clienteNome),
-                                  subtitle: Text(agendamento.servicoNome),
+                                  subtitle: Text(
+                                    '${agendamento.servicoNome}$barbeiroLabel',
+                                  ),
                                   trailing: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,

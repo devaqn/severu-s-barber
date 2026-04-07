@@ -10,16 +10,22 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/agendamento.dart';
+import '../models/item_comanda.dart';
 import '../utils/constants.dart';
 import '../utils/security_utils.dart';
+import 'comanda_service.dart';
 import 'connectivity_service.dart';
 import 'firebase_context_service.dart';
+import 'service_exceptions.dart';
+import 'servico_service.dart';
 
 class AgendaService {
   final DatabaseHelper _db = DatabaseHelper();
   final FirebaseContextService _context = FirebaseContextService();
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
+  final ComandaService _comandaService = ComandaService();
+  final ServicoService _servicoService = ServicoService();
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -106,12 +112,15 @@ class AgendaService {
     final safeAgendamento = _sanitizarAgendamento(agendamento);
     final nowIso = DateTime.now().toIso8601String();
     final usuario = await _usuarioAtual();
+    final barbeiroId = safeAgendamento.barbeiroId ?? usuario.uid;
+    final barbeiroNome = safeAgendamento.barbeiroNome ?? usuario.nome;
 
     final localMap = <String, dynamic>{
       ...safeAgendamento.toMap(),
       'updated_at': nowIso,
-      'barbeiro_id': usuario.uid,
-      'barbeiro_nome': usuario.nome,
+      'barbeiro_id': barbeiroId,
+      'barbeiro_nome': barbeiroNome,
+      'faturamento_registrado': safeAgendamento.faturamentoRegistrado ? 1 : 0,
     };
 
     if (await _isFirebaseOnline()) {
@@ -127,10 +136,11 @@ class AgendaService {
           'cliente_nome': safeAgendamento.clienteNome,
           'servico_id': safeAgendamento.servicoId,
           'servico_nome': safeAgendamento.servicoNome,
-          'barbeiro_id': usuario.uid,
-          'barbeiro_nome': usuario.nome,
+          'barbeiro_id': barbeiroId,
+          'barbeiro_nome': barbeiroNome,
           'data_hora': Timestamp.fromDate(safeAgendamento.dataHora),
           'status': safeAgendamento.status,
+          'faturamento_registrado': safeAgendamento.faturamentoRegistrado,
           'observacoes': safeAgendamento.observacoes,
           'barbearia_id': shopId,
           'created_by': usuario.uid,
@@ -174,10 +184,15 @@ class AgendaService {
           'cliente_nome': safeAgendamento.clienteNome,
           'servico_id': safeAgendamento.servicoId,
           'servico_nome': safeAgendamento.servicoNome,
-          'barbeiro_id': row.first['barbeiro_id'] ?? usuario.uid,
-          'barbeiro_nome': row.first['barbeiro_nome'] ?? usuario.nome,
+          'barbeiro_id': safeAgendamento.barbeiroId ??
+              row.first['barbeiro_id'] ??
+              usuario.uid,
+          'barbeiro_nome': safeAgendamento.barbeiroNome ??
+              row.first['barbeiro_nome'] ??
+              usuario.nome,
           'data_hora': Timestamp.fromDate(safeAgendamento.dataHora),
           'status': safeAgendamento.status,
+          'faturamento_registrado': safeAgendamento.faturamentoRegistrado,
           'observacoes': safeAgendamento.observacoes,
           'barbearia_id': shopId,
           'created_by': row.first['created_by'] ?? usuario.uid,
@@ -190,6 +205,7 @@ class AgendaService {
       AppConstants.tableAgendamentos,
       {
         ...safeAgendamento.toMap(),
+        'faturamento_registrado': safeAgendamento.faturamentoRegistrado ? 1 : 0,
         'updated_at': DateTime.now().toIso8601String(),
       },
       'id = ?',
@@ -210,15 +226,31 @@ class AgendaService {
       allowedValues: AppConstants.statusAgendamento,
     );
 
+    final row = await _db.queryAll(
+      AppConstants.tableAgendamentos,
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (row.isEmpty) {
+      throw const NotFoundException('Agendamento nao encontrado.');
+    }
+
+    final registroAtual = row.first;
+    final statusAtual =
+        (registroAtual['status'] as String?) ?? AppConstants.statusPendente;
+    var faturamentoRegistrado =
+        ((registroAtual['faturamento_registrado'] as num?)?.toInt() ?? 0) == 1;
+
+    if (statusAtual == safeStatus) return;
+
+    if (safeStatus == AppConstants.statusConcluido && !faturamentoRegistrado) {
+      await _registrarFaturamentoAgendamento(id, registroAtual);
+      faturamentoRegistrado = true;
+    }
+
     if (await _isFirebaseOnline()) {
-      final row = await _db.queryAll(
-        AppConstants.tableAgendamentos,
-        where: 'id = ?',
-        whereArgs: [id],
-        limit: 1,
-      );
-      final firebaseId =
-          row.isEmpty ? null : row.first['firebase_id'] as String?;
+      final firebaseId = registroAtual['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
       if (firebaseId != null && shopId != null) {
         await _context
@@ -227,6 +259,7 @@ class AgendaService {
             .doc(firebaseId)
             .update({
           'status': safeStatus,
+          'faturamento_registrado': faturamentoRegistrado,
           'updated_at': FieldValue.serverTimestamp(),
         });
       }
@@ -236,10 +269,60 @@ class AgendaService {
       AppConstants.tableAgendamentos,
       {
         'status': safeStatus,
+        'faturamento_registrado': faturamentoRegistrado ? 1 : 0,
         'updated_at': DateTime.now().toIso8601String(),
       },
       'id = ?',
       [id],
+    );
+  }
+
+  Future<void> _registrarFaturamentoAgendamento(
+    int agendamentoId,
+    Map<String, dynamic> agendamentoRow,
+  ) async {
+    final clienteId = (agendamentoRow['cliente_id'] as num?)?.toInt();
+    final clienteNomeRaw = (agendamentoRow['cliente_nome'] as String?)?.trim();
+    final clienteNome = (clienteNomeRaw == null || clienteNomeRaw.isEmpty)
+        ? 'Cliente'
+        : clienteNomeRaw;
+
+    final servicoId = (agendamentoRow['servico_id'] as num?)?.toInt();
+    if (servicoId == null) {
+      throw const ValidationException(
+        'Nao e possivel concluir sem servico vinculado.',
+      );
+    }
+
+    final servico = await _servicoService.getById(servicoId);
+    if (servico == null) {
+      throw const NotFoundException('Servico do agendamento nao encontrado.');
+    }
+
+    final comanda = await _comandaService.abrirComanda(
+      clienteId: clienteId,
+      clienteNome: clienteNome,
+      barbeiroId: agendamentoRow['barbeiro_id'] as String?,
+      barbeiroNome: agendamentoRow['barbeiro_nome'] as String?,
+      observacoes: 'Agendamento #$agendamentoId',
+    );
+
+    await _comandaService.adicionarItem(
+      comanda.id!,
+      ItemComanda(
+        tipo: 'servico',
+        itemId: servico.id!,
+        nome: servico.nome,
+        quantidade: 1,
+        precoUnitario: servico.preco,
+        comissaoPercentual: servico.comissaoPercentual,
+      ),
+    );
+
+    await _comandaService.fecharComanda(
+      comandaId: comanda.id!,
+      formaPagamento: AppConstants.pgDinheiro,
+      observacoes: 'Fechamento automatico do agendamento #$agendamentoId',
     );
   }
 
@@ -393,6 +476,8 @@ class AgendaService {
       'barbeiro_nome': row['barbeiro_nome'] ?? usuario.nome,
       'data_hora': Timestamp.fromDate(dataHora),
       'status': row['status'],
+      'faturamento_registrado':
+          ((row['faturamento_registrado'] as num?)?.toInt() ?? 0) == 1,
       'observacoes': row['observacoes'],
       'barbearia_id': resolvedShopId,
       'created_by': row['created_by'] ?? usuario.uid,
@@ -418,6 +503,10 @@ class AgendaService {
       data['data_hora'],
       fallback: createdAt,
     );
+    final faturamentoRaw = data['faturamento_registrado'];
+    final faturamentoRegistrado = faturamentoRaw is bool
+        ? faturamentoRaw
+        : ((faturamentoRaw as num?)?.toInt() ?? 0) == 1;
 
     final localMap = <String, dynamic>{
       'firebase_id': firebaseId,
@@ -431,6 +520,7 @@ class AgendaService {
       'barbeiro_nome': data['barbeiro_nome'] as String?,
       'data_hora': dataHora.toIso8601String(),
       'status': (data['status'] ?? AppConstants.statusPendente) as String,
+      'faturamento_registrado': faturamentoRegistrado ? 1 : 0,
       'observacoes': data['observacoes'] as String?,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -521,10 +611,23 @@ class AgendaService {
       maxLength: 500,
       allowNewLines: true,
     );
+    final safeBarbeiroId = SecurityUtils.sanitizeOptionalText(
+      agendamento.barbeiroId,
+      maxLength: 200,
+      allowNewLines: false,
+    );
+    final safeBarbeiroNome = agendamento.barbeiroNome == null
+        ? null
+        : SecurityUtils.sanitizeName(
+            agendamento.barbeiroNome!,
+            fieldName: 'Nome do barbeiro',
+          );
 
     return agendamento.copyWith(
       clienteNome: safeClienteNome,
       servicoNome: safeServicoNome,
+      barbeiroId: safeBarbeiroId,
+      barbeiroNome: safeBarbeiroNome,
       status: safeStatus,
       observacoes: safeObs,
     );

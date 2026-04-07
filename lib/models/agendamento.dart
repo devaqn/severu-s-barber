@@ -9,9 +9,13 @@ class Agendamento {
   final String clienteNome;
   final int? servicoId;
   final String servicoNome;
+  final String? barbeiroId;
+  final String? barbeiroNome;
+
   /// Data e hora do agendamento
   final DateTime dataHora;
   final String status;
+  final bool faturamentoRegistrado;
   final String? observacoes;
   final DateTime createdAt;
 
@@ -21,8 +25,11 @@ class Agendamento {
     required this.clienteNome,
     this.servicoId,
     required this.servicoNome,
+    this.barbeiroId,
+    this.barbeiroNome,
     required this.dataHora,
     this.status = 'Pendente',
+    this.faturamentoRegistrado = false,
     this.observacoes,
     required this.createdAt,
   });
@@ -34,8 +41,12 @@ class Agendamento {
       clienteNome: map['cliente_nome'] as String,
       servicoId: map['servico_id'] as int?,
       servicoNome: map['servico_nome'] as String,
+      barbeiroId: map['barbeiro_id'] as String?,
+      barbeiroNome: map['barbeiro_nome'] as String?,
       dataHora: DateTime.parse(map['data_hora'] as String),
       status: (map['status'] as String?) ?? 'Pendente',
+      faturamentoRegistrado:
+          ((map['faturamento_registrado'] as num?)?.toInt() ?? 0) == 1,
       observacoes: map['observacoes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
@@ -48,8 +59,11 @@ class Agendamento {
       'cliente_nome': clienteNome,
       'servico_id': servicoId,
       'servico_nome': servicoNome,
+      'barbeiro_id': barbeiroId,
+      'barbeiro_nome': barbeiroNome,
       'data_hora': dataHora.toIso8601String(),
       'status': status,
+      'faturamento_registrado': faturamentoRegistrado ? 1 : 0,
       'observacoes': observacoes,
       'created_at': createdAt.toIso8601String(),
     };
@@ -61,8 +75,11 @@ class Agendamento {
     String? clienteNome,
     int? servicoId,
     String? servicoNome,
+    String? barbeiroId,
+    String? barbeiroNome,
     DateTime? dataHora,
     String? status,
+    bool? faturamentoRegistrado,
     String? observacoes,
   }) {
     return Agendamento(
@@ -71,8 +88,12 @@ class Agendamento {
       clienteNome: clienteNome ?? this.clienteNome,
       servicoId: servicoId ?? this.servicoId,
       servicoNome: servicoNome ?? this.servicoNome,
+      barbeiroId: barbeiroId ?? this.barbeiroId,
+      barbeiroNome: barbeiroNome ?? this.barbeiroNome,
       dataHora: dataHora ?? this.dataHora,
       status: status ?? this.status,
+      faturamentoRegistrado:
+          faturamentoRegistrado ?? this.faturamentoRegistrado,
       observacoes: observacoes ?? this.observacoes,
       createdAt: createdAt,
     );

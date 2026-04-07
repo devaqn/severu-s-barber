@@ -13,13 +13,18 @@ import 'package:barbearia_pro/models/cliente.dart';
 import 'package:barbearia_pro/models/despesa.dart';
 import 'package:barbearia_pro/models/item_comanda.dart';
 import 'package:barbearia_pro/models/produto.dart';
+import 'package:barbearia_pro/models/servico.dart';
+import 'package:barbearia_pro/models/usuario.dart';
 import 'package:barbearia_pro/services/agenda_service.dart';
 import 'package:barbearia_pro/services/atendimento_service.dart';
+import 'package:barbearia_pro/services/auth_service.dart';
 import 'package:barbearia_pro/services/cliente_service.dart';
 import 'package:barbearia_pro/services/comanda_service.dart';
 import 'package:barbearia_pro/services/financeiro_service.dart';
 import 'package:barbearia_pro/services/produto_service.dart';
 import 'package:barbearia_pro/services/service_exceptions.dart';
+import 'package:barbearia_pro/services/servico_service.dart';
+import 'package:barbearia_pro/utils/constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -31,11 +36,14 @@ void main() {
   final comandaService = ComandaService();
   final produtoService = ProdutoService();
   final financeiroService = FinanceiroService();
+  final servicoService = ServicoService();
+  final authService = AuthService();
 
   setUpAll(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    await DatabaseHelper.setDatabaseNameForTests('barbearia_pro_backend_test.db');
+    await DatabaseHelper.setDatabaseNameForTests(
+        'barbearia_pro_backend_test.db');
     await db.deleteDatabaseFile();
     await db.database;
   });
@@ -101,7 +109,9 @@ void main() {
       expect(lista.isNotEmpty, isTrue);
     });
 
-    test('Histórico de atendimentos e total gasto atualizam ao registrar atendimento', () async {
+    test(
+        'Histórico de atendimentos e total gasto atualizam ao registrar atendimento',
+        () async {
       final clienteId = await clienteService.insert(Cliente(
         nome: 'Cliente Histórico',
         telefone: '11955551111',
@@ -168,12 +178,146 @@ void main() {
       ));
       expect(id, greaterThan(0));
     });
+
+    test('Editar e cancelar agendamento persistem status e dados', () async {
+      final clienteId = await clienteService.insert(Cliente(
+        nome: 'Cliente Agenda Edit',
+        telefone: '11933334444',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+
+      final id = await agendaService.insert(Agendamento(
+        clienteId: clienteId,
+        clienteNome: 'Cliente Agenda Edit',
+        servicoId: 1,
+        servicoNome: 'Corte de Cabelo',
+        dataHora: DateTime.now().add(const Duration(hours: 3)),
+        createdAt: DateTime.now(),
+      ));
+
+      final agendamento =
+          (await agendaService.getAll()).firstWhere((a) => a.id == id);
+      await agendaService.update(
+        agendamento.copyWith(
+          servicoNome: 'Corte + Barba',
+          observacoes: 'Cliente pediu ajuste',
+        ),
+      );
+
+      await agendaService.updateStatus(id, AppConstants.statusCancelado);
+
+      final atualizado =
+          (await agendaService.getAll()).firstWhere((a) => a.id == id);
+      expect(atualizado.servicoNome, 'Corte + Barba');
+      expect(atualizado.status, AppConstants.statusCancelado);
+    });
+
+    test('Concluir agendamento registra valor no faturamento do mês', () async {
+      final clienteId = await clienteService.insert(Cliente(
+        nome: 'Cliente Agenda Faturamento',
+        telefone: '11932221111',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+
+      final id = await agendaService.insert(Agendamento(
+        clienteId: clienteId,
+        clienteNome: 'Cliente Agenda Faturamento',
+        servicoId: 1,
+        servicoNome: 'Corte de Cabelo',
+        dataHora: DateTime.now().add(const Duration(hours: 1)),
+        createdAt: DateTime.now(),
+      ));
+
+      await agendaService.updateStatus(id, AppConstants.statusConcluido);
+
+      final inicioMes = DateTime(DateTime.now().year, DateTime.now().month, 1);
+      final fim = DateTime.now().add(const Duration(days: 1));
+      final faturamento =
+          await comandaService.getFaturamentoPeriodo(inicioMes, fim);
+      expect(faturamento, closeTo(35.0, 0.001));
+
+      final concluido =
+          (await agendaService.getAll()).firstWhere((a) => a.id == id);
+      expect(concluido.faturamentoRegistrado, isTrue);
+      expect(concluido.status, AppConstants.statusConcluido);
+    });
   });
 
   // ─── GRUPO 3: ATENDIMENTOS ──────────────────────────────────────────────────
 
+  group('Servicos', () {
+    test('Adicionar, editar e alternar ativo/inativo funciona', () async {
+      final id = await servicoService.insert(const Servico(
+        nome: 'Corte Premium',
+        preco: 55,
+        duracaoMinutos: 40,
+      ));
+      expect(id, greaterThan(0));
+
+      final criado = (await servicoService.getAll(apenasAtivos: false))
+          .firstWhere((s) => s.id == id);
+      expect(criado.nome, 'Corte Premium');
+
+      await servicoService.update(
+        criado.copyWith(
+          nome: 'Corte Premium Gold',
+          preco: 60,
+        ),
+      );
+      final atualizado = (await servicoService.getAll(apenasAtivos: false))
+          .firstWhere((s) => s.id == id);
+      expect(atualizado.nome, 'Corte Premium Gold');
+      expect(atualizado.preco, closeTo(60, 0.001));
+
+      await servicoService.update(atualizado.copyWith(ativo: false));
+      final inativo = (await servicoService.getAll(apenasAtivos: false))
+          .firstWhere((s) => s.id == id);
+      expect(inativo.ativo, isFalse);
+
+      final ativos = await servicoService.getAll(apenasAtivos: true);
+      expect(ativos.any((s) => s.id == id), isFalse);
+    });
+
+    test('Listagem de servicos mantem nomes visiveis (nao vazios)', () async {
+      final lista = await servicoService.getAll(apenasAtivos: false);
+      expect(lista, isNotEmpty);
+      expect(lista.every((s) => s.nome.trim().isNotEmpty), isTrue);
+    });
+  });
+
+  group('Barbeiros', () {
+    test('Excluir barbeiro remove perfil da listagem local', () async {
+      await authService.login(
+        email: 'teste@severus.app',
+        password: 'Teste@123!',
+      );
+
+      final barbeiro = Usuario(
+        id: 'barbeiro_teste_1',
+        nome: 'Barbeiro Teste',
+        email: 'barbeiro.teste@severus.app',
+        role: AppConstants.roleBarbeiro,
+        ativo: true,
+        comissaoPercentual: 50,
+        firstLogin: false,
+        createdAt: DateTime.now(),
+      );
+      await db.insert(AppConstants.tableUsuarios, barbeiro.toMap());
+
+      final antes = await authService.listarBarbeiros(apenasAtivos: false);
+      expect(antes.any((b) => b.id == barbeiro.id), isTrue);
+
+      await authService.excluirBarbeiro(barbeiro.id);
+      final depois = await authService.listarBarbeiros(apenasAtivos: false);
+      expect(depois.any((b) => b.id == barbeiro.id), isFalse);
+    });
+  });
+
   group('Atendimentos', () {
-    test('Registro atômico decrementa estoque e atualiza totais do cliente', () async {
+    test('Registro atômico decrementa estoque e atualiza totais do cliente',
+        () async {
       final clienteId = await clienteService.insert(Cliente(
         nome: 'Cliente Atendimento',
         telefone: '11977776666',
@@ -253,8 +397,18 @@ void main() {
         formaPagamento: 'Dinheiro',
         data: DateTime.now(),
         itens: [
-          AtendimentoItem(tipo: 'produto', itemId: p1, nome: 'Gel Fixador', quantidade: 2, precoUnitario: 20),
-          AtendimentoItem(tipo: 'produto', itemId: p2, nome: 'Shampoo', quantidade: 1, precoUnitario: 18),
+          AtendimentoItem(
+              tipo: 'produto',
+              itemId: p1,
+              nome: 'Gel Fixador',
+              quantidade: 2,
+              precoUnitario: 20),
+          AtendimentoItem(
+              tipo: 'produto',
+              itemId: p2,
+              nome: 'Shampoo',
+              quantidade: 1,
+              precoUnitario: 18),
         ],
       ));
 
@@ -293,22 +447,26 @@ void main() {
       );
 
       // comissaoPercentual usa escala 0.0 – 1.0
-      await comandaService.adicionarItem(comanda.id!, const ItemComanda(
-        tipo: 'servico',
-        itemId: 1,
-        nome: 'Corte de Cabelo',
-        quantidade: 1,
-        precoUnitario: 35,
-        comissaoPercentual: 0.5,
-      ));
-      await comandaService.adicionarItem(comanda.id!, ItemComanda(
-        tipo: 'produto',
-        itemId: produtoId,
-        nome: 'Gel Fixador',
-        quantidade: 2,
-        precoUnitario: 20,
-        comissaoPercentual: 0.2,
-      ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          const ItemComanda(
+            tipo: 'servico',
+            itemId: 1,
+            nome: 'Corte de Cabelo',
+            quantidade: 1,
+            precoUnitario: 35,
+            comissaoPercentual: 0.5,
+          ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          ItemComanda(
+            tipo: 'produto',
+            itemId: produtoId,
+            nome: 'Gel Fixador',
+            quantidade: 2,
+            precoUnitario: 20,
+            comissaoPercentual: 0.2,
+          ));
 
       await comandaService.fecharComanda(
         comandaId: comanda.id!,
@@ -360,14 +518,16 @@ void main() {
         clienteId: clienteId,
         clienteNome: 'CC Fechada',
       );
-      await comandaService.adicionarItem(comanda.id!, ItemComanda(
-        tipo: 'produto',
-        itemId: produtoId,
-        nome: 'Gel Fixador',
-        quantidade: 1,
-        precoUnitario: 20,
-        comissaoPercentual: 0.2,
-      ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          ItemComanda(
+            tipo: 'produto',
+            itemId: produtoId,
+            nome: 'Gel Fixador',
+            quantidade: 1,
+            precoUnitario: 20,
+            comissaoPercentual: 0.2,
+          ));
 
       await comandaService.fecharComanda(
         comandaId: comanda.id!,
@@ -391,7 +551,8 @@ void main() {
     });
 
     test('Cancelar comanda aberta funciona corretamente', () async {
-      final comanda = await comandaService.abrirComanda(clienteNome: 'Cancelado');
+      final comanda =
+          await comandaService.abrirComanda(clienteNome: 'Cancelado');
       await comandaService.cancelarComanda(comanda.id!);
 
       final cancelada = await comandaService.getById(comanda.id!);
@@ -417,14 +578,16 @@ void main() {
         clienteId: clienteId,
         clienteNome: 'CC Cancel Test',
       );
-      await comandaService.adicionarItem(comanda.id!, ItemComanda(
-        tipo: 'produto',
-        itemId: produtoId,
-        nome: 'Prod Cancel',
-        quantidade: 1,
-        precoUnitario: 20,
-        comissaoPercentual: 0.2,
-      ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          ItemComanda(
+            tipo: 'produto',
+            itemId: produtoId,
+            nome: 'Prod Cancel',
+            quantidade: 1,
+            precoUnitario: 20,
+            comissaoPercentual: 0.2,
+          ));
       await comandaService.fecharComanda(
         comandaId: comanda.id!,
         formaPagamento: 'PIX',
@@ -442,14 +605,16 @@ void main() {
         barbeiroId: 'barb_test',
         barbeiroNome: 'Barb Test',
       );
-      await comandaService.adicionarItem(comanda.id!, const ItemComanda(
-        tipo: 'servico',
-        itemId: 1,
-        nome: 'Corte de Cabelo',
-        quantidade: 1,
-        precoUnitario: 40,
-        comissaoPercentual: 0.5,
-      ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          const ItemComanda(
+            tipo: 'servico',
+            itemId: 1,
+            nome: 'Corte de Cabelo',
+            quantidade: 1,
+            precoUnitario: 40,
+            comissaoPercentual: 0.5,
+          ));
       await comandaService.fecharComanda(
         comandaId: comanda.id!,
         formaPagamento: 'PIX',
@@ -457,7 +622,8 @@ void main() {
 
       final inicio = DateTime.now().subtract(const Duration(hours: 1));
       final fim = DateTime.now().add(const Duration(hours: 1));
-      final fat = await comandaService.getFaturamentoBarbeiro('barb_test', inicio, fim);
+      final fat =
+          await comandaService.getFaturamentoBarbeiro('barb_test', inicio, fim);
       expect(fat, closeTo(40, 0.001));
     });
 
@@ -467,14 +633,16 @@ void main() {
         barbeiroId: 'barb_rank',
         barbeiroNome: 'Barb Rank',
       );
-      await comandaService.adicionarItem(comanda.id!, const ItemComanda(
-        tipo: 'servico',
-        itemId: 1,
-        nome: 'Corte de Cabelo',
-        quantidade: 1,
-        precoUnitario: 60,
-        comissaoPercentual: 0.5,
-      ));
+      await comandaService.adicionarItem(
+          comanda.id!,
+          const ItemComanda(
+            tipo: 'servico',
+            itemId: 1,
+            nome: 'Corte de Cabelo',
+            quantidade: 1,
+            precoUnitario: 60,
+            comissaoPercentual: 0.5,
+          ));
       await comandaService.fecharComanda(
         comandaId: comanda.id!,
         formaPagamento: 'Dinheiro',
@@ -490,7 +658,8 @@ void main() {
   // ─── GRUPO 5: ESTOQUE ───────────────────────────────────────────────────────
 
   group('Estoque', () {
-    test('Concorrência: apenas 1 venda bem-sucedida quando há saldo para 1', () async {
+    test('Concorrência: apenas 1 venda bem-sucedida quando há saldo para 1',
+        () async {
       final produtoId = await produtoService.insert(Produto(
         nome: 'Shampoo Premium',
         precoVenda: 18,
@@ -570,7 +739,8 @@ void main() {
 
       final produto = await produtoService.getById(produtoId);
       expect(produto!.quantidade, 10);
-      expect(produto.precoCusto, closeTo(16.0, 0.01)); // custo médio = (5*15 + 5*17)/10
+      expect(produto.precoCusto,
+          closeTo(16.0, 0.01)); // custo médio = (5*15 + 5*17)/10
     });
 
     test('Saída maior que estoque lança ConflictException', () async {
@@ -633,10 +803,12 @@ void main() {
         data: DateTime.now(),
       ));
 
-      final despesa = (await financeiroService.getDespesas()).firstWhere((d) => d.id == id);
+      final despesa =
+          (await financeiroService.getDespesas()).firstWhere((d) => d.id == id);
       await financeiroService.updateDespesa(despesa.copyWith(valor: 120.0));
 
-      final atualizada = (await financeiroService.getDespesas()).firstWhere((d) => d.id == id);
+      final atualizada =
+          (await financeiroService.getDespesas()).firstWhere((d) => d.id == id);
       expect(atualizada.valor, closeTo(120.0, 0.001));
     });
 
@@ -658,8 +830,13 @@ void main() {
       final inicio = DateTime(hoje.year, hoje.month, hoje.day);
       final fim = inicio.add(const Duration(days: 1));
 
-      await financeiroService.insertDespesa(Despesa(descricao: 'Energia', categoria: 'Energia Elétrica', valor: 300.0, data: hoje));
-      await financeiroService.insertDespesa(Despesa(descricao: 'Água', categoria: 'Água', valor: 80.0, data: hoje));
+      await financeiroService.insertDespesa(Despesa(
+          descricao: 'Energia',
+          categoria: 'Energia Elétrica',
+          valor: 300.0,
+          data: hoje));
+      await financeiroService.insertDespesa(Despesa(
+          descricao: 'Água', categoria: 'Água', valor: 80.0, data: hoje));
 
       final total = await financeiroService.getTotalDespesas(inicio, fim);
       expect(total, closeTo(380.0, 0.001));
@@ -671,13 +848,26 @@ void main() {
       final fim = inicio.add(const Duration(days: 1));
 
       // Cria comanda para gerar faturamento de R$ 100.
-      final comanda = await comandaService.abrirComanda(clienteNome: 'Resumo Test');
-      await comandaService.adicionarItem(comanda.id!, const ItemComanda(
-        tipo: 'servico', itemId: 1, nome: 'Corte', quantidade: 1, precoUnitario: 100, comissaoPercentual: 0.5,
-      ));
-      await comandaService.fecharComanda(comandaId: comanda.id!, formaPagamento: 'Dinheiro');
+      final comanda =
+          await comandaService.abrirComanda(clienteNome: 'Resumo Test');
+      await comandaService.adicionarItem(
+          comanda.id!,
+          const ItemComanda(
+            tipo: 'servico',
+            itemId: 1,
+            nome: 'Corte',
+            quantidade: 1,
+            precoUnitario: 100,
+            comissaoPercentual: 0.5,
+          ));
+      await comandaService.fecharComanda(
+          comandaId: comanda.id!, formaPagamento: 'Dinheiro');
 
-      await financeiroService.insertDespesa(Despesa(descricao: 'Despesa Resumo', categoria: 'Outros', valor: 30.0, data: hoje));
+      await financeiroService.insertDespesa(Despesa(
+          descricao: 'Despesa Resumo',
+          categoria: 'Outros',
+          valor: 30.0,
+          data: hoje));
 
       final resumo = await financeiroService.getResumo(inicio, fim);
       expect(resumo['faturamento'], closeTo(100.0, 0.001));

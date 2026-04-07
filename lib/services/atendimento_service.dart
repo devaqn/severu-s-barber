@@ -127,10 +127,50 @@ class AtendimentoService {
         safeAtendimento.toMap(),
       );
 
+      final nowIso = DateTime.now().toIso8601String();
+      final dataAtendimentoIso = safeAtendimento.data.toIso8601String();
+      final comissaoTotal = safeAtendimento.itens.fold<double>(
+        0,
+        (soma, item) => soma + _calcularComissaoItem(item),
+      );
+      final comandaId = await txn.insert(
+        AppConstants.tableComandas,
+        {
+          'cliente_id': safeAtendimento.clienteId,
+          'cliente_nome': safeAtendimento.clienteNome,
+          'status': AppConstants.comandaFechada,
+          'total': safeAtendimento.total,
+          'comissao_total': comissaoTotal,
+          'forma_pagamento': safeAtendimento.formaPagamento,
+          'data_abertura': dataAtendimentoIso,
+          'data_fechamento': dataAtendimentoIso,
+          'observacoes': safeAtendimento.observacoes,
+          'updated_at': nowIso,
+        },
+      );
+
       for (final item in safeAtendimento.itens) {
         await txn.insert(
           AppConstants.tableAtendimentoItens,
           _itemComAtendimento(item, atendimentoId).toMap(),
+        );
+
+        final comissaoPercentual = item.tipo == 'produto'
+            ? AppConstants.comissaoProdutoPadrao
+            : AppConstants.comissaoServicoPadrao;
+        await txn.insert(
+          AppConstants.tableComandasItens,
+          {
+            'comanda_id': comandaId,
+            'tipo': item.tipo,
+            'item_id': item.itemId,
+            'nome': item.nome,
+            'quantidade': item.quantidade,
+            'preco_unitario': item.precoUnitario,
+            'comissao_percentual': comissaoPercentual,
+            'comissao_valor': item.subtotal * comissaoPercentual,
+            'updated_at': nowIso,
+          },
         );
       }
 
@@ -364,5 +404,12 @@ class AtendimentoService {
       quantidade: item.quantidade,
       precoUnitario: item.precoUnitario,
     );
+  }
+
+  double _calcularComissaoItem(AtendimentoItem item) {
+    final percentual = item.tipo == 'produto'
+        ? AppConstants.comissaoProdutoPadrao
+        : AppConstants.comissaoServicoPadrao;
+    return item.subtotal * percentual;
   }
 }

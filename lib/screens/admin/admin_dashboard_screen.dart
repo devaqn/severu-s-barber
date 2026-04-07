@@ -33,6 +33,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final DashboardService _dashboardService = DashboardService();
   final ComandaService _comandaService = ComandaService();
   final ClienteService _clienteService = ClienteService();
+  static const Color _expenseOrange = Color(0xFFE67E22);
+  static const Color _expenseOrangeDark = Color(0xFFD35400);
   late Future<Map<String, dynamic>> _future;
 
   @override
@@ -184,7 +186,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 10),
                     _buildCardPair(
                       StatCard(
-                        title: 'Faturado no Mes',
+                        title: 'Faturado no Mês',
                         value: AppFormatters.currency(fatMes),
                         icon: Icons.calendar_month,
                         color: AppTheme.accentColor,
@@ -205,32 +207,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _buildCardPair(
-                      StatCard(
-                        title: 'Lucro Estimado',
-                        value: AppFormatters.currency(lucro),
-                        icon: Icons.trending_up,
-                        color: lucro >= 0
-                            ? AppTheme.successColor
-                            : AppTheme.errorColor,
-                        gradient: lucro >= 0
-                            ? const [
-                                AppTheme.successColor,
-                                AppTheme.successDark
-                              ]
-                            : const [AppTheme.errorColor, AppTheme.accentDark],
-                      ),
-                      StatCard(
-                        title: 'Despesas do Mes',
-                        value: AppFormatters.currency(despesas),
-                        icon: Icons.money_off,
-                        color: AppTheme.errorColor,
-                        gradient: const [
-                          AppTheme.errorColor,
-                          AppTheme.accentDark
-                        ],
-                      ),
+                    StatCard(
+                      title: 'Lucro Estimado',
+                      value: AppFormatters.currency(lucro),
+                      icon: Icons.trending_up,
+                      isFullWidth: true,
+                      color: lucro >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
+                      gradient: lucro >= 0
+                          ? const [AppTheme.successColor, AppTheme.successDark]
+                          : const [AppTheme.errorColor, AppTheme.accentDark],
                     ),
+                    const SizedBox(height: 10),
+                    _buildDespesasMesCard(despesas),
                     const SizedBox(height: 10),
                     _buildCardPair(
                       StatCard(
@@ -410,6 +400,72 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   subtitulo,
                   style: GoogleFonts.inter(
                     color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDespesasMesCard(double despesas) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [_expenseOrange, _expenseOrangeDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: _expenseOrange.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.money_off, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Despesas do Mês',
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  AppFormatters.currency(despesas),
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Saídas e custos acumulados no período',
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.75),
                     fontSize: 11,
                   ),
                 ),

@@ -647,6 +647,28 @@ class AuthService {
     }
   }
 
+  Future<void> excluirBarbeiro(String userId) async {
+    final admin = await _assertAdminSession();
+    final sanitizedId =
+        SecurityUtils.sanitizeIdentifier(userId, fieldName: 'ID do usuario');
+    final shopId = _resolveBarbeariaId(admin);
+
+    SecurityUtils.ensure(
+      sanitizedId != admin.id,
+      'Nao e permitido excluir o usuario administrador atual.',
+    );
+
+    if (_firebaseDisponivel) {
+      await _usuariosCollection(shopId).doc(sanitizedId).delete();
+    }
+
+    await _db.delete(
+      AppConstants.tableUsuarios,
+      'id = ?',
+      [sanitizedId],
+    );
+  }
+
   Future<bool> podeCadastrarAdminPublicamente() async {
     if (!_firebaseDisponivel) {
       return false;

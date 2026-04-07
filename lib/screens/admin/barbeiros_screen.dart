@@ -106,7 +106,8 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
           : AppFormatters.phone(usuario.telefone!),
     );
     final comissaoCtrl = TextEditingController(
-        text: usuario.comissaoPercentual.toStringAsFixed(2));
+      text: usuario.comissaoPercentual.toStringAsFixed(2),
+    );
 
     try {
       final updated = await showDialog<Usuario>(
@@ -119,7 +120,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
             builder: (ctx, setDialogState) {
               return AlertDialog(
                 title: Text(
-                  'Editar Barbeiro',
+                  'Editar barbeiro',
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
                 ),
                 content: SizedBox(
@@ -143,7 +144,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                               try {
                                 SecurityUtils.sanitizeName(v);
                               } catch (_) {
-                                return 'Nome invalido.';
+                                return 'Nome inválido.';
                               }
                               return null;
                             },
@@ -162,7 +163,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                               try {
                                 SecurityUtils.sanitizeEmail(v);
                               } catch (_) {
-                                return 'E-mail invalido.';
+                                return 'E-mail inválido.';
                               }
                               return null;
                             },
@@ -185,15 +186,15 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                               final digits = _apenasDigitos(v ?? '');
                               if (digits.isEmpty) return null;
                               if (digits.length < 10) {
-                                return 'Informe ao menos 10 digitos.';
+                                return 'Informe ao menos 10 dígitos.';
                               }
                               if (digits.length > 11) {
-                                return 'Maximo de 11 digitos.';
+                                return 'Máximo de 11 dígitos.';
                               }
                               try {
                                 SecurityUtils.sanitizePhone(v ?? '');
                               } catch (_) {
-                                return 'Telefone invalido.';
+                                return 'Telefone inválido.';
                               }
                               return null;
                             },
@@ -202,16 +203,15 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                           TextFormField(
                             controller: comissaoCtrl,
                             keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
+                                decimal: true),
                             decoration: const InputDecoration(
-                              labelText: '% Comissao',
+                              labelText: '% Comissão',
                               prefixIcon: Icon(Icons.percent),
                             ),
                             validator: (v) {
                               final valor = double.tryParse(
                                   (v ?? '').replaceAll(',', '.'));
-                              if (valor == null) return 'Informe um numero.';
+                              if (valor == null) return 'Informe um número.';
                               if (valor < 0 || valor > 100) {
                                 return 'Valor entre 0 e 100.';
                               }
@@ -284,18 +284,67 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
     }
   }
 
+  Future<void> _excluirBarbeiro(Usuario usuario) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir barbeiro'),
+        content: Text(
+          'Deseja excluir ${usuario.nome}?\n\nEssa ação remove o perfil do barbeiro do sistema.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+    try {
+      await _authService.excluirBarbeiro(usuario.id);
+      if (!mounted) return;
+      UiFeedback.showSnack(
+        context,
+        'Barbeiro excluído com sucesso.',
+        type: AppNoticeType.success,
+      );
+      await _carregar();
+    } catch (e) {
+      if (!mounted) return;
+      UiFeedback.showSnack(
+        context,
+        'Falha ao excluir barbeiro: $e',
+        type: AppNoticeType.error,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: AppTheme.textPrimary,
         title: Text(
           'Barbeiros',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
+          ),
         ),
         actions: [
           IconButton(
             onPressed: _carregar,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: AppTheme.textPrimary),
           ),
         ],
       ),
@@ -312,102 +361,139 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
           ),
         ),
       ),
-      body: AppPageContainer(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _barbeiros.isEmpty
-                ? AppEmptyState(
-                    icon: Icons.people_outline,
-                    title: 'Nenhum barbeiro cadastrado',
-                    subtitle:
-                        'Adicione o primeiro barbeiro para iniciar a equipe.',
-                    actionLabel: 'Adicionar Barbeiro',
-                    onAction: _abrirCriacao,
-                  )
-                : RefreshIndicator(
-                    onRefresh: _carregar,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(top: 4, bottom: 20),
-                      itemCount: _barbeiros.length,
-                      itemBuilder: (context, index) {
-                        final usuario = _barbeiros[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.secondaryColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: (usuario.ativo
-                                      ? AppTheme.accentColor
-                                      : Colors.grey)
-                                  .withValues(alpha: 0.28),
-                            ),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            title: Text(
-                              usuario.nome,
-                              style: GoogleFonts.poppins(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.w700,
+      body: Container(
+        color: Colors.black,
+        child: AppPageContainer(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _barbeiros.isEmpty
+                  ? AppEmptyState(
+                      icon: Icons.people_outline,
+                      title: 'Nenhum barbeiro cadastrado',
+                      subtitle:
+                          'Adicione o primeiro barbeiro para iniciar a equipe.',
+                      actionLabel: 'Adicionar Barbeiro',
+                      onAction: _abrirCriacao,
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _carregar,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(top: 4, bottom: 20),
+                        itemCount: _barbeiros.length,
+                        itemBuilder: (context, index) {
+                          final usuario = _barbeiros[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.secondaryColor,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: (usuario.ativo
+                                        ? AppTheme.accentColor
+                                        : Colors.grey)
+                                    .withValues(alpha: 0.28),
                               ),
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Text(
-                                  usuario.email,
-                                  style: GoogleFonts.inter(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 12,
-                                  ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              title: Text(
+                                usuario.nome,
+                                style: GoogleFonts.poppins(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                if ((usuario.telefone ?? '').isNotEmpty)
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 6),
                                   Text(
-                                    AppFormatters.phone(usuario.telefone!),
+                                    usuario.email,
                                     style: GoogleFonts.inter(
                                       color: AppTheme.textSecondary,
                                       fontSize: 12,
                                     ),
                                   ),
-                                Text(
-                                  'Comissao: ${usuario.comissaoPercentual.toStringAsFixed(2)}%',
-                                  style: GoogleFonts.inter(
-                                    color: AppTheme.goldColor,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                  if ((usuario.telefone ?? '').isNotEmpty)
+                                    Text(
+                                      AppFormatters.phone(usuario.telefone!),
+                                      style: GoogleFonts.inter(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  Text(
+                                    'Comissão: ${usuario.comissaoPercentual.toStringAsFixed(2)}%',
+                                    style: GoogleFonts.inter(
+                                      color: AppTheme.goldColor,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
+                                ],
+                              ),
+                              trailing: SizedBox(
+                                width: 108,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          onPressed: () =>
+                                              _abrirEdicao(usuario),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            color: AppTheme.infoColor,
+                                          ),
+                                          tooltip: 'Editar',
+                                          constraints: const BoxConstraints(),
+                                          visualDensity: const VisualDensity(
+                                            horizontal: -2,
+                                            vertical: -2,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        IconButton(
+                                          onPressed: () =>
+                                              _excluirBarbeiro(usuario),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            color: AppTheme.errorColor,
+                                          ),
+                                          tooltip: 'Excluir',
+                                          constraints: const BoxConstraints(),
+                                          visualDensity: const VisualDensity(
+                                            horizontal: -2,
+                                            vertical: -2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Transform.scale(
+                                      scale: 0.88,
+                                      child: Switch.adaptive(
+                                        value: usuario.ativo,
+                                        activeThumbColor: AppTheme.accentColor,
+                                        onChanged: (v) =>
+                                            _toggleAtivo(usuario, v),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  onPressed: () => _abrirEdicao(usuario),
-                                  icon: const Icon(Icons.edit_outlined,
-                                      color: AppTheme.infoColor),
-                                  tooltip: 'Editar',
-                                ),
-                                Transform.scale(
-                                  scale: 0.9,
-                                  child: Switch.adaptive(
-                                    value: usuario.ativo,
-                                    activeThumbColor: AppTheme.accentColor,
-                                    onChanged: (v) => _toggleAtivo(usuario, v),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
+        ),
       ),
     );
   }
