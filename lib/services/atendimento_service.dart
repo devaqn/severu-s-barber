@@ -207,7 +207,7 @@ class AtendimentoService {
     );
     final existente = await getById(atendimentoId);
     if (existente == null) {
-      throw const NotFoundException('Atendimento nao encontrado.');
+      throw const NotFoundException('Atendimento não encontrado.');
     }
   }
 
@@ -316,7 +316,7 @@ class AtendimentoService {
         atendimento.itens.fold<double>(0, (soma, item) => soma + item.subtotal);
     if ((totalCalculado - atendimento.total).abs() > 0.01) {
       throw const ValidationException(
-        'Total do atendimento nao confere com os itens selecionados.',
+        'Total do atendimento não confere com os itens selecionados.',
       );
     }
   }

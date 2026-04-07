@@ -273,7 +273,7 @@ class AccessDeniedScreen extends StatelessWidget {
                   size: 54, color: AppTheme.errorColor),
               const SizedBox(height: 12),
               const Text(
-                'Seu perfil nao tem permissao para acessar esta tela.',
+                'Seu perfil não tem permissão para acessar esta tela.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

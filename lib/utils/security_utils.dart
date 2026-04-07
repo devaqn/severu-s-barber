@@ -47,7 +47,7 @@ class SecurityUtils {
 
     ensure(
       RegExp(r'^[A-Za-z0-9_.:@\-]+$').hasMatch(sanitized),
-      '$fieldName contem caracteres invalidos.',
+      '$fieldName contém caracteres inválidos.',
     );
 
     return sanitized;
@@ -55,9 +55,9 @@ class SecurityUtils {
 
   static String sanitizeEmail(String email) {
     final normalized = normalizeUtf8(email).toLowerCase();
-    ensure(normalized.isNotEmpty, 'Email obrigatorio.');
+    ensure(normalized.isNotEmpty, 'E-mail obrigatório.');
     ensure(normalized.length <= 254, 'Email muito longo.');
-    ensure(_emailRegex.hasMatch(normalized), 'Email invalido.');
+    ensure(_emailRegex.hasMatch(normalized), 'E-mail inválido.');
     return normalized;
   }
 
@@ -73,13 +73,13 @@ class SecurityUtils {
       minLength: minLength,
       maxLength: maxLength,
     );
-    ensure(_nomeRegex.hasMatch(normalized), '$fieldName invalido.');
+    ensure(_nomeRegex.hasMatch(normalized), '$fieldName inválido.');
     return normalized;
   }
 
   static String sanitizePhone(String telefone) {
     final digits = digitsOnly(telefone);
-    ensure(_phoneRegex.hasMatch(digits), 'Telefone invalido.');
+    ensure(_phoneRegex.hasMatch(digits), 'Telefone inválido.');
     return digits;
   }
 
@@ -87,7 +87,7 @@ class SecurityUtils {
     if (telefone == null) return null;
     final digits = digitsOnly(telefone);
     if (digits.isEmpty) return null;
-    ensure(_phoneRegex.hasMatch(digits), 'Telefone invalido.');
+    ensure(_phoneRegex.hasMatch(digits), 'Telefone inválido.');
     return digits;
   }
 
@@ -103,7 +103,7 @@ class SecurityUtils {
       maxLength: maxLength,
       allowNewLines: allowNewLines,
     );
-    ensure(normalized.length >= minLength, '$fieldName obrigatorio.');
+    ensure(normalized.length >= minLength, '$fieldName obrigatório.');
     return normalized;
   }
 
@@ -137,7 +137,7 @@ class SecurityUtils {
     required List<String> allowedValues,
   }) {
     final normalized = normalizeUtf8(value);
-    ensure(allowedValues.contains(normalized), '$fieldName invalido.');
+    ensure(allowedValues.contains(normalized), '$fieldName inválido.');
     return normalized;
   }
 
@@ -158,7 +158,7 @@ class SecurityUtils {
     required double min,
     required double max,
   }) {
-    ensure(value.isFinite, '$fieldName invalido.');
+    ensure(value.isFinite, '$fieldName inválido.');
     ensure(
         value >= min && value <= max, '$fieldName fora do limite permitido.');
     return value;

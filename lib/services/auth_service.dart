@@ -475,7 +475,7 @@ class AuthService {
   Future<Usuario> atualizarFotoPerfil(String? photoUrl) async {
     final usuarioAtual = await getCurrentUsuario();
     if (usuarioAtual == null) {
-      throw Exception('Usuario nao autenticado.');
+      throw Exception('Usuário não autenticado.');
     }
 
     final safePhotoUrl = SecurityUtils.sanitizeOptionalText(
@@ -682,16 +682,16 @@ class AuthService {
       case 'wrong-password':
       case 'invalid-credential':
       case 'invalid-login-credentials':
-        return Exception('Email ou senha invalidos.');
+        return Exception('E-mail ou senha inválidos.');
       case 'email-already-in-use':
         return Exception('E-mail ja cadastrado.');
       case 'weak-password':
         return Exception('Senha fraca. Use uma senha mais forte.');
       case 'invalid-email':
-        return Exception('Email invalido.');
+        return Exception('E-mail inválido.');
       case 'operation-not-allowed':
         return Exception(
-          'Login por email/senha nao esta habilitado no Firebase Authentication.',
+          'Login por e-mail/senha não está habilitado no Firebase Authentication.',
         );
       case 'app-not-authorized':
       case 'invalid-api-key':
@@ -713,7 +713,7 @@ class AuthService {
   void _garantirFirebaseInicializado() {
     if (!_firebaseDisponivel) {
       throw Exception(
-        'Firebase nao configurado neste app. '
+        'Firebase não configurado neste app. '
         'Use google-services.json real para autenticar online.',
       );
     }

@@ -306,13 +306,13 @@ class ProdutoService {
       limit: 1,
     );
     if (produtoRows.isEmpty) {
-      throw const NotFoundException('Produto nao encontrado para estoque.');
+      throw const NotFoundException('Produto não encontrado para estoque.');
     }
 
     final produtoRow = produtoRows.first;
     final ativo = (produtoRow['ativo'] as num?)?.toInt() ?? 0;
     if (ativo != 1) {
-      throw const ConflictException('Produto inativo nao permite movimento.');
+      throw const ConflictException('Produto inativo não permite movimento.');
     }
 
     final nomeProduto = produtoRow['nome'] as String;

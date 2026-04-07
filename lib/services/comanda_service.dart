@@ -269,7 +269,7 @@ class ComandaService {
         limit: 1,
       );
       if (comandaRows.isEmpty) {
-        throw const NotFoundException('Comanda nao encontrada.');
+        throw const NotFoundException('Comanda não encontrada.');
       }
       final status = comandaRows.first['status'] as String? ?? '';
       if (status != AppConstants.comandaAberta) {
@@ -334,7 +334,7 @@ class ComandaService {
         limit: 1,
       );
       if (comandaRows.isEmpty) {
-        throw const NotFoundException('Comanda nao encontrada.');
+        throw const NotFoundException('Comanda não encontrada.');
       }
       final status = comandaRows.first['status'] as String? ?? '';
       if (status != AppConstants.comandaAberta) {
@@ -395,13 +395,13 @@ class ComandaService {
         limit: 1,
       );
       if (comandaRows.isEmpty) {
-        throw const NotFoundException('Comanda nao encontrada.');
+        throw const NotFoundException('Comanda não encontrada.');
       }
 
       final comanda = Comanda.fromMap(comandaRows.first);
       if (comanda.status != AppConstants.comandaAberta) {
         throw const ConflictException(
-            'Comanda nao esta aberta para fechamento.');
+            'Comanda não está aberta para fechamento.');
       }
 
       final itensRows = await txn.query(
@@ -413,7 +413,7 @@ class ComandaService {
       final itens = itensRows.map((m) => ItemComanda.fromMap(m)).toList();
       if (itens.isEmpty) {
         throw const ValidationException(
-          'Comanda sem itens nao pode ser fechada.',
+          'Comanda sem itens não pode ser fechada.',
         );
       }
 

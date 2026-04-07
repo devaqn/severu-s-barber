@@ -245,7 +245,7 @@ class ClienteService {
       limit: 1,
     );
     if (rows.isEmpty) {
-      throw const NotFoundException('Cliente nao encontrado para atualizacao.');
+      throw const NotFoundException('Cliente não encontrado para atualização.');
     }
 
     final row = rows.first;
@@ -278,7 +278,7 @@ class ClienteService {
 
     final cliente = await getById(safeClienteId);
     if (cliente == null) {
-      throw const NotFoundException('Cliente nao encontrado.');
+      throw const NotFoundException('Cliente não encontrado.');
     }
 
     final novoPontos = cliente.pontosFidelidade - 10;
@@ -595,7 +595,7 @@ class ClienteService {
       );
       SecurityUtils.ensure(
         !normalizada.isAfter(DateTime(hoje.year, hoje.month, hoje.day)),
-        'Data de nascimento nao pode ser futura.',
+        'Data de nascimento não pode ser futura.',
       );
       safeDataNascimento = normalizada;
     }

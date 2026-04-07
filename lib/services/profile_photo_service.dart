@@ -27,13 +27,13 @@ class ProfilePhotoService {
   }) async {
     final safeId = _safeUserId(userId);
     if (safeId.isEmpty) {
-      throw Exception('Usuario invalido para salvar foto.');
+      throw Exception('Usuário inválido para salvar foto.');
     }
 
     final dir = await _ensurePhotosDir();
     final source = File(sourcePath);
     if (!await source.exists()) {
-      throw Exception('Arquivo de imagem nao encontrado.');
+      throw Exception('Arquivo de imagem não encontrado.');
     }
 
     var ext = p.extension(source.path).toLowerCase();

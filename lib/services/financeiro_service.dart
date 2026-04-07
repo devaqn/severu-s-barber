@@ -339,7 +339,7 @@ class FinanceiroService {
     }
     if (caixa.id != safeCaixaId) {
       throw const ConflictException(
-        'Caixa informado nao corresponde ao caixa aberto atual.',
+        'Caixa informado não corresponde ao caixa aberto atual.',
       );
     }
 

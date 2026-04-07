@@ -241,7 +241,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                   validator: (v) {
                     final valor =
                         double.tryParse((v ?? '').replaceAll(',', '.'));
-                    if (valor == null) return 'Informe um numero valido.';
+                              if (valor == null) return 'Informe um número válido.';
                     if (valor < 0 || valor > 100) {
                       return 'Valor deve estar entre 0 e 100.';
                     }
