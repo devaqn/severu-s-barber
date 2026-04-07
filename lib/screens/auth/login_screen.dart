@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       child: Text(
-                        'Firebase nao configurado neste APK. '
+              'Firebase não configurado neste APK. '
                         'Use login de teste local para validar o app.',
                         style: GoogleFonts.inter(
                           color: AppTheme.warningColor,
@@ -246,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       try {
                         SecurityUtils.sanitizeEmail(value);
                       } catch (_) {
-                        return 'E-mail invalido.';
+                  return 'E-mail inválido.';
                       }
                       return null;
                     },

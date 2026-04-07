@@ -122,7 +122,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
     if (_cliente == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Cliente')),
-        body: const Center(child: Text('Cliente nao encontrado')),
+      body: const Center(child: Text('Cliente não encontrado')),
       );
     }
 
@@ -220,7 +220,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
                       color: AppTheme.goldColor,
                     ),
                     const SizedBox(height: 6),
-                    Text('$pontos/${AppConstants.cortesFidelidade} para proximo brinde'),
+              Text('$pontos/${AppConstants.cortesFidelidade} para próximo brinde'),
                     const SizedBox(height: 10),
                     ElevatedButton.icon(
                       onPressed: cliente.temCorteGratis ? _resgatarFidelidade : null,
@@ -233,7 +233,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
             ),
             const SizedBox(height: 12),
             // Lista de historico de atendimentos do cliente.
-            Text('Historico de atendimentos',
+                  Text('Histórico de atendimentos',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium

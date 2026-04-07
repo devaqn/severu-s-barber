@@ -142,7 +142,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizeName(v);
                     } catch (_) {
-                      return 'Nome invalido.';
+                                return 'Nome inválido.';
                     }
                     return null;
                   },
@@ -163,7 +163,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizeEmail(v);
                     } catch (_) {
-                      return 'E-mail invalido.';
+                                return 'E-mail inválido.';
                     }
                     return null;
                   },
@@ -195,7 +195,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizePhone(v ?? '');
                     } catch (_) {
-                      return 'Telefone invalido.';
+                                return 'Telefone inválido.';
                     }
                     return null;
                   },

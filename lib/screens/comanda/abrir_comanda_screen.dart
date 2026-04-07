@@ -122,7 +122,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
 
     // Validação do cliente
     if (!_clienteAvulso && _clienteSelecionado == null) {
-      _showError('Selecione um cliente ou use cliente avulso');
+      _showError('Selecione um cliente ou use atendimento avulso');
       return;
     }
     if (_clienteAvulso && _nomeAvulsoCtrl.text.trim().isEmpty) {

@@ -138,7 +138,7 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
                       return 'Confirme a senha.';
                     }
                     if (value != _senhaCtrl.text) {
-                      return 'As senhas nao conferem.';
+                    return 'As senhas não conferem.';
                     }
                     return null;
                   },

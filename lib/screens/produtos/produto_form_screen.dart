@@ -136,7 +136,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
       );
       final min = SecurityUtils.sanitizeIntRange(
         int.parse(_minCtrl.text),
-        fieldName: 'Estoque minimo',
+                                fieldName: 'Estoque mínimo',
         min: 0,
         max: 1000000,
       );
@@ -213,7 +213,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
                 try {
                   SecurityUtils.sanitizeName(v);
                 } catch (_) {
-                  return 'Nome invalido';
+                            return 'Nome inválido';
                 }
                 return null;
               },
@@ -229,7 +229,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               validator: (v) {
                 final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                if (n == null || n <= 0) return 'Informe preco de venda valido';
+                          if (n == null || n <= 0) return 'Informe preço de venda válido';
                 return null;
               },
             ),
@@ -244,7 +244,7 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               validator: (v) {
                 final n = double.tryParse((v ?? '').replaceAll(',', '.'));
-                if (n == null || n < 0) return 'Informe preco de custo valido';
+                          if (n == null || n < 0) return 'Informe preço de custo válido';
                 return null;
               },
             ),
@@ -266,13 +266,13 @@ class _ProdutoFormScreenState extends State<ProdutoFormScreen> {
             TextFormField(
               controller: _minCtrl,
               decoration: const InputDecoration(
-                labelText: 'Estoque minimo *',
+                            labelText: 'Estoque mínimo *',
                 prefixIcon: Icon(Icons.warning),
               ),
               keyboardType: TextInputType.number,
               validator: (v) {
                 final n = int.tryParse(v ?? '');
-                if (n == null || n < 0) return 'Informe estoque minimo valido';
+                          if (n == null || n < 0) return 'Informe estoque mínimo válido';
                 return null;
               },
             ),

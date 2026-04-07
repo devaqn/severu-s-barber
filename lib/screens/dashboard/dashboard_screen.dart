@@ -284,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    'Logo nao encontrado',
+                                  'Logo não encontrado',
                     style: GoogleFonts.inter(color: AppTheme.textSecondary),
                   ),
                 );

@@ -156,7 +156,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                 try {
                   SecurityUtils.sanitizeName(v, fieldName: 'Nome');
                 } catch (_) {
-                  return 'Nome invalido';
+                            return 'Nome inválido';
                 }
                 return null;
               },
@@ -184,7 +184,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                 try {
                   SecurityUtils.sanitizePhone(v ?? '');
                 } catch (_) {
-                  return 'Telefone invalido';
+                            return 'Telefone inválido';
                 }
                 return null;
               },
