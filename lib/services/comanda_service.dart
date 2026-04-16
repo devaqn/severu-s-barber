@@ -1010,7 +1010,8 @@ class ComandaService {
     required String? barbeiroId,
     required double fallback,
   }) async {
-    final fallbackSanitizado = fallback.clamp(0.0, 1.0).toDouble();
+    final fallbackEscalaDecimal = fallback > 1 ? fallback / 100 : fallback;
+    final fallbackSanitizado = fallbackEscalaDecimal.clamp(0.0, 1.0).toDouble();
     if (barbeiroId == null || barbeiroId.trim().isEmpty) {
       return fallbackSanitizado;
     }

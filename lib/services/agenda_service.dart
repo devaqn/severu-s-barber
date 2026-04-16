@@ -117,6 +117,7 @@ class AgendaService {
 
     final localMap = <String, dynamic>{
       ...safeAgendamento.toMap(),
+      'created_at': nowIso,
       'updated_at': nowIso,
       'barbeiro_id': barbeiroId,
       'barbeiro_nome': barbeiroNome,

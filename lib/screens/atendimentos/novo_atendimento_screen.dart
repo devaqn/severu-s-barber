@@ -317,7 +317,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
                               end: Alignment.bottomRight,
                               colors: [
                                 AppTheme.accentColor,
-                                AppTheme.accentDark
+                                AppTheme.accentDark,
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
@@ -472,17 +472,40 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
               groupValue: _clienteSelecionado,
               onChanged: (v) => setState(() => _clienteSelecionado = v),
               child: Column(
-                children: _sugestoesClientes
-                    .take(6)
-                    .map(
-                      (c) => RadioListTile<Cliente>(
-                        value: c,
-                        activeColor: AppTheme.accentColor,
-                        title: Text(c.nome),
-                        subtitle: Text(c.telefone),
+                children: _sugestoesClientes.take(6).map((c) {
+                  return InkWell(
+                    onTap: () => setState(() => _clienteSelecionado = c),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-                    )
-                    .toList(),
+                      child: Row(
+                        children: [
+                          Radio<Cliente>(
+                            value: c,
+                            activeColor: AppTheme.accentColor,
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(c.nome),
+                                Text(
+                                  c.telefone,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
         ],
@@ -631,7 +654,8 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
             ButtonSegment(
                 value: AppConstants.pgDinheiro, label: Text('Dinheiro')),
             ButtonSegment(value: AppConstants.pgPix, label: Text('PIX')),
-            ButtonSegment(value: AppConstants.pgCredito, label: Text('Cartão')),
+            ButtonSegment(
+                value: AppConstants.pgCredito, label: Text('Cartão')),
           ],
           selected: {_formaPagamento},
           onSelectionChanged: (value) {

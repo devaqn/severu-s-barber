@@ -248,6 +248,21 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Atualiza o estado da sessão do usuário logado localmente.
+  /// Usado por telas que precisam refletir alterações imediatas (ex:
+  /// [PrimeiroLoginScreen]) sem aguardar uma nova chamada ao Firebase.
+  void setSessaoAposLogin(Usuario? usuario) {
+    _usuario = usuario;
+    if (usuario == null) {
+      _status = AuthStatus.naoAutenticado;
+    } else if (usuario.isAdmin) {
+      _status = AuthStatus.autenticadoAdmin;
+    } else {
+      _status = AuthStatus.autenticadoBarbeiro;
+    }
+    notifyListeners();
+  }
+
   @visibleForTesting
   void debugSetSessao(Usuario? usuario) {
     _usuario = usuario;

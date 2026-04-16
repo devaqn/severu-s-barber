@@ -975,10 +975,7 @@ class AuthService {
     const offlinePassword = _offlineAdminPasswordDefine;
 
     if (email != offlineEmail || password != offlinePassword) {
-      throw Exception(
-        'Credenciais invalidas. Use a conta de teste: '
-        '$_offlineAdminEmailDefine / $_offlineAdminPasswordDefine',
-      );
+      throw Exception('Credenciais inválidas para o modo offline.');
     }
 
     final rows = await _db.queryAll(
