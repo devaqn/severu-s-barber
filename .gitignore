@@ -47,3 +47,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Credenciais e ambiente
+.env
+*.env
+!.env.example
+
+# Keystore Android
+key.properties
+*.keystore
+*.jks
+
+# Build outputs
+build/release/

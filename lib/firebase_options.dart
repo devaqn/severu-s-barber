@@ -1,4 +1,4 @@
-﻿// Generated-style fallback firebase_options.dart
+// Generated-style fallback firebase_options.dart
 // Replace with `flutterfire configure` output in production.
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;

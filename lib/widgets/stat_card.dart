@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // stat_card.dart
 // Card reutilizavel para exibir estatisticas no dashboard.
 // Suporta icone, cor/gradiente, titulo, valor e subtitulo.
