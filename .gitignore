@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Miscellaneous
 *.class
 *.log
@@ -60,3 +61,43 @@ key.properties
 
 # Build outputs
 build/release/
+=======
+# ==============================
+# Severus Barber - Ignore Rules
+# Foco: binarios gerados e dependencias/cache
+# ==============================
+
+# Flutter / Dart dependencies & cache
+.dart_tool/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# Build outputs (todas as plataformas)
+build/
+**/build/
+
+# Android generated/dependencies
+android/.gradle/
+android/local.properties
+
+# iOS/macOS/Linux/Windows generated folders
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# Generated binaries/packages
+*.apk
+*.aab
+*.exe
+
+# Common logs/temp
+*.log
+*.tmp
+>>>>>>> a8356bf ( commitando coisaso que estavam dentro do git ingnore q n deveria estar)
