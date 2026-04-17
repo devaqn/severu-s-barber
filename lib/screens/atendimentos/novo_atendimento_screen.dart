@@ -5,14 +5,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/atendimento_controller.dart';
+import '../../controllers/cliente_controller.dart';
+import '../../controllers/produto_controller.dart';
+import '../../controllers/servico_controller.dart';
 import '../../models/atendimento.dart';
 import '../../models/cliente.dart';
 import '../../models/produto.dart';
 import '../../models/servico.dart';
-import '../../services/atendimento_service.dart';
-import '../../services/cliente_service.dart';
-import '../../services/produto_service.dart';
-import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -28,11 +30,11 @@ class NovoAtendimentoScreen extends StatefulWidget {
 
 /// Estado do stepper de atendimento com calculo dinamico de total.
 class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
-  // Services usados para busca de dados e persistencia final.
-  final ClienteService _clienteService = ClienteService();
-  final ServicoService _servicoService = ServicoService();
-  final ProdutoService _produtoService = ProdutoService();
-  final AtendimentoService _atendimentoService = AtendimentoService();
+  ClienteController get _clienteController => context.read<ClienteController>();
+  ServicoController get _servicoController => context.read<ServicoController>();
+  ProdutoController get _produtoController => context.read<ProdutoController>();
+  AtendimentoController get _atendimentoController =>
+      context.read<AtendimentoController>();
 
   // Estado de navegacao entre etapas do Stepper.
   int _step = 0;
@@ -94,8 +96,8 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _servicoService.getAll(apenasAtivos: true),
-        _produtoService.getAll(apenasAtivos: true),
+        _servicoController.getAll(apenasAtivos: true),
+        _produtoController.getAll(apenasAtivos: true),
       ]);
       _servicos = results[0] as List<Servico>;
       _produtos = results[1] as List<Produto>;
@@ -118,7 +120,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
       return;
     }
     try {
-      final list = await _clienteService.search(q);
+      final list = await _clienteController.search(q);
       if (mounted) setState(() => _sugestoesClientes = list);
     } catch (_) {
       // Falha de busca nao bloqueia fluxo de cadastro.
@@ -230,7 +232,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
       );
 
       // Persiste atendimento com todos os efeitos em transacao atomica.
-      await _atendimentoService.registrar(atendimento);
+      await _atendimentoController.registrar(atendimento);
 
       // Fecha tela com feedback visual de sucesso.
       if (mounted) {
@@ -654,8 +656,7 @@ class _NovoAtendimentoScreenState extends State<NovoAtendimentoScreen> {
             ButtonSegment(
                 value: AppConstants.pgDinheiro, label: Text('Dinheiro')),
             ButtonSegment(value: AppConstants.pgPix, label: Text('PIX')),
-            ButtonSegment(
-                value: AppConstants.pgCredito, label: Text('Cartão')),
+            ButtonSegment(value: AppConstants.pgCredito, label: Text('Cartão')),
           ],
           selected: {_formaPagamento},
           onSelectionChanged: (value) {

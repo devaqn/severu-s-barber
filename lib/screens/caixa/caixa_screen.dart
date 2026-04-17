@@ -29,6 +29,15 @@ class _CaixaScreenState extends State<CaixaScreen> {
   Map<String, double> _pagamentosHoje = {};
   bool _loading = true;
 
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBg =>
+      _isDarkMode ? AppTheme.primaryColor : AppTheme.lightBackground;
+  Color get _surfaceBg => _isDarkMode ? AppTheme.secondaryColor : Colors.white;
+  Color get _textPrimaryColor =>
+      _isDarkMode ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+  Color get _textSecondaryColor =>
+      _isDarkMode ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+
   @override
   void initState() {
     super.initState();
@@ -200,8 +209,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.errorColor),
               child: Text(
                 'Fechar Caixa',
                 style: GoogleFonts.inter(
@@ -293,8 +302,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style:
-                    ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor),
                 child: Text(
                   'Confirmar Sangria',
                   style: GoogleFonts.inter(
@@ -313,7 +322,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
           await _service.sangria(
             caixaId: _caixaAberto!.id!,
             valor: valor,
-            observacao: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+            observacao:
+                obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
           );
           await _carregar();
           if (mounted) {
@@ -413,7 +423,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
           await _service.reforco(
             caixaId: _caixaAberto!.id!,
             valor: valor,
-            observacao: obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+            observacao:
+                obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
           );
           await _carregar();
           if (mounted) {
@@ -440,37 +451,34 @@ class _CaixaScreenState extends State<CaixaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.lightBackground,
+      backgroundColor: _pageBg,
       drawer: const AppDrawer(selectedItem: AppDrawer.caixa),
       appBar: AppBar(
-        backgroundColor: AppTheme.lightBackground,
-        surfaceTintColor: AppTheme.lightBackground,
-        foregroundColor: AppTheme.lightTextPrimary,
+        backgroundColor: _pageBg,
+        surfaceTintColor: _pageBg,
+        foregroundColor: _textPrimaryColor,
         elevation: 0,
         title: Text(
           'Controle de Caixa',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 18,
-            color: AppTheme.lightTextPrimary,
+            color: _textPrimaryColor,
           ),
         ),
       ),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.accentColor))
-          : Theme(
-              data: AppTheme.lightTheme,
-              child: RefreshIndicator(
-                onRefresh: _carregar,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildStatusCaixa(),
-                    const SizedBox(height: 24),
-                    if (_historico.isNotEmpty) _buildHistorico(),
-                  ],
-                ),
+          : RefreshIndicator(
+              onRefresh: _carregar,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildStatusCaixa(),
+                  const SizedBox(height: 24),
+                  if (_historico.isNotEmpty) _buildHistorico(),
+                ],
               ),
             ),
     );
@@ -481,7 +489,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
       // Caixa aberto com cards de totais por forma de pagamento.
       return Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _surfaceBg,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Padding(
@@ -525,6 +533,12 @@ class _CaixaScreenState extends State<CaixaScreen> {
                 valor: _pagamentosHoje[AppConstants.pgCredito] ?? 0,
                 icone: Icons.credit_card,
                 colors: const [AppTheme.purpleStart, AppTheme.purpleEnd],
+              ),
+              _pagamentoCard(
+                titulo: AppConstants.pgDebito,
+                valor: _pagamentosHoje[AppConstants.pgDebito] ?? 0,
+                icone: Icons.credit_score,
+                colors: const [Color(0xFF3D5A80), Color(0xFF293241)],
               ),
               const SizedBox(height: 16),
               Row(
@@ -576,7 +590,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
     // Caixa fechado.
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _surfaceBg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
@@ -590,13 +604,13 @@ class _CaixaScreenState extends State<CaixaScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textSecondary,
+                color: _textSecondaryColor,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Abra o caixa para iniciar as operações do dia.',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+              style: GoogleFonts.inter(color: _textSecondaryColor),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -637,7 +651,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _surfaceBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: ExpansionTile(
@@ -676,7 +690,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
                         Text(
                           'Resumo por pagamento:',
                           style: GoogleFonts.poppins(
-                            color: AppTheme.textPrimary,
+                            color: _textPrimaryColor,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -713,6 +727,14 @@ class _CaixaScreenState extends State<CaixaScreen> {
                             AppTheme.purpleStart,
                             AppTheme.purpleEnd
                           ],
+                        ),
+                        _pagamentoCard(
+                          titulo: AppConstants.pgDebito,
+                          valor: (resumo[AppConstants.pgDebito] as num?)
+                                  ?.toDouble() ??
+                              0,
+                          icone: Icons.credit_score,
+                          colors: const [Color(0xFF3D5A80), Color(0xFF293241)],
                         ),
                         if (c.valorInicial > 0) ...[
                           const Divider(),

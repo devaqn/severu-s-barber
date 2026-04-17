@@ -156,7 +156,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                 try {
                   SecurityUtils.sanitizeName(v, fieldName: 'Nome');
                 } catch (_) {
-                            return 'Nome inválido';
+                  return 'Nome inválido';
                 }
                 return null;
               },
@@ -184,7 +184,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                 try {
                   SecurityUtils.sanitizePhone(v ?? '');
                 } catch (_) {
-                            return 'Telefone inválido';
+                  return 'Telefone inválido';
                 }
                 return null;
               },
@@ -212,7 +212,8 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
                   suffixIcon: _dataNascimento == null
                       ? const Icon(Icons.calendar_month)
                       : IconButton(
-                          onPressed: () => setState(() => _dataNascimento = null),
+                          onPressed: () =>
+                              setState(() => _dataNascimento = null),
                           icon: const Icon(Icons.close),
                         ),
                 ),

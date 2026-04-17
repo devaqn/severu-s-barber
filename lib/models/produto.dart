@@ -126,5 +126,18 @@ class Produto {
   double get valorEstoque => quantidade * precoCusto;
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Produto) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.nome == nome &&
+        other.precoVenda == precoVenda &&
+        other.quantidade == quantidade;
+  }
+
+  @override
+  int get hashCode => id?.hashCode ?? Object.hash(nome, precoVenda, quantidade);
+
+  @override
   String toString() => 'Produto(id: $id, nome: $nome, qtd: $quantidade)';
 }

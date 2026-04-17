@@ -10,8 +10,10 @@ import '../services/produto_service.dart';
 
 /// Controller de estoque para consolidar dados da tela.
 class EstoqueController extends ChangeNotifier {
-  // Servico de produtos/estoque.
-  final ProdutoService _service = ProdutoService();
+  EstoqueController({ProdutoService? produtoService})
+      : _service = produtoService ?? ProdutoService();
+
+  final ProdutoService _service;
 
   // Produtos com alerta de estoque baixo.
   List<Produto> produtosEstoqueBaixo = [];
@@ -24,10 +26,12 @@ class EstoqueController extends ChangeNotifier {
 
   // Flag de carregamento da tela.
   bool isLoading = false;
+  String? errorMsg;
 
   /// Carrega indicadores e listas de estoque em paralelo.
   Future<void> carregar() async {
     isLoading = true;
+    errorMsg = null;
     notifyListeners();
     try {
       final results = await Future.wait([
@@ -38,6 +42,8 @@ class EstoqueController extends ChangeNotifier {
       produtosEstoqueBaixo = results[0] as List<Produto>;
       movimentos = results[1] as List<MovimentoEstoque>;
       valorTotalEstoque = results[2] as double;
+    } catch (e) {
+      errorMsg = e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading = false;
       notifyListeners();
@@ -45,8 +51,10 @@ class EstoqueController extends ChangeNotifier {
   }
 
   /// Registra entrada manual e recarrega os dados da visao.
-  Future<void> registrarEntrada(int produtoId, int qtd, double valorUnitario) async {
+  Future<void> registrarEntrada(
+      int produtoId, int qtd, double valorUnitario) async {
     isLoading = true;
+    errorMsg = null;
     notifyListeners();
     try {
       await _service.entradaEstoque(
@@ -56,6 +64,9 @@ class EstoqueController extends ChangeNotifier {
         observacao: 'Entrada manual via painel de estoque',
       );
       await carregar();
+    } catch (e) {
+      errorMsg = e.toString().replaceFirst('Exception: ', '');
+      rethrow;
     } finally {
       isLoading = false;
       notifyListeners();

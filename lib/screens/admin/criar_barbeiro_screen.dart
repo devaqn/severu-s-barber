@@ -142,7 +142,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizeName(v);
                     } catch (_) {
-                                return 'Nome inválido.';
+                      return 'Nome inválido.';
                     }
                     return null;
                   },
@@ -163,7 +163,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizeEmail(v);
                     } catch (_) {
-                                return 'E-mail inválido.';
+                      return 'E-mail inválido.';
                     }
                     return null;
                   },
@@ -195,7 +195,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     try {
                       SecurityUtils.sanitizePhone(v ?? '');
                     } catch (_) {
-                                return 'Telefone inválido.';
+                      return 'Telefone inválido.';
                     }
                     return null;
                   },
@@ -241,7 +241,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                   validator: (v) {
                     final valor =
                         double.tryParse((v ?? '').replaceAll(',', '.'));
-                              if (valor == null) return 'Informe um número válido.';
+                    if (valor == null) return 'Informe um número válido.';
                     if (valor < 0 || valor > 100) {
                       return 'Valor deve estar entre 0 e 100.';
                     }

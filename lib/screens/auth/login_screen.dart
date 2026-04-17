@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -19,13 +18,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const bool _atalhoContaTesteDefine = bool.fromEnvironment(
-    'ENABLE_FIREBASE_TEST_SHORTCUT',
-    defaultValue: false,
-  );
   static const String _contaTesteEmail = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_EMAIL',
     defaultValue: '',
+  );
+  static const bool _botaoSemLoginTemporarioEnabled = bool.fromEnvironment(
+    'ENABLE_BYPASS_LOGIN_BUTTON',
+    defaultValue: true,
   );
 
   final _formKey = GlobalKey<FormState>();
@@ -34,9 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _senhaVisivel = false;
   bool _podeCadastrarAdminPublicamente = false;
   bool _checandoCadastroPublico = true;
-
-  bool get _mostrarAtalhoContaTeste =>
-      !kReleaseMode && (kDebugMode || _atalhoContaTesteDefine);
 
   @override
   void initState() {
@@ -114,10 +110,22 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _entrarSemLoginTemporario() async {
+    final ctrl = context.read<AuthController>();
+    final ok = await ctrl.entrarSemLoginTemporario();
+    if (ok || !mounted) return;
+
+    UiFeedback.showSnack(
+      context,
+      ctrl.errorMsg ?? 'Nao foi possivel entrar sem login.',
+      type: AppNoticeType.error,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<AuthController>();
-    final mostrarAtalhoContaTeste = _mostrarAtalhoContaTeste;
+    final mostrarAtalhoContaTeste = ctrl.firebaseTestShortcutDisponivel;
 
     return Scaffold(
       backgroundColor: AppTheme.primaryColor,
@@ -316,6 +324,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                     ),
                   ),
+                  if (_botaoSemLoginTemporarioEnabled) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            ctrl.isLoading ? null : _entrarSemLoginTemporario,
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Entrar sem login (temporario)'),
+                      ),
+                    ),
+                  ],
                   if (mostrarAtalhoContaTeste) ...[
                     const SizedBox(height: 10),
                     SizedBox(
@@ -329,7 +350,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: const Text('Entrar com conta de teste'),
                       ),
                     ),
-                    if (kDebugMode && _contaTesteEmail.trim().isNotEmpty) ...[
+                    if (_contaTesteEmail.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         'Conta teste Firebase: $_contaTesteEmail',

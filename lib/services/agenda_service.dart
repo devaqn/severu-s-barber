@@ -20,12 +20,26 @@ import 'service_exceptions.dart';
 import 'servico_service.dart';
 
 class AgendaService {
-  final DatabaseHelper _db = DatabaseHelper();
-  final FirebaseContextService _context = FirebaseContextService();
-  final ConnectivityService _connectivity = ConnectivityService();
-  final Uuid _uuid = const Uuid();
-  final ComandaService _comandaService = ComandaService();
-  final ServicoService _servicoService = ServicoService();
+  AgendaService({
+    DatabaseHelper? db,
+    FirebaseContextService? context,
+    ConnectivityService? connectivity,
+    Uuid? uuid,
+    ComandaService? comandaService,
+    ServicoService? servicoService,
+  })  : _db = db ?? DatabaseHelper(),
+        _context = context ?? FirebaseContextService(),
+        _connectivity = connectivity ?? ConnectivityService(),
+        _uuid = uuid ?? const Uuid(),
+        _comandaService = comandaService ?? ComandaService(),
+        _servicoService = servicoService ?? ServicoService();
+
+  final DatabaseHelper _db;
+  final FirebaseContextService _context;
+  final ConnectivityService _connectivity;
+  final Uuid _uuid;
+  final ComandaService _comandaService;
+  final ServicoService _servicoService;
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;

@@ -4,9 +4,11 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/cliente_controller.dart';
 import '../../models/atendimento.dart';
 import '../../models/cliente.dart';
-import '../../services/cliente_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -26,8 +28,7 @@ class ClienteDetalheScreen extends StatefulWidget {
 
 /// Estado da tela de detalhes com recarga de cliente e historico.
 class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
-  // Servico para consultar e atualizar dados do cliente.
-  final ClienteService _service = ClienteService();
+  ClienteController get _clienteController => context.read<ClienteController>();
 
   // Snapshot atual do cliente usado para renderizacao.
   Cliente? _cliente;
@@ -50,8 +51,8 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _service.getById(widget.cliente.id!),
-        _service.getHistorico(widget.cliente.id!),
+        _clienteController.getById(widget.cliente.id!),
+        _clienteController.getHistorico(widget.cliente.id!),
       ]);
       if (!mounted) return;
       setState(() {
@@ -82,9 +83,11 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
   /// Aciona resgate de fidelidade quando o cliente tem pontos suficientes.
   Future<void> _resgatarFidelidade() async {
     final cliente = _cliente;
-    if (cliente == null || !cliente.temCorteGratis || cliente.id == null) return;
+    if (cliente == null || !cliente.temCorteGratis || cliente.id == null) {
+      return;
+    }
     try {
-      await _service.resgatarFidelidade(cliente.id!);
+      await _clienteController.resgatarFidelidade(cliente.id!);
       _sucesso('Fidelidade resgatada com sucesso');
       await _carregar();
     } catch (e) {
@@ -103,7 +106,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
     if (atualizado == null) return;
 
     try {
-      await _service.update(atualizado);
+      await _clienteController.salvar(atualizado);
       _sucesso('Cliente atualizado com sucesso');
       await _carregar();
     } catch (e) {
@@ -122,7 +125,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
     if (_cliente == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Cliente')),
-      body: const Center(child: Text('Cliente não encontrado')),
+        body: const Center(child: Text('Cliente não encontrado')),
       );
     }
 
@@ -133,7 +136,9 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detalhes do Cliente'),
-        actions: [IconButton(onPressed: _editarCliente, icon: const Icon(Icons.edit))],
+        actions: [
+          IconButton(onPressed: _editarCliente, icon: const Icon(Icons.edit))
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _carregar,
@@ -153,7 +158,11 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
                             .titleLarge
                             ?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    Row(children: [const Icon(Icons.phone, size: 18), const SizedBox(width: 6), Text(cliente.telefone)]),
+                    Row(children: [
+                      const Icon(Icons.phone, size: 18),
+                      const SizedBox(width: 6),
+                      Text(cliente.telefone)
+                    ]),
                     if (cliente.dataNascimento != null) ...[
                       const SizedBox(height: 8),
                       Row(
@@ -186,7 +195,8 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
                             .titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    _rowInfo('Total gasto', AppFormatters.currency(cliente.totalGasto)),
+                    _rowInfo('Total gasto',
+                        AppFormatters.currency(cliente.totalGasto)),
                     _rowInfo('Atendimentos', '${cliente.totalAtendimentos}'),
                     _rowInfo(
                       'Ultima visita',
@@ -220,10 +230,12 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
                       color: AppTheme.goldColor,
                     ),
                     const SizedBox(height: 6),
-              Text('$pontos/${AppConstants.cortesFidelidade} para próximo brinde'),
+                    Text(
+                        '$pontos/${AppConstants.cortesFidelidade} para próximo brinde'),
                     const SizedBox(height: 10),
                     ElevatedButton.icon(
-                      onPressed: cliente.temCorteGratis ? _resgatarFidelidade : null,
+                      onPressed:
+                          cliente.temCorteGratis ? _resgatarFidelidade : null,
                       icon: const Icon(Icons.card_giftcard),
                       label: const Text('Resgatar'),
                     ),
@@ -233,7 +245,7 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
             ),
             const SizedBox(height: 12),
             // Lista de historico de atendimentos do cliente.
-                  Text('Histórico de atendimentos',
+            Text('Histórico de atendimentos',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -243,7 +255,8 @@ class _ClienteDetalheScreenState extends State<ClienteDetalheScreen> {
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Nenhum atendimento encontrado para este cliente'),
+                  child:
+                      Text('Nenhum atendimento encontrado para este cliente'),
                 ),
               )
             else

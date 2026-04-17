@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../controllers/agenda_controller.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/cliente_controller.dart';
+import '../../controllers/servico_controller.dart';
 import '../../models/agendamento.dart';
 import '../../models/cliente.dart';
 import '../../models/servico.dart';
 import '../../models/usuario.dart';
-import '../../services/agenda_service.dart';
-import '../../services/auth_service.dart';
-import '../../services/cliente_service.dart';
-import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -25,10 +24,9 @@ class AgendaScreen extends StatefulWidget {
 }
 
 class _AgendaScreenState extends State<AgendaScreen> {
-  final AgendaService _agendaService = AgendaService();
-  final ClienteService _clienteService = ClienteService();
-  final ServicoService _servicoService = ServicoService();
-  final AuthService _authService = AuthService();
+  AgendaController get _agendaController => context.read<AgendaController>();
+  ClienteController get _clienteController => context.read<ClienteController>();
+  ServicoController get _servicoController => context.read<ServicoController>();
 
   List<Agendamento> _agendamentos = [];
   List<Usuario> _barbeiros = [];
@@ -45,11 +43,12 @@ class _AgendaScreenState extends State<AgendaScreen> {
   Future<void> _carregar() async {
     setState(() => _loading = true);
     try {
-      final isAdmin = context.read<AuthController>().isAdmin;
+      final authController = context.read<AuthController>();
+      final isAdmin = authController.isAdmin;
       final results = await Future.wait([
-        _agendaService.getAll(),
+        _agendaController.getAll(),
         isAdmin
-            ? _authService.listarBarbeiros(apenasAtivos: true)
+            ? authController.listarBarbeiros(apenasAtivos: true)
             : Future.value(<Usuario>[]),
       ]);
 
@@ -145,7 +144,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
     if (salvar != true || agendamento.id == null) return;
     try {
-      await _agendaService.updateStatus(agendamento.id!, status);
+      await _agendaController.updateStatus(agendamento.id!, status);
       if (mounted) {
         UiFeedback.showSnack(
           context,
@@ -192,7 +191,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
     if (confirmar != true) return;
     try {
-      await _agendaService.updateStatus(
+      await _agendaController.updateStatus(
           agendamento.id!, AppConstants.statusCancelado);
       if (mounted) {
         UiFeedback.showSnack(
@@ -230,7 +229,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
     final admin = auth.isAdmin;
 
     try {
-      servicos = await _servicoService.getAll(apenasAtivos: true);
+      servicos = await _servicoController.getAll(apenasAtivos: true);
       if (servicos.isEmpty) {
         if (mounted) {
           UiFeedback.showSnack(
@@ -243,11 +242,11 @@ class _AgendaScreenState extends State<AgendaScreen> {
       }
 
       if (admin && _barbeiros.isEmpty) {
-        _barbeiros = await _authService.listarBarbeiros(apenasAtivos: true);
+        _barbeiros = await auth.listarBarbeiros(apenasAtivos: true);
       }
 
       if (existente?.clienteId != null) {
-        cliente = await _clienteService.getById(existente!.clienteId!);
+        cliente = await _clienteController.getById(existente!.clienteId!);
       }
 
       if (existente?.servicoId != null) {
@@ -334,7 +333,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
                           setModalState(() => sugestoes = []);
                           return;
                         }
-                        final resultados = await _clienteService.search(query);
+                        final resultados =
+                            await _clienteController.search(query);
                         setModalState(() => sugestoes = resultados);
                       },
                     ),
@@ -527,9 +527,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
       );
 
       if (existente == null) {
-        await _agendaService.insert(payload);
+        await _agendaController.insert(payload);
       } else {
-        await _agendaService.update(payload);
+        await _agendaController.update(payload);
       }
 
       if (mounted) {

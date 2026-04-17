@@ -62,5 +62,20 @@ class Despesa {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Despesa) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.descricao == descricao &&
+        other.categoria == categoria &&
+        other.valor == valor &&
+        other.data == data;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ?? Object.hash(descricao, categoria, valor, data);
+
+  @override
   String toString() => 'Despesa(id: $id, descricao: $descricao, valor: $valor)';
 }

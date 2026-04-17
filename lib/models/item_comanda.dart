@@ -7,14 +7,18 @@
 class ItemComanda {
   final int? id;
   final int? comandaId;
+
   /// 'servico' ou 'produto'
   final String tipo;
+
   /// ID do serviço ou produto referenciado
   final int itemId;
+
   /// Nome salvo no momento da comanda (histórico)
   final String nome;
   final int quantidade;
   final double precoUnitario;
+
   /// Percentual de comissão do barbeiro (0.0 a 1.0)
   final double comissaoPercentual;
 
@@ -47,7 +51,8 @@ class ItemComanda {
       nome: map['nome'] as String,
       quantidade: (map['quantidade'] as int?) ?? 1,
       precoUnitario: (map['preco_unitario'] as num).toDouble(),
-      comissaoPercentual: (map['comissao_percentual'] as num?)?.toDouble() ?? 0.0,
+      comissaoPercentual:
+          (map['comissao_percentual'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -86,4 +91,31 @@ class ItemComanda {
       comissaoPercentual: comissaoPercentual ?? this.comissaoPercentual,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ItemComanda) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.comandaId == comandaId &&
+        other.tipo == tipo &&
+        other.itemId == itemId &&
+        other.quantidade == quantidade &&
+        other.precoUnitario == precoUnitario;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ??
+      Object.hash(
+        comandaId,
+        tipo,
+        itemId,
+        quantidade,
+        precoUnitario,
+      );
+
+  @override
+  String toString() =>
+      'ItemComanda(id: $id, tipo: $tipo, itemId: $itemId, qtd: $quantidade)';
 }

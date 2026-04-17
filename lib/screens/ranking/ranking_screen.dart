@@ -5,8 +5,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/cliente_controller.dart';
 import '../../models/cliente.dart';
-import '../../services/cliente_service.dart';
 import '../../utils/formatters.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/app_drawer.dart';
@@ -19,7 +21,6 @@ class RankingScreen extends StatefulWidget {
 }
 
 class _RankingScreenState extends State<RankingScreen> {
-  final ClienteService _service = ClienteService();
   List<Cliente> _ranking = [];
   bool _loading = true;
 
@@ -31,7 +32,8 @@ class _RankingScreenState extends State<RankingScreen> {
 
   Future<void> _carregar() async {
     setState(() => _loading = true);
-    final ranking = await _service.getRanking(limit: 20);
+    final ranking =
+        await context.read<ClienteController>().getRanking(limit: 20);
     if (mounted) {
       setState(() {
         _ranking = ranking;
@@ -239,4 +241,3 @@ class _RankingScreenState extends State<RankingScreen> {
     }).toList();
   }
 }
-

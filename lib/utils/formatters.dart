@@ -20,7 +20,8 @@ class AppFormatters {
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy', 'pt_BR');
 
   // Formatador de data e hora DD/MM/YYYY HH:mm
-  static final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
+  static final DateFormat _dateTimeFormat =
+      DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
 
   // Formatador de hora HH:mm
   static final DateFormat _timeFormat = DateFormat('HH:mm', 'pt_BR');

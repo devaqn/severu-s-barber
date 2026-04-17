@@ -3,6 +3,17 @@
 // Modelo de usuario (Admin/Barbeiro) com dados de comissao.
 // ============================================================
 
+enum UserRole {
+  admin('admin'),
+  barbeiro('barbeiro');
+
+  const UserRole(this.value);
+  final String value;
+
+  static UserRole fromString(String s) =>
+      values.firstWhere((r) => r.value == s, orElse: () => UserRole.barbeiro);
+}
+
 class Usuario {
   static const Object _naoInformado = Object();
 
@@ -13,8 +24,7 @@ class Usuario {
   final String? photoUrl;
   final String? barbeariaId;
 
-  /// 'admin' ou 'barbeiro'
-  final String role;
+  final UserRole role;
   final bool ativo;
 
   /// Percentual de comissao em escala 0..100.
@@ -36,15 +46,10 @@ class Usuario {
     required this.createdAt,
   });
 
-  /// Valor em escala decimal (0..1), com compatibilidade retroativa.
-  double get comissaoDecimal {
-    final base =
-        comissaoPercentual > 1 ? comissaoPercentual / 100 : comissaoPercentual;
-    return base.clamp(0.0, 1.0).toDouble();
-  }
+  double get comissaoDecimal => (comissaoPercentual / 100).clamp(0.0, 1.0);
 
-  bool get isAdmin => role == 'admin';
-  bool get isBarbeiro => role == 'barbeiro';
+  bool get isAdmin => role == UserRole.admin;
+  bool get isBarbeiro => role == UserRole.barbeiro;
 
   factory Usuario.fromMap(Map<String, dynamic> map) {
     final ativoRaw = map['ativo'];
@@ -57,7 +62,9 @@ class Usuario {
       telefone: map['telefone'] as String?,
       photoUrl: map['photo_url'] as String?,
       barbeariaId: map['barbearia_id'] as String?,
-      role: (map['role'] as String?) ?? 'barbeiro',
+      role: UserRole.fromString(
+        (map['role'] as String?) ?? UserRole.barbeiro.value,
+      ),
       ativo: ativoRaw is bool ? ativoRaw : ((ativoRaw as int?) ?? 1) == 1,
       comissaoPercentual:
           (map['comissao_percentual'] as num?)?.toDouble() ?? 50.0,
@@ -76,7 +83,7 @@ class Usuario {
       'telefone': telefone,
       'photo_url': photoUrl,
       'barbearia_id': barbeariaId,
-      'role': role,
+      'role': role.value,
       'ativo': ativo ? 1 : 0,
       'comissao_percentual': comissaoPercentual,
       'first_login': firstLogin ? 1 : 0,
@@ -92,7 +99,7 @@ class Usuario {
       'telefone': telefone,
       'photo_url': photoUrl,
       'barbearia_id': barbeariaId,
-      'role': role,
+      'role': role.value,
       'ativo': ativo,
       'comissao_percentual': comissaoPercentual,
       'first_login': firstLogin,
@@ -108,7 +115,9 @@ class Usuario {
       telefone: data['telefone'] as String?,
       photoUrl: data['photo_url'] as String?,
       barbeariaId: data['barbearia_id'] as String?,
-      role: (data['role'] as String?) ?? 'barbeiro',
+      role: UserRole.fromString(
+        (data['role'] as String?) ?? UserRole.barbeiro.value,
+      ),
       ativo: (data['ativo'] as bool?) ?? true,
       comissaoPercentual:
           (data['comissao_percentual'] as num?)?.toDouble() ?? 50.0,
@@ -125,7 +134,7 @@ class Usuario {
     Object? telefone = _naoInformado,
     Object? photoUrl = _naoInformado,
     Object? barbeariaId = _naoInformado,
-    String? role,
+    UserRole? role,
     bool? ativo,
     double? comissaoPercentual,
     bool? firstLogin,
@@ -150,6 +159,13 @@ class Usuario {
       createdAt: createdAt,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || (other is Usuario && other.id == id);
+
+  @override
+  int get hashCode => id.hashCode;
 
   @override
   String toString() => 'Usuario(id: $id, nome: $nome, role: $role)';

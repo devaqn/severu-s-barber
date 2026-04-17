@@ -100,6 +100,31 @@ class Agendamento {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Agendamento) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.clienteId == clienteId &&
+        other.clienteNome == clienteNome &&
+        other.servicoId == servicoId &&
+        other.servicoNome == servicoNome &&
+        other.barbeiroId == barbeiroId &&
+        other.dataHora == dataHora;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ??
+      Object.hash(
+        clienteId,
+        clienteNome,
+        servicoId,
+        servicoNome,
+        barbeiroId,
+        dataHora,
+      );
+
+  @override
   String toString() =>
       'Agendamento(id: $id, cliente: $clienteNome, data: $dataHora)';
 }

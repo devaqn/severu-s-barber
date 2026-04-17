@@ -21,11 +21,23 @@ import 'firebase_context_service.dart';
 import 'service_exceptions.dart';
 
 class FinanceiroService {
-  final DatabaseHelper _db = DatabaseHelper();
-  final ComandaService _comandaService = ComandaService();
-  final FirebaseContextService _context = FirebaseContextService();
-  final ConnectivityService _connectivity = ConnectivityService();
-  final Uuid _uuid = const Uuid();
+  FinanceiroService({
+    DatabaseHelper? db,
+    ComandaService? comandaService,
+    FirebaseContextService? context,
+    ConnectivityService? connectivity,
+    Uuid? uuid,
+  })  : _db = db ?? DatabaseHelper(),
+        _comandaService = comandaService ?? ComandaService(),
+        _context = context ?? FirebaseContextService(),
+        _connectivity = connectivity ?? ConnectivityService(),
+        _uuid = uuid ?? const Uuid();
+
+  final DatabaseHelper _db;
+  final ComandaService _comandaService;
+  final FirebaseContextService _context;
+  final ConnectivityService _connectivity;
+  final Uuid _uuid;
 
   static final Set<String> _categoriasAceitas = {
     ...AppConstants.categoriasDespesa,

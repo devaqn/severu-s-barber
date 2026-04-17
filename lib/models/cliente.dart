@@ -11,12 +11,16 @@ class Cliente {
   final String telefone;
   final String? observacoes;
   final DateTime? dataNascimento;
+
   /// Total acumulado gasto na barbearia (em reais)
   final double totalGasto;
+
   /// Data do ultimo atendimento
   final DateTime? ultimaVisita;
+
   /// Pontos do programa de fidelidade
   final int pontosFidelidade;
+
   /// Quantidade total de atendimentos realizados
   final int totalAtendimentos;
   final DateTime createdAt;
@@ -111,6 +115,17 @@ class Cliente {
 
   bool get temCorteGratis => pontosFidelidade >= 10;
   int get cortesParaBrinde => 10 - (pontosFidelidade % 10);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Cliente) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.nome == nome && other.telefone == telefone;
+  }
+
+  @override
+  int get hashCode => id?.hashCode ?? Object.hash(nome, telefone);
 
   @override
   String toString() => 'Cliente(id: $id, nome: $nome, telefone: $telefone)';

@@ -10,11 +10,23 @@ import 'financeiro_service.dart';
 import 'produto_service.dart';
 
 class DashboardService {
-  final ComandaService _comandaService = ComandaService();
-  final FinanceiroService _financeiroService = FinanceiroService();
-  final ProdutoService _produtoService = ProdutoService();
-  final ClienteService _clienteService = ClienteService();
-  final AgendaService _agendaService = AgendaService();
+  DashboardService({
+    ComandaService? comandaService,
+    FinanceiroService? financeiroService,
+    ProdutoService? produtoService,
+    ClienteService? clienteService,
+    AgendaService? agendaService,
+  })  : _comandaService = comandaService ?? ComandaService(),
+        _financeiroService = financeiroService ?? FinanceiroService(),
+        _produtoService = produtoService ?? ProdutoService(),
+        _clienteService = clienteService ?? ClienteService(),
+        _agendaService = agendaService ?? AgendaService();
+
+  final ComandaService _comandaService;
+  final FinanceiroService _financeiroService;
+  final ProdutoService _produtoService;
+  final ClienteService _clienteService;
+  final AgendaService _agendaService;
 
   Future<Map<String, dynamic>> getDadosDashboard() async {
     final agora = DateTime.now();
@@ -63,4 +75,3 @@ class DashboardService {
     };
   }
 }
-

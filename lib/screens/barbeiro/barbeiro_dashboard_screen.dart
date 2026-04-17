@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/cliente_controller.dart';
+import '../../controllers/comanda_controller.dart';
 import '../../models/cliente.dart';
 import '../../models/comanda.dart';
-import '../../services/cliente_service.dart';
-import '../../services/comanda_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/app_drawer.dart';
@@ -28,8 +28,8 @@ class BarbeiroDashboardScreen extends StatefulWidget {
 }
 
 class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
-  final ComandaService _comandaService = ComandaService();
-  final ClienteService _clienteService = ClienteService();
+  ComandaController get _comandaController => context.read<ComandaController>();
+  ClienteController get _clienteController => context.read<ClienteController>();
   late Future<Map<String, dynamic>> _futureDados;
 
   @override
@@ -52,13 +52,13 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
     final inicioMes = DateTime(agora.year, agora.month, 1);
 
     final results = await Future.wait([
-      _comandaService.getFaturamentoBarbeiro(barbeiroId, inicioDia, fimDia),
-      _comandaService.getFaturamentoBarbeiro(barbeiroId, inicioMes, agora),
-      _comandaService.getComissaoBarbeiro(barbeiroId, inicioDia, fimDia),
-      _comandaService.getComissaoBarbeiro(barbeiroId, inicioMes, agora),
-      _comandaService.getComandasHoje(barbeiroId: barbeiroId),
-      _comandaService.getComandaAberta(barbeiroId: barbeiroId),
-      _clienteService.aniversariantesHoje(),
+      _comandaController.getFaturamentoBarbeiro(barbeiroId, inicioDia, fimDia),
+      _comandaController.getFaturamentoBarbeiro(barbeiroId, inicioMes, agora),
+      _comandaController.getComissaoBarbeiro(barbeiroId, inicioDia, fimDia),
+      _comandaController.getComissaoBarbeiro(barbeiroId, inicioMes, agora),
+      _comandaController.getComandasHoje(barbeiroId: barbeiroId),
+      _comandaController.getComandaAberta(barbeiroId: barbeiroId),
+      _clienteController.aniversariantesHoje(),
     ]);
 
     return {
@@ -299,7 +299,8 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
   Widget _buildBannerAniversariantes(List<Cliente> clientes) {
     final nomes = clientes.map((c) => c.nome).join(', ');
     final contatos = clientes
-        .map((c) => '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
+        .map((c) =>
+            '${c.nome.split(' ').first}: ${AppFormatters.phone(c.telefone)}')
         .join('  •  ');
     return Container(
       width: double.infinity,

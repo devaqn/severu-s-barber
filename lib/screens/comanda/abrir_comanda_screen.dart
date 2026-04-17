@@ -7,16 +7,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../controllers/cliente_controller.dart';
+import '../../controllers/comanda_controller.dart';
+import '../../controllers/produto_controller.dart';
+import '../../controllers/servico_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../models/cliente.dart';
 import '../../models/comanda.dart';
 import '../../models/item_comanda.dart';
 import '../../models/produto.dart';
 import '../../models/servico.dart';
-import '../../services/cliente_service.dart';
-import '../../services/comanda_service.dart';
-import '../../services/produto_service.dart';
-import '../../services/servico_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -33,10 +33,10 @@ class AbrirComandaScreen extends StatefulWidget {
 }
 
 class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
-  final _clienteService = ClienteService();
-  final _servicoService = ServicoService();
-  final _produtoService = ProdutoService();
-  final _comandaService = ComandaService();
+  ClienteController get _clienteController => context.read<ClienteController>();
+  ServicoController get _servicoController => context.read<ServicoController>();
+  ProdutoController get _produtoController => context.read<ProdutoController>();
+  ComandaController get _comandaController => context.read<ComandaController>();
 
   final _buscaClienteCtrl = TextEditingController();
   bool _loading = true;
@@ -79,8 +79,8 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _servicoService.getAll(apenasAtivos: true),
-        _produtoService.getAll(apenasAtivos: true),
+        _servicoController.getAll(apenasAtivos: true),
+        _produtoController.getAll(apenasAtivos: true),
       ]);
       _servicos = results[0] as List<Servico>;
       _produtos = results[1] as List<Produto>;
@@ -99,7 +99,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
       setState(() => _sugestoesClientes = []);
       return;
     }
-    final list = await _clienteService.search(q);
+    final list = await _clienteController.search(q);
     if (mounted) setState(() => _sugestoesClientes = list);
   }
 
@@ -133,7 +133,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
     final ctrl = context.read<AuthController>();
     setState(() => _salvando = true);
     try {
-      final comanda = await _comandaService.abrirComanda(
+      final comanda = await _comandaController.abrirComanda(
         clienteId: _clienteSelecionado?.id,
         clienteNome: _clienteAvulso
             ? _nomeAvulsoCtrl.text.trim()
@@ -166,7 +166,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
       // Adiciona serviços
       for (final s in _servicos) {
         if (_servicosSelecionados[s.id] == true) {
-          await _comandaService.adicionarItem(
+          await _comandaController.adicionarItem(
             _comanda!.id!,
             ItemComanda(
               tipo: 'servico',
@@ -184,7 +184,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
       for (final p in _produtos) {
         final qtd = _qtdProdutos[p.id ?? -1] ?? 0;
         if (qtd > 0 && p.id != null) {
-          await _comandaService.adicionarItem(
+          await _comandaController.adicionarItem(
             _comanda!.id!,
             ItemComanda(
               tipo: 'produto',
@@ -199,7 +199,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
       }
 
       // Recarrega comanda atualizada
-      final atualizada = await _comandaService.getById(_comanda!.id!);
+      final atualizada = await _comandaController.getById(_comanda!.id!);
       setState(() {
         _comanda = atualizada;
         // Limpa seleções
@@ -226,7 +226,7 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
 
     setState(() => _salvando = true);
     try {
-      await _comandaService.fecharComanda(
+      await _comandaController.fecharComanda(
         comandaId: _comanda!.id!,
         formaPagamento: _formaPagamento,
       );

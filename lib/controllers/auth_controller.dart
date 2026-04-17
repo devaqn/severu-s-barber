@@ -7,6 +7,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/usuario.dart';
 import '../services/auth_service.dart';
+import '../utils/constants.dart';
 import '../utils/security_utils.dart';
 
 /// Estado de autenticação do aplicativo
@@ -44,6 +45,8 @@ class AuthController extends ChangeNotifier {
   bool get isAdmin => _usuario?.isAdmin ?? false;
   bool get isBarbeiro => _usuario?.isBarbeiro ?? false;
   bool get firebaseDisponivel => _authService.firebaseDisponivel;
+  bool get firebaseTestShortcutDisponivel =>
+      _authService.firebaseTestShortcutDisponivel;
   String get usuarioId => _usuario?.id ?? '';
   String get usuarioNome => _usuario?.nome ?? '';
   String? get usuarioPhotoUrl => _usuario?.photoUrl;
@@ -111,6 +114,34 @@ class AuthController extends ChangeNotifier {
       _status = u.isAdmin
           ? AuthStatus.autenticadoAdmin
           : AuthStatus.autenticadoBarbeiro;
+      return true;
+    } catch (e) {
+      _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      _status = AuthStatus.naoAutenticado;
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> entrarSemLoginTemporario() async {
+    _loading = true;
+    _errorMsg = null;
+    notifyListeners();
+    try {
+      _usuario = Usuario(
+        id: 'admin_local',
+        nome: 'Administrador (Teste)',
+        email: 'teste@severus.app',
+        role: UserRole.admin,
+        ativo: true,
+        comissaoPercentual: 0.0,
+        firstLogin: false,
+        barbeariaId: AppConstants.localBarbeariaId,
+        createdAt: DateTime.now(),
+      );
+      _status = AuthStatus.autenticadoAdmin;
       return true;
     } catch (e) {
       _errorMsg = e.toString().replaceFirst('Exception: ', '');
@@ -240,6 +271,34 @@ class AuthController extends ChangeNotifier {
 
   Future<bool> podeCadastrarAdminPublicamente() {
     return _authService.podeCadastrarAdminPublicamente();
+  }
+
+  Future<List<Usuario>> listarBarbeiros({bool apenasAtivos = true}) async {
+    _errorMsg = null;
+    try {
+      return await _authService.listarBarbeiros(apenasAtivos: apenasAtivos);
+    } catch (e) {
+      _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return const <Usuario>[];
+    }
+  }
+
+  Future<bool> concluirPrimeiroLoginComNovaSenha(String novaSenha) async {
+    _loading = true;
+    _errorMsg = null;
+    notifyListeners();
+    try {
+      await _authService.alterarSenha(novaSenha);
+      await _authService.concluirPrimeiroLogin();
+      return true;
+    } catch (e) {
+      _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   /// Limpa mensagem de erro

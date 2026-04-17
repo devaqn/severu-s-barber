@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../controllers/comanda_controller.dart';
 import '../../models/comanda.dart';
-import '../../services/comanda_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/app_drawer.dart';
@@ -20,7 +20,6 @@ class ComandasScreen extends StatefulWidget {
 
 class _ComandasScreenState extends State<ComandasScreen>
     with SingleTickerProviderStateMixin {
-  final _service = ComandaService();
   final _searchCtrl = TextEditingController();
   late TabController _tabController;
   late Future<List<Comanda>> _futureFechadas;
@@ -48,12 +47,13 @@ class _ComandasScreenState extends State<ComandasScreen>
 
   Future<void> _carregar() async {
     final auth = context.read<AuthController>();
+    final comandaController = context.read<ComandaController>();
     final barbeiroId = auth.isAdmin ? null : auth.usuarioId;
-    final futurasAbertas = _service.getAll(
+    final futurasAbertas = comandaController.getAll(
       barbeiroId: barbeiroId,
       status: 'aberta',
     );
-    final futurasFechadas = _service.getAll(
+    final futurasFechadas = comandaController.getAll(
       barbeiroId: barbeiroId,
       status: 'fechada',
     );

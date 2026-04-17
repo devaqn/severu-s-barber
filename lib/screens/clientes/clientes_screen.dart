@@ -191,18 +191,24 @@ class _ClientesScreenState extends State<ClientesScreen> {
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.clientes),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppTheme.accentColor,
-        foregroundColor: Colors.black,
-        onPressed: _novoCliente,
-        icon: const Icon(Icons.add, color: Colors.black),
-        label: Text(
-          '+ Novo Cliente',
-          style: GoogleFonts.poppins(
-            color: Colors.black,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+      floatingActionButton: AnimatedBuilder(
+        animation: _controller,
+        builder: (_, __) {
+          if (_controller.clientes.isEmpty) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
+            backgroundColor: AppTheme.accentColor,
+            foregroundColor: Colors.black,
+            onPressed: _novoCliente,
+            icon: const Icon(Icons.add, color: Colors.black),
+            label: Text(
+              'Novo cliente',
+              style: GoogleFonts.poppins(
+                color: Colors.black,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          );
+        },
       ),
       body: Container(
         color: lightBg,
@@ -222,7 +228,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                   subtitle: semBusca
                       ? 'Cadastre o primeiro cliente para iniciar o relacionamento.'
                       : 'Ajuste a busca para encontrar clientes.',
-                  actionLabel: semBusca ? '+ Novo Cliente' : null,
+                  actionLabel: semBusca ? 'Novo cliente' : null,
                   onAction: semBusca ? _novoCliente : null,
                 );
               }

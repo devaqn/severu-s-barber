@@ -10,6 +10,7 @@ import '../../main.dart' show themeModeNotifier;
 import '../../models/agendamento.dart';
 import '../../models/cliente.dart';
 import '../../services/dashboard_service.dart';
+import '../../utils/app_routes.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/app_drawer.dart';
@@ -162,7 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             label: 'Novo Agendamento',
             color: AppTheme.infoColor,
             icon: Icons.event_available,
-            onPressed: () => Navigator.pushNamed(context, '/agenda'),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.agenda),
           ),
           ExpandableFabAction(
             label: 'Novo Cliente',
@@ -182,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             label: 'Nova Despesa',
             color: AppTheme.errorColor,
             icon: Icons.money_off,
-            onPressed: () => Navigator.pushNamed(context, '/financeiro'),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.financeiro),
           ),
         ],
       ),

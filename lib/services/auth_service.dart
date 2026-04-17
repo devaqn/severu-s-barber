@@ -16,12 +16,16 @@ import '../utils/security_utils.dart';
 import 'firebase_context_service.dart';
 
 class AuthService {
-  AuthService();
+  AuthService({
+    DatabaseHelper? db,
+    FirebaseContextService? context,
+  })  : _db = db ?? DatabaseHelper(),
+        _context = context ?? FirebaseContextService();
 
-  final DatabaseHelper _db = DatabaseHelper();
-  final FirebaseContextService _context = FirebaseContextService();
+  final DatabaseHelper _db;
+  final FirebaseContextService _context;
 
-  static Usuario? _usuarioLocalLogado;
+  Usuario? _usuarioLocalLogado;
 
   static const bool _offlineLoginEnabledDefine = bool.fromEnvironment(
     'ENABLE_OFFLINE_LOGIN',
@@ -72,6 +76,11 @@ class AuthService {
       _firebaseTestAdminNameDefine.trim().isNotEmpty &&
       _firebaseTestAdminEmailDefine.trim().isNotEmpty &&
       _firebaseTestAdminPasswordDefine.trim().isNotEmpty;
+
+  bool get firebaseTestShortcutDisponivel =>
+      !kReleaseMode &&
+      _firebaseTestShortcutEnabledDefine &&
+      _firebaseTestCredenciaisDefinidas;
 
   FirebaseAuth get _auth {
     _garantirFirebaseInicializado();
@@ -298,7 +307,7 @@ class AuthService {
         email: sanitizedEmail,
         telefone: sanitizedTelefone,
         photoUrl: null,
-        role: AppConstants.roleBarbeiro,
+        role: UserRole.barbeiro,
         ativo: true,
         comissaoPercentual: sanitizedComissao,
         firstLogin: true,
@@ -435,7 +444,7 @@ class AuthService {
         email: sanitizedEmail,
         telefone: null,
         photoUrl: null,
-        role: AppConstants.roleAdmin,
+        role: UserRole.admin,
         ativo: true,
         comissaoPercentual: 0.0,
         firstLogin: false,
@@ -623,7 +632,7 @@ class AuthService {
       allowNewLines: false,
     );
     final sanitizedRole = SecurityUtils.sanitizeEnumValue(
-      usuario.role,
+      usuario.role.value,
       fieldName: 'Perfil',
       allowedValues: const [AppConstants.roleAdmin, AppConstants.roleBarbeiro],
     );
@@ -641,7 +650,7 @@ class AuthService {
       email: sanitizedEmail,
       telefone: sanitizedTelefone,
       photoUrl: sanitizedPhotoUrl,
-      role: sanitizedRole,
+      role: UserRole.fromString(sanitizedRole),
       comissaoPercentual: sanitizedComissao,
       barbeariaId: shopId,
     );
@@ -899,7 +908,7 @@ class AuthService {
       email: email,
       telefone: null,
       photoUrl: null,
-      role: AppConstants.roleAdmin,
+      role: UserRole.admin,
       ativo: true,
       comissaoPercentual: 0.0,
       firstLogin: false,
@@ -1025,7 +1034,7 @@ class AuthService {
             id: 'admin_local',
             nome: 'Administrador',
             email: offlineEmail,
-            role: AppConstants.roleAdmin,
+            role: UserRole.admin,
             ativo: true,
             comissaoPercentual: 0.0,
             firstLogin: false,

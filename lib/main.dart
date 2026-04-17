@@ -6,9 +6,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'controllers/atendimento_controller.dart';
+import 'controllers/agenda_controller.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/cliente_controller.dart';
+import 'controllers/comanda_controller.dart';
 import 'controllers/estoque_controller.dart';
+import 'controllers/financeiro_controller.dart';
+import 'controllers/produto_controller.dart';
+import 'controllers/servico_controller.dart';
 import 'screens/admin/barbeiros_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/agenda/agenda_screen.dart';
@@ -27,6 +32,7 @@ import 'screens/produtos/produtos_screen.dart';
 import 'screens/ranking/ranking_screen.dart';
 import 'screens/relatorios/relatorios_screen.dart';
 import 'screens/servicos/servicos_screen.dart';
+import 'utils/app_routes.dart';
 import 'utils/app_theme.dart';
 import 'firebase_options.dart';
 
@@ -106,6 +112,11 @@ class SeverusBarberApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ClienteController()),
         ChangeNotifierProvider(create: (_) => AtendimentoController()),
         ChangeNotifierProvider(create: (_) => EstoqueController()),
+        ChangeNotifierProvider(create: (_) => AgendaController()),
+        ChangeNotifierProvider(create: (_) => ComandaController()),
+        ChangeNotifierProvider(create: (_) => FinanceiroController()),
+        ChangeNotifierProvider(create: (_) => ServicoController()),
+        ChangeNotifierProvider(create: (_) => ProdutoController()),
       ],
       child: ValueListenableBuilder<ThemeMode>(
         valueListenable: themeModeNotifier,
@@ -134,39 +145,42 @@ class SeverusBarberApp extends StatelessWidget {
             ),
             home: const AuthWrapper(),
             routes: {
-              '/login': (_) => const LoginScreen(),
-              '/primeiro-login': (_) =>
+              AppRoutes.login: (_) => const LoginScreen(),
+              AppRoutes.primeiroLogin: (_) =>
                   const ProtectedRoute(child: PrimeiroLoginScreen()),
-              '/dashboard-admin': (_) => const ProtectedRoute(
+              AppRoutes.dashboardAdmin: (_) => const ProtectedRoute(
                     adminOnly: true,
                     child: AdminDashboardScreen(),
                   ),
-              '/dashboard-barbeiro': (_) =>
+              AppRoutes.dashboardBarbeiro: (_) =>
                   const ProtectedRoute(child: BarbeiroDashboardScreen()),
-              '/clientes': (_) => const ProtectedRoute(child: ClientesScreen()),
-              '/admin/barbeiros': (_) => const ProtectedRoute(
+              AppRoutes.clientes: (_) =>
+                  const ProtectedRoute(child: ClientesScreen()),
+              AppRoutes.barbeiros: (_) => const ProtectedRoute(
                   adminOnly: true, child: BarbeirosScreen()),
-              '/servicos': (_) => const ProtectedRoute(
+              AppRoutes.servicos: (_) => const ProtectedRoute(
                   adminOnly: true, child: ServicosScreen()),
-              '/produtos': (_) => const ProtectedRoute(
+              AppRoutes.produtos: (_) => const ProtectedRoute(
                   adminOnly: true, child: ProdutosScreen()),
-              '/atendimentos': (_) =>
+              AppRoutes.atendimentos: (_) =>
                   const ProtectedRoute(child: AtendimentosScreen()),
-              '/agenda': (_) => const ProtectedRoute(child: AgendaScreen()),
-              '/financeiro': (_) => const ProtectedRoute(
+              AppRoutes.agenda: (_) =>
+                  const ProtectedRoute(child: AgendaScreen()),
+              AppRoutes.financeiro: (_) => const ProtectedRoute(
                   adminOnly: true, child: FinanceiroScreen()),
-              '/estoque': (_) =>
+              AppRoutes.estoque: (_) =>
                   const ProtectedRoute(adminOnly: true, child: EstoqueScreen()),
-              '/caixa': (_) =>
+              AppRoutes.caixa: (_) =>
                   const ProtectedRoute(adminOnly: true, child: CaixaScreen()),
-              '/analytics': (_) => const ProtectedRoute(
+              AppRoutes.analytics: (_) => const ProtectedRoute(
                   adminOnly: true, child: AnalyticsScreen()),
-              '/ranking': (_) =>
+              AppRoutes.ranking: (_) =>
                   const ProtectedRoute(adminOnly: true, child: RankingScreen()),
-              '/relatorios': (_) => const ProtectedRoute(
+              AppRoutes.relatorios: (_) => const ProtectedRoute(
                   adminOnly: true, child: RelatoriosScreen()),
-              '/comandas': (_) => const ProtectedRoute(child: ComandasScreen()),
-              '/comandas/nova': (_) =>
+              AppRoutes.comandas: (_) =>
+                  const ProtectedRoute(child: ComandasScreen()),
+              AppRoutes.novaComanda: (_) =>
                   const ProtectedRoute(child: AbrirComandaScreen()),
             },
           );
@@ -272,7 +286,8 @@ class AccessDeniedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final homeRoute = auth.isAdmin ? '/dashboard-admin' : '/dashboard-barbeiro';
+    final homeRoute =
+        auth.isAdmin ? AppRoutes.dashboardAdmin : AppRoutes.dashboardBarbeiro;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Acesso negado')),

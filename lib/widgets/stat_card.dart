@@ -15,6 +15,7 @@ class StatCard extends StatelessWidget {
   final Color color;
   final List<Color>? gradient;
   final String? subtitle;
+
   /// Se verdadeiro, ocupa toda a largura disponivel.
   final bool isFullWidth;
 
@@ -32,9 +33,8 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Cor base usada para sombra quando o card usa gradiente.
-    final primaryShadowColor = gradient != null && gradient!.isNotEmpty
-        ? gradient!.first
-        : color;
+    final primaryShadowColor =
+        gradient != null && gradient!.isNotEmpty ? gradient!.first : color;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -126,4 +126,3 @@ class StatCard extends StatelessWidget {
     );
   }
 }
-

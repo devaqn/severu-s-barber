@@ -298,7 +298,7 @@ void main() {
         id: 'barbeiro_teste_1',
         nome: 'Barbeiro Teste',
         email: 'barbeiro.teste@severus.app',
-        role: AppConstants.roleBarbeiro,
+        role: UserRole.barbeiro,
         ativo: true,
         comissaoPercentual: 50,
         firstLogin: false,

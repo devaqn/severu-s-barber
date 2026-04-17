@@ -5,10 +5,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/produto_controller.dart';
 import '../../models/fornecedor.dart';
 import '../../models/movimento_estoque.dart';
 import '../../models/produto.dart';
-import '../../services/produto_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -26,8 +28,7 @@ class EstoqueScreen extends StatefulWidget {
 /// Estado da tela de estoque com tab controller e dados consolidados.
 class _EstoqueScreenState extends State<EstoqueScreen>
     with SingleTickerProviderStateMixin {
-  // Servico de produtos/estoque/fornecedores.
-  final ProdutoService _service = ProdutoService();
+  ProdutoController get _produtoController => context.read<ProdutoController>();
 
   // Controlador de abas da tela.
   late TabController _tabController;
@@ -68,12 +69,12 @@ class _EstoqueScreenState extends State<EstoqueScreen>
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _service.getValorTotalEstoque(),
-        _service.getProdutosEstoqueBaixo(),
-        _service.getProdutosParados(),
-        _service.getSugestoesReposicao(),
-        _service.getMovimentos(),
-        _service.getFornecedores(),
+        _produtoController.getValorTotalEstoque(),
+        _produtoController.getProdutosEstoqueBaixo(),
+        _produtoController.getProdutosParados(),
+        _produtoController.getSugestoesReposicao(),
+        _produtoController.getMovimentos(),
+        _produtoController.getFornecedores(),
       ]);
       _valorTotal = results[0] as double;
       _baixo = results[1] as List<Produto>;
@@ -105,7 +106,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
   /// Abre modal para registrar entrada manual de estoque.
   Future<void> _registrarEntradaManual() async {
     try {
-      final produtos = await _service.getAll();
+      final produtos = await _produtoController.getAll();
       if (produtos.isEmpty) {
         _erro('Cadastre produtos antes de registrar entrada');
         return;
@@ -188,7 +189,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
 
       if (confirmar != true || produtoId == null) return;
 
-      await _service.entradaEstoque(
+      await _produtoController.entradaEstoque(
         produtoId: produtoId!,
         quantidade: int.tryParse(qtdCtrl.text) ?? 1,
         valorUnitario:
@@ -274,10 +275,10 @@ class _EstoqueScreenState extends State<EstoqueScreen>
         createdAt: fornecedor?.createdAt ?? DateTime.now(),
       );
       if (fornecedor == null) {
-        await _service.insertFornecedor(model);
+        await _produtoController.insertFornecedor(model);
         _sucesso('Fornecedor cadastrado');
       } else {
-        await _service.updateFornecedor(model);
+        await _produtoController.updateFornecedor(model);
         _sucesso('Fornecedor atualizado');
       }
       await _carregar();
@@ -309,7 +310,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
     if (confirmar != true || f.id == null) return;
 
     try {
-      await _service.deleteFornecedor(f.id!);
+      await _produtoController.deleteFornecedor(f.id!);
       _sucesso('Fornecedor removido');
       await _carregar();
     } catch (e) {
@@ -325,6 +326,8 @@ class _EstoqueScreenState extends State<EstoqueScreen>
         title: const Text('Estoque'),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.black87,
           tabs: const [
             Tab(text: 'Visao Geral'),
             Tab(text: 'Movimentacoes'),

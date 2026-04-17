@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/auth_controller.dart';
-import '../../services/auth_service.dart';
+import '../../utils/app_routes.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/security_utils.dart';
 import '../../widgets/ui_helpers.dart';
@@ -37,9 +37,18 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
 
     setState(() => _salvando = true);
     try {
-      final service = AuthService();
-      await service.alterarSenha(_senhaCtrl.text);
-      await service.concluirPrimeiroLogin();
+      final ok = await authController.concluirPrimeiroLoginComNovaSenha(
+        _senhaCtrl.text,
+      );
+      if (!ok) {
+        if (!mounted) return;
+        UiFeedback.showSnack(
+          context,
+          authController.errorMsg ?? 'Falha ao atualizar senha.',
+          type: AppNoticeType.error,
+        );
+        return;
+      }
 
       if (!mounted) return;
 
@@ -48,7 +57,8 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
       // usuário local ainda com firstLogin=true, causando redirecionamento.
       final usuarioAtual = authController.usuario;
       if (usuarioAtual != null) {
-        authController.setSessaoAposLogin(usuarioAtual.copyWith(firstLogin: false));
+        authController
+            .setSessaoAposLogin(usuarioAtual.copyWith(firstLogin: false));
       }
 
       await authController.inicializar();
@@ -61,8 +71,8 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
       );
 
       final rota = authController.isAdmin
-          ? '/dashboard-admin'
-          : '/dashboard-barbeiro';
+          ? AppRoutes.dashboardAdmin
+          : AppRoutes.dashboardBarbeiro;
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context, rota, (route) => false);
     } catch (e) {
@@ -118,8 +128,8 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       onPressed: () => setState(() => _visivel = !_visivel),
-                      icon:
-                          Icon(_visivel ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(
+                          _visivel ? Icons.visibility_off : Icons.visibility),
                     ),
                   ),
                   validator: (value) {
@@ -147,7 +157,7 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
                       return 'Confirme a senha.';
                     }
                     if (value != _senhaCtrl.text) {
-                    return 'As senhas não conferem.';
+                      return 'As senhas não conferem.';
                     }
                     return null;
                   },

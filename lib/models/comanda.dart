@@ -125,6 +125,29 @@ class Comanda {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Comanda) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.clienteId == clienteId &&
+        other.clienteNome == clienteNome &&
+        other.barbeiroId == barbeiroId &&
+        other.status == status &&
+        other.dataAbertura == dataAbertura;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ??
+      Object.hash(
+        clienteId,
+        clienteNome,
+        barbeiroId,
+        status,
+        dataAbertura,
+      );
+
+  @override
   String toString() =>
       'Comanda(id: $id, cliente: $clienteNome, status: $status, total: $total)';
 }

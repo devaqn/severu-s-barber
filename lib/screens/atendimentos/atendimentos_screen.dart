@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../../controllers/atendimento_controller.dart';
 import '../../models/atendimento.dart';
-import '../../services/atendimento_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -18,7 +19,6 @@ class AtendimentosScreen extends StatefulWidget {
 }
 
 class _AtendimentosScreenState extends State<AtendimentosScreen> {
-  final AtendimentoService _service = AtendimentoService();
   final TextEditingController _searchCtrl = TextEditingController();
 
   List<Atendimento> _atendimentos = [];
@@ -42,7 +42,15 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
     try {
       final fim = DateTime.now();
       final inicio = fim.subtract(Duration(days: _rangeDays));
-      _atendimentos = await _service.getPorPeriodo(inicio, fim);
+      final ctrl = context.read<AtendimentoController>();
+      _atendimentos = await ctrl.getPorPeriodo(inicio, fim);
+      if (ctrl.errorMsg != null && mounted) {
+        UiFeedback.showSnack(
+          context,
+          ctrl.errorMsg!,
+          type: AppNoticeType.error,
+        );
+      }
     } catch (e) {
       if (mounted) {
         UiFeedback.showSnack(

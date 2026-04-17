@@ -16,10 +16,20 @@ import 'service_exceptions.dart';
 class ProdutoService {
   static const String _estoqueCollection = 'estoque';
 
-  final DatabaseHelper _db = DatabaseHelper();
-  final FirebaseContextService _context = FirebaseContextService();
-  final ConnectivityService _connectivity = ConnectivityService();
-  final Uuid _uuid = const Uuid();
+  ProdutoService({
+    DatabaseHelper? db,
+    FirebaseContextService? context,
+    ConnectivityService? connectivity,
+    Uuid? uuid,
+  })  : _db = db ?? DatabaseHelper(),
+        _context = context ?? FirebaseContextService(),
+        _connectivity = connectivity ?? ConnectivityService(),
+        _uuid = uuid ?? const Uuid();
+
+  final DatabaseHelper _db;
+  final FirebaseContextService _context;
+  final ConnectivityService _connectivity;
+  final Uuid _uuid;
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;

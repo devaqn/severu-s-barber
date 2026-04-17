@@ -7,11 +7,14 @@
 class MovimentoEstoque {
   final int? id;
   final int produtoId;
+
   /// Nome do produto salvo no momento do movimento
   final String produtoNome;
+
   /// 'entrada' ou 'saida'
   final String tipo;
   final int quantidade;
+
   /// Valor unitário no momento do movimento
   final double valorUnitario;
   final DateTime data;
@@ -59,6 +62,21 @@ class MovimentoEstoque {
 
   bool get isEntrada => tipo == 'entrada';
   bool get isSaida => tipo == 'saida';
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! MovimentoEstoque) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.produtoId == produtoId &&
+        other.tipo == tipo &&
+        other.quantidade == quantidade &&
+        other.data == data;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ?? Object.hash(produtoId, tipo, quantidade, data);
 
   @override
   String toString() =>

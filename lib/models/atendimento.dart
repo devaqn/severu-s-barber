@@ -8,10 +8,13 @@
 class AtendimentoItem {
   final int? id;
   final int? atendimentoId;
+
   /// 'servico' ou 'produto'
   final String tipo;
+
   /// ID do serviço ou produto
   final int itemId;
+
   /// Nome salvo no momento do atendimento (histórico)
   final String nome;
   final int quantidade;
@@ -53,18 +56,47 @@ class AtendimentoItem {
       'preco_unitario': precoUnitario,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! AtendimentoItem) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.atendimentoId == atendimentoId &&
+        other.tipo == tipo &&
+        other.itemId == itemId &&
+        other.quantidade == quantidade &&
+        other.precoUnitario == precoUnitario;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ??
+      Object.hash(
+        atendimentoId,
+        tipo,
+        itemId,
+        quantidade,
+        precoUnitario,
+      );
+
+  @override
+  String toString() =>
+      'AtendimentoItem(id: $id, tipo: $tipo, itemId: $itemId, qtd: $quantidade)';
 }
 
 /// Representa um atendimento completo na barbearia
 class Atendimento {
   final int? id;
   final int? clienteId;
+
   /// Nome do cliente salvo no momento do atendimento
   final String clienteNome;
   final double total;
   final String formaPagamento;
   final DateTime data;
   final String? observacoes;
+
   /// Lista de itens (serviços + produtos) do atendimento
   final List<AtendimentoItem> itens;
 
@@ -125,6 +157,29 @@ class Atendimento {
       itens: itens ?? this.itens,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Atendimento) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.clienteId == clienteId &&
+        other.clienteNome == clienteNome &&
+        other.total == total &&
+        other.formaPagamento == formaPagamento &&
+        other.data == data;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ??
+      Object.hash(
+        clienteId,
+        clienteNome,
+        total,
+        formaPagamento,
+        data,
+      );
 
   @override
   String toString() =>

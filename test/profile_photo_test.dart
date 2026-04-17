@@ -46,7 +46,7 @@ void main() {
       id: 'barbeiro_1',
       nome: 'Joao Silva',
       email: 'joao@teste.com',
-      role: 'barbeiro',
+      role: UserRole.barbeiro,
       ativo: true,
       comissaoPercentual: 50.0,
       firstLogin: false,

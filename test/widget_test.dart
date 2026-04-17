@@ -12,9 +12,9 @@ void main() {
       id: isAdmin ? 'admin-1' : 'barbeiro-1',
       nome: isAdmin ? 'Dono Teste' : 'Funcionário Teste',
       email: isAdmin ? 'dono@teste.com' : 'funcionario@teste.com',
-      role: isAdmin ? 'admin' : 'barbeiro',
+      role: isAdmin ? UserRole.admin : UserRole.barbeiro,
       ativo: true,
-      comissaoPercentual: isAdmin ? 0.0 : 0.5,
+      comissaoPercentual: isAdmin ? 0.0 : 50.0,
       createdAt: DateTime(2026, 3, 18),
     );
   }

@@ -14,4 +14,3 @@ class ConnectivityService {
         .distinct();
   }
 }
-

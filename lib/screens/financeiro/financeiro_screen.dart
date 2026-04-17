@@ -6,8 +6,10 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/financeiro_controller.dart';
 import '../../models/despesa.dart';
-import '../../services/financeiro_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/formatters.dart';
@@ -25,8 +27,8 @@ class FinanceiroScreen extends StatefulWidget {
 /// Estado da tela com dados financeiros e filtros de periodo.
 class _FinanceiroScreenState extends State<FinanceiroScreen>
     with SingleTickerProviderStateMixin {
-  // Services de financeiro e atendimentos para consolidacao de dados.
-  final FinanceiroService _service = FinanceiroService();
+  FinanceiroController get _financeiroController =>
+      context.read<FinanceiroController>();
 
   // Controlador de abas da tela financeira.
   late TabController _tabController;
@@ -58,6 +60,14 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   final TextEditingController _qtdCtrl = TextEditingController(text: '60');
   static const Color _lightBg = Color(0xFFF7F7FA);
 
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBg => _isDarkMode ? AppTheme.primaryColor : _lightBg;
+  Color get _cardBg => _isDarkMode ? AppTheme.secondaryColor : Colors.white;
+  Color get _textPrimaryColor =>
+      _isDarkMode ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+  Color get _textSecondaryColor =>
+      _isDarkMode ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+
   @override
   void initState() {
     super.initState();
@@ -83,8 +93,9 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   Future<void> _carregar() async {
     setState(() => _loading = true);
     try {
-      _resumo = await _service.getResumo(_inicio, _fim);
-      _despesas = await _service.getDespesas(inicio: _inicio, fim: _fim);
+      _resumo = await _financeiroController.getResumo(_inicio, _fim);
+      _despesas =
+          await _financeiroController.getDespesas(inicio: _inicio, fim: _fim);
       _semanas = await _calcularSerieSemanal();
     } catch (e) {
       _erro('Falha ao carregar financeiro: $e');
@@ -101,7 +112,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       final fim = DateTime(hoje.year, hoje.month, hoje.day)
           .subtract(Duration(days: i * 7));
       final inicio = fim.subtract(const Duration(days: 6));
-      final resumo = await _service.getResumo(inicio, fim);
+      final resumo = await _financeiroController.getResumo(inicio, fim);
       serie.add({
         'receita': resumo['faturamento'] ?? 0.0,
         'despesa': resumo['despesas'] ?? 0.0,
@@ -255,7 +266,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       }
 
       try {
-        await _service.insertDespesa(
+        await _financeiroController.insertDespesa(
           Despesa(
             descricao: descricaoCtrl.text.trim(),
             categoria: categoria,
@@ -301,7 +312,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
     if (ok != true) return;
 
     try {
-      await _service.deleteDespesa(d.id!);
+      await _financeiroController.deleteDespesa(d.id!);
       _sucesso('Despesa removida com sucesso');
       await _carregar();
     } catch (e) {
@@ -312,18 +323,18 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _lightBg,
+      backgroundColor: _pageBg,
       appBar: AppBar(
-        backgroundColor: _lightBg,
-        surfaceTintColor: _lightBg,
-        title: const Text(
+        backgroundColor: _pageBg,
+        surfaceTintColor: _pageBg,
+        title: Text(
           'Controle de Caixa',
-          style: TextStyle(color: AppTheme.lightTextPrimary),
+          style: TextStyle(color: _textPrimaryColor),
         ),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppTheme.lightTextPrimary,
-          unselectedLabelColor: AppTheme.lightTextSecondary,
+          labelColor: _textPrimaryColor,
+          unselectedLabelColor: _textSecondaryColor,
           indicatorColor: AppTheme.accentColor,
           tabs: const [
             Tab(text: 'Resumo'),
@@ -344,14 +355,11 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.accentColor))
-          : Theme(
-              data: AppTheme.lightTheme,
-              child: Container(
-                color: _lightBg,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [_abaResumo(), _abaDespesas(), _abaSimulador()],
-                ),
+          : Container(
+              color: _pageBg,
+              child: TabBarView(
+                controller: _tabController,
+                children: [_abaResumo(), _abaDespesas(), _abaSimulador()],
               ),
             ),
     );
@@ -384,7 +392,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         const SizedBox(height: 8),
         Text(
           'Período: ${AppFormatters.date(_inicio)} a ${AppFormatters.date(_fim)}',
-          style: const TextStyle(color: AppTheme.lightTextSecondary),
+          style: TextStyle(color: _textSecondaryColor),
         ),
         const SizedBox(height: 12),
         _cardResumo(
@@ -441,7 +449,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         ),
         const SizedBox(height: 8),
         Card(
-          color: Colors.white,
+          color: _cardBg,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -465,7 +473,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
   /// Construtor reutilizavel para cards de resumo financeiro.
   Widget _cardResumo(String titulo, double valor, Color cor, IconData icone) {
     return Card(
-      color: Colors.white,
+      color: _cardBg,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: cor.withValues(alpha: 0.2),
@@ -473,8 +481,8 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         ),
         title: Text(
           titulo,
-          style: const TextStyle(
-            color: AppTheme.lightTextPrimary,
+          style: TextStyle(
+            color: _textPrimaryColor,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -575,10 +583,10 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         ),
         Expanded(
           child: _despesasFiltradas.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Nenhuma despesa para o filtro atual',
-                    style: TextStyle(color: AppTheme.lightTextSecondary),
+                    style: TextStyle(color: _textSecondaryColor),
                   ),
                 )
               : ListView.builder(
@@ -601,10 +609,10 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
                         ],
                       ),
                       child: Card(
-                        color: Colors.white,
+                        color: _cardBg,
                         child: ListTile(
-                          leading: const Icon(Icons.receipt,
-                              color: AppTheme.lightTextSecondary),
+                          leading:
+                              Icon(Icons.receipt, color: _textSecondaryColor),
                           title: Text(d.descricao),
                           subtitle: Text(
                               '${d.categoria} - ${AppFormatters.date(d.data)}'),
@@ -662,7 +670,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
         ),
         const SizedBox(height: 16),
         Card(
-          color: Colors.white,
+          color: _cardBg,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

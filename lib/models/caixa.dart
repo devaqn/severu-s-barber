@@ -8,12 +8,16 @@ class Caixa {
   final int? id;
   final DateTime dataAbertura;
   final DateTime? dataFechamento;
+
   /// Valor inicial colocado no caixa ao abrir
   final double valorInicial;
+
   /// Valor total calculado ao fechar
   final double? valorFinal;
+
   /// 'aberto' ou 'fechado'
   final String status;
+
   /// Resumo por forma de pagamento (JSON serializado)
   final String? resumoPagamentos;
   final String? observacoes;
@@ -80,6 +84,20 @@ class Caixa {
       observacoes: observacoes ?? this.observacoes,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Caixa) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.dataAbertura == dataAbertura &&
+        other.status == status &&
+        other.valorInicial == valorInicial;
+  }
+
+  @override
+  int get hashCode =>
+      id?.hashCode ?? Object.hash(dataAbertura, status, valorInicial);
 
   @override
   String toString() =>

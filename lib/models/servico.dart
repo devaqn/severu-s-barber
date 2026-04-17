@@ -70,5 +70,18 @@ class Servico {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Servico) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.nome == nome &&
+        other.preco == preco &&
+        other.duracaoMinutos == duracaoMinutos;
+  }
+
+  @override
+  int get hashCode => id?.hashCode ?? Object.hash(nome, preco, duracaoMinutos);
+
+  @override
   String toString() => 'Servico(id: $id, nome: $nome, preco: $preco)';
 }

@@ -19,12 +19,26 @@ class ComandaService {
   static const String _legacyComandaItensSubcollection =
       AppConstants.tableComandasItens;
 
-  final DatabaseHelper _db = DatabaseHelper();
-  final ProdutoService _produtoService = ProdutoService();
-  final ClienteService _clienteService = ClienteService();
-  final FirebaseContextService _context = FirebaseContextService();
-  final ConnectivityService _connectivity = ConnectivityService();
-  final Uuid _uuid = const Uuid();
+  ComandaService({
+    DatabaseHelper? db,
+    ProdutoService? produtoService,
+    ClienteService? clienteService,
+    FirebaseContextService? context,
+    ConnectivityService? connectivity,
+    Uuid? uuid,
+  })  : _db = db ?? DatabaseHelper(),
+        _produtoService = produtoService ?? ProdutoService(),
+        _clienteService = clienteService ?? ClienteService(),
+        _context = context ?? FirebaseContextService(),
+        _connectivity = connectivity ?? ConnectivityService(),
+        _uuid = uuid ?? const Uuid();
+
+  final DatabaseHelper _db;
+  final ProdutoService _produtoService;
+  final ClienteService _clienteService;
+  final FirebaseContextService _context;
+  final ConnectivityService _connectivity;
+  final Uuid _uuid;
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;

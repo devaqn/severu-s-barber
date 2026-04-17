@@ -60,5 +60,18 @@ class Fornecedor {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Fornecedor) return false;
+    if (id != null && other.id != null) return other.id == id;
+    return other.nome == nome &&
+        other.telefone == telefone &&
+        other.email == email;
+  }
+
+  @override
+  int get hashCode => id?.hashCode ?? Object.hash(nome, telefone, email);
+
+  @override
   String toString() => 'Fornecedor(id: $id, nome: $nome)';
 }

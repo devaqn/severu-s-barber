@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
 import '../main.dart' show themeModeNotifier;
 import '../services/profile_photo_service.dart';
+import '../utils/app_routes.dart';
 import '../utils/app_theme.dart';
 import '../utils/constants.dart';
 
@@ -401,14 +402,6 @@ class _AppDrawerState extends State<AppDrawer> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Toque na foto para alterar',
-              style: GoogleFonts.inter(
-                color: AppTheme.textPrimary.withValues(alpha: 0.76),
-                fontSize: 11,
-              ),
-            ),
           ],
         ),
       ),
@@ -442,8 +435,8 @@ class _AppDrawerState extends State<AppDrawer> {
                   label: 'Comandas',
                   color: AppTheme.accentColor,
                   isActive: widget.selectedItem == AppDrawer.comandas,
-                  onTap: () =>
-                      _navigateTo(context, '/comandas', AppDrawer.comandas),
+                  onTap: () => _navigateTo(
+                      context, AppRoutes.comandas, AppDrawer.comandas),
                 ),
                 _DrawerItem(
                   icon: Icons.content_cut,
@@ -451,7 +444,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   color: AppTheme.accentColor,
                   isActive: widget.selectedItem == AppDrawer.atendimentos,
                   onTap: () => _navigateTo(
-                      context, '/atendimentos', AppDrawer.atendimentos),
+                      context, AppRoutes.atendimentos, AppDrawer.atendimentos),
                 ),
                 _DrawerItem(
                   icon: Icons.event,
@@ -459,7 +452,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   color: AppTheme.infoColor,
                   isActive: widget.selectedItem == AppDrawer.agenda,
                   onTap: () =>
-                      _navigateTo(context, '/agenda', AppDrawer.agenda),
+                      _navigateTo(context, AppRoutes.agenda, AppDrawer.agenda),
                 ),
                 const _DrawerSection(title: 'Cadastros'),
                 _DrawerItem(
@@ -467,8 +460,8 @@ class _AppDrawerState extends State<AppDrawer> {
                   label: 'Clientes',
                   color: AppTheme.infoColor,
                   isActive: widget.selectedItem == AppDrawer.clientes,
-                  onTap: () =>
-                      _navigateTo(context, '/clientes', AppDrawer.clientes),
+                  onTap: () => _navigateTo(
+                      context, AppRoutes.clientes, AppDrawer.clientes),
                 ),
                 if (isAdmin) ...[
                   _DrawerItem(
@@ -478,7 +471,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     isActive: widget.selectedItem == AppDrawer.barbeiros,
                     onTap: () => _navigateTo(
                       context,
-                      '/admin/barbeiros',
+                      AppRoutes.barbeiros,
                       AppDrawer.barbeiros,
                     ),
                   ),
@@ -487,24 +480,24 @@ class _AppDrawerState extends State<AppDrawer> {
                     label: 'Serviços',
                     color: AppTheme.warningColor,
                     isActive: widget.selectedItem == AppDrawer.servicos,
-                    onTap: () =>
-                        _navigateTo(context, '/servicos', AppDrawer.servicos),
+                    onTap: () => _navigateTo(
+                        context, AppRoutes.servicos, AppDrawer.servicos),
                   ),
                   _DrawerItem(
                     icon: Icons.shopping_bag,
                     label: 'Produtos',
                     color: AppTheme.successColor,
                     isActive: widget.selectedItem == AppDrawer.produtos,
-                    onTap: () =>
-                        _navigateTo(context, '/produtos', AppDrawer.produtos),
+                    onTap: () => _navigateTo(
+                        context, AppRoutes.produtos, AppDrawer.produtos),
                   ),
                   _DrawerItem(
                     icon: Icons.inventory_2,
                     label: 'Estoque',
                     color: AppTheme.warningColor,
                     isActive: widget.selectedItem == AppDrawer.estoque,
-                    onTap: () =>
-                        _navigateTo(context, '/estoque', AppDrawer.estoque),
+                    onTap: () => _navigateTo(
+                        context, AppRoutes.estoque, AppDrawer.estoque),
                   ),
                   const _DrawerSection(title: 'Financeiro'),
                   _DrawerItem(
@@ -513,7 +506,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.goldColor,
                     isActive: widget.selectedItem == AppDrawer.financeiro,
                     onTap: () => _navigateTo(
-                        context, '/financeiro', AppDrawer.financeiro),
+                        context, AppRoutes.financeiro, AppDrawer.financeiro),
                   ),
                   _DrawerItem(
                     icon: Icons.point_of_sale,
@@ -521,7 +514,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.successColor,
                     isActive: widget.selectedItem == AppDrawer.caixa,
                     onTap: () =>
-                        _navigateTo(context, '/caixa', AppDrawer.caixa),
+                        _navigateTo(context, AppRoutes.caixa, AppDrawer.caixa),
                   ),
                   const _DrawerSection(title: 'Analises'),
                   _DrawerItem(
@@ -529,16 +522,16 @@ class _AppDrawerState extends State<AppDrawer> {
                     label: 'Analytics',
                     color: AppTheme.infoColor,
                     isActive: widget.selectedItem == AppDrawer.analytics,
-                    onTap: () =>
-                        _navigateTo(context, '/analytics', AppDrawer.analytics),
+                    onTap: () => _navigateTo(
+                        context, AppRoutes.analytics, AppDrawer.analytics),
                   ),
                   _DrawerItem(
                     icon: Icons.emoji_events,
                     label: 'Ranking de Clientes',
                     color: AppTheme.goldColor,
                     isActive: widget.selectedItem == AppDrawer.ranking,
-                    onTap: () =>
-                        _navigateTo(context, '/ranking', AppDrawer.ranking),
+                    onTap: () => _navigateTo(
+                        context, AppRoutes.ranking, AppDrawer.ranking),
                   ),
                   _DrawerItem(
                     icon: Icons.summarize,
@@ -546,7 +539,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.errorColor,
                     isActive: widget.selectedItem == AppDrawer.relatorios,
                     onTap: () => _navigateTo(
-                        context, '/relatorios', AppDrawer.relatorios),
+                        context, AppRoutes.relatorios, AppDrawer.relatorios),
                   ),
                 ],
               ],
@@ -629,7 +622,8 @@ class _AppDrawerState extends State<AppDrawer> {
 
   void _goDashboard(BuildContext context) {
     final auth = context.read<AuthController>();
-    final route = auth.isAdmin ? '/dashboard-admin' : '/dashboard-barbeiro';
+    final route =
+        auth.isAdmin ? AppRoutes.dashboardAdmin : AppRoutes.dashboardBarbeiro;
     _navigateTo(context, route, AppDrawer.dashboard);
   }
 

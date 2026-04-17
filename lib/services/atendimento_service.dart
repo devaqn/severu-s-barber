@@ -7,9 +7,17 @@ import 'produto_service.dart';
 import 'service_exceptions.dart';
 
 class AtendimentoService {
-  final DatabaseHelper _db = DatabaseHelper();
-  final ClienteService _clienteService = ClienteService();
-  final ProdutoService _produtoService = ProdutoService();
+  AtendimentoService({
+    DatabaseHelper? db,
+    ClienteService? clienteService,
+    ProdutoService? produtoService,
+  })  : _db = db ?? DatabaseHelper(),
+        _clienteService = clienteService ?? ClienteService(),
+        _produtoService = produtoService ?? ProdutoService();
+
+  final DatabaseHelper _db;
+  final ClienteService _clienteService;
+  final ProdutoService _produtoService;
 
   Future<List<Atendimento>> getAll({int? limit}) async {
     if (limit != null) {
@@ -365,5 +373,4 @@ class AtendimentoService {
       precoUnitario: item.precoUnitario,
     );
   }
-
 }
