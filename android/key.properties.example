@@ -1,0 +1,8 @@
+# Copie para android/key.properties e preencha com sua keystore de producao.
+# NUNCA versionar android/key.properties real.
+
+storePassword=SUA_STORE_PASSWORD
+keyPassword=SUA_KEY_PASSWORD
+keyAlias=SUA_KEY_ALIAS
+storeFile=../keystore/severusbarber-release.jks
+

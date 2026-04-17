@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -25,11 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   );
   static const String _contaTesteEmail = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_EMAIL',
-    defaultValue: 'teste@severus.app',
-  );
-  static const String _contaTesteSenha = String.fromEnvironment(
-    'FIREBASE_TEST_ADMIN_PASSWORD',
-    defaultValue: 'Teste@123!',
+    defaultValue: '',
   );
 
   final _formKey = GlobalKey<FormState>();
@@ -39,7 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _podeCadastrarAdminPublicamente = false;
   bool _checandoCadastroPublico = true;
 
-  bool get _mostrarAtalhoContaTeste => kDebugMode || _atalhoContaTesteDefine;
+  bool get _mostrarAtalhoContaTeste =>
+      !kReleaseMode && (kDebugMode || _atalhoContaTesteDefine);
 
   @override
   void initState() {
@@ -120,8 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<AuthController>();
-    final mostrarAtalhoContaTeste =
-        _mostrarAtalhoContaTeste || !ctrl.firebaseDisponivel;
+    final mostrarAtalhoContaTeste = _mostrarAtalhoContaTeste;
 
     return Scaffold(
       backgroundColor: AppTheme.primaryColor,
@@ -212,8 +208,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       child: Text(
-              'Firebase não configurado neste APK. '
-                        'Use login de teste local para validar o app.',
+                        'Conexao com Firebase indisponivel no momento. '
+                        'Verifique internet e configuracao do app.',
                         style: GoogleFonts.inter(
                           color: AppTheme.warningColor,
                           fontSize: 12,
@@ -246,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       try {
                         SecurityUtils.sanitizeEmail(value);
                       } catch (_) {
-                  return 'E-mail inválido.';
+                        return 'E-mail inválido.';
                       }
                       return null;
                     },
@@ -333,14 +329,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: const Text('Entrar com conta de teste'),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Teste Firebase: $_contaTesteEmail / $_contaTesteSenha',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
+                    if (kDebugMode && _contaTesteEmail.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Conta teste Firebase: $_contaTesteEmail',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                   const SizedBox(height: 18),
                   if (_checandoCadastroPublico)

@@ -456,11 +456,13 @@ class _ServicosScreenState extends State<ServicosScreen> {
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.servicos),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _abrirFormulario(),
-        backgroundColor: AppTheme.accentColor,
-        child: const Icon(Icons.add, color: AppTheme.primaryColor),
-      ),
+      floatingActionButton: !_loading && _servicos.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: () => _abrirFormulario(),
+              backgroundColor: AppTheme.accentColor,
+              child: const Icon(Icons.add, color: AppTheme.primaryColor),
+            )
+          : null,
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: AppTheme.accentColor))

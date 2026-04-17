@@ -349,18 +349,20 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.barbeiros),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _abrirCriacao,
-        backgroundColor: AppTheme.accentColor,
-        icon: const Icon(Icons.person_add, color: AppTheme.textPrimary),
-        label: Text(
-          'Adicionar Barbeiro',
-          style: GoogleFonts.poppins(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      floatingActionButton: !_loading && _barbeiros.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _abrirCriacao,
+              backgroundColor: Colors.black,
+              icon: const Icon(Icons.person_add, color: AppTheme.textPrimary),
+              label: Text(
+                'Adicionar Barbeiro',
+                style: GoogleFonts.poppins(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          : null,
       body: Container(
         color: AppTheme.primaryColor,
         child: AppPageContainer(

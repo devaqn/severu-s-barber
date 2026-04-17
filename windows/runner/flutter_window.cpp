@@ -2,11 +2,7 @@
 
 #include <optional>
 
-#include <connectivity_plus/connectivity_plus_windows_plugin.h>
-#include <file_selector_windows/file_selector_windows.h>
-#include <printing/printing_plugin.h>
-#include <share_plus/share_plus_windows_plugin_c_api.h>
-#include <url_launcher_windows/url_launcher_windows.h>
+#include "../flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -28,20 +24,7 @@ bool FlutterWindow::OnCreate() {
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
-  auto* registry = flutter_controller_->engine();
-  // Workaround: Firebase plugins are not registered on Windows because
-  // firebase_core registration is causing native startup crash (0xC0000005)
-  // in this project/toolchain combination.
-  ConnectivityPlusWindowsPluginRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("ConnectivityPlusWindowsPlugin"));
-  FileSelectorWindowsRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("FileSelectorWindows"));
-  PrintingPluginRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("PrintingPlugin"));
-  SharePlusWindowsPluginCApiRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("SharePlusWindowsPluginCApi"));
-  UrlLauncherWindowsRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("UrlLauncherWindows"));
+  RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

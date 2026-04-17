@@ -156,24 +156,27 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.atendimentos),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppTheme.accentColor,
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NovoAtendimentoScreen()),
-          );
-          await _carregar();
-        },
-        icon: const Icon(Icons.add, color: AppTheme.textPrimary),
-        label: Text(
-          'Novo atendimento',
-          style: GoogleFonts.poppins(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
+      floatingActionButton: filtered.isNotEmpty
+          ? FloatingActionButton.extended(
+              backgroundColor: AppTheme.accentColor,
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const NovoAtendimentoScreen()),
+                );
+                await _carregar();
+              },
+              icon: const Icon(Icons.add, color: AppTheme.textPrimary),
+              label: Text(
+                'Novo atendimento',
+                style: GoogleFonts.poppins(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : AppPageContainer(

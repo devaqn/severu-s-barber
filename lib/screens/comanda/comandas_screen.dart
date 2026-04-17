@@ -25,11 +25,17 @@ class _ComandasScreenState extends State<ComandasScreen>
   late TabController _tabController;
   late Future<List<Comanda>> _futureFechadas;
   late Future<List<Comanda>> _futureAbertas;
+  int _abertasCount = 0;
+  int _fechadasCount = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!mounted) return;
+      setState(() {});
+    });
     _carregar();
   }
 
@@ -40,32 +46,62 @@ class _ComandasScreenState extends State<ComandasScreen>
     super.dispose();
   }
 
-  void _carregar() {
+  Future<void> _carregar() async {
     final auth = context.read<AuthController>();
     final barbeiroId = auth.isAdmin ? null : auth.usuarioId;
+    final futurasAbertas = _service.getAll(
+      barbeiroId: barbeiroId,
+      status: 'aberta',
+    );
+    final futurasFechadas = _service.getAll(
+      barbeiroId: barbeiroId,
+      status: 'fechada',
+    );
 
     setState(() {
-      _futureAbertas = _service.getAll(
-        barbeiroId: barbeiroId,
-        status: 'aberta',
-      );
-      _futureFechadas = _service.getAll(
-        barbeiroId: barbeiroId,
-        status: 'fechada',
-      );
+      _futureAbertas = futurasAbertas;
+      _futureFechadas = futurasFechadas;
     });
+
+    try {
+      final resultados = await Future.wait<List<Comanda>>([
+        futurasAbertas,
+        futurasFechadas,
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _abertasCount = resultados[0].length;
+        _fechadasCount = resultados[1].length;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _abertasCount = 0;
+        _fechadasCount = 0;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasComandasNoTabAtivo =
+        _tabController.index == 0 ? _abertasCount > 0 : _fechadasCount > 0;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Comandas',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: Colors.black,
+          ),
         ),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.black87,
+          indicatorColor: Colors.black,
           tabs: const [
             Tab(text: 'Abertas'),
             Tab(text: 'Fechadas'),
@@ -80,21 +116,23 @@ class _ComandasScreenState extends State<ComandasScreen>
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.comandas),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AbrirComandaScreen()),
-          );
-          _carregar();
-        },
-        icon: const Icon(Icons.add),
-        label: Text(
-          'Nova comanda',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: AppTheme.accentColor,
-      ),
+      floatingActionButton: hasComandasNoTabAtivo
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AbrirComandaScreen()),
+                );
+                _carregar();
+              },
+              icon: const Icon(Icons.add),
+              label: Text(
+                'Nova comanda',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+              backgroundColor: AppTheme.accentColor,
+            )
+          : null,
       body: AppPageContainer(
         child: Column(
           children: [

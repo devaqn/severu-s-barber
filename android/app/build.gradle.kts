@@ -16,6 +16,9 @@ if (keystorePropertiesFile.exists()) {
     }
 }
 
+val allowInsecureDebugSigning =
+    project.findProperty("allowInsecureDebugSigning") == "true"
+
 android {
     namespace = "com.severusbarber.app"
     compileSdk = flutter.compileSdkVersion
@@ -43,7 +46,7 @@ android {
 
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
-            create("release") {
+            create("production") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = file(keystoreProperties["storeFile"] as String)
@@ -61,17 +64,26 @@ android {
                 "proguard-rules.pro"
             )
 
-            val allowInsecureDebugSigning =
-                project.findProperty("allowInsecureDebugSigning") == "true"
+            if (!allowInsecureDebugSigning &&
+                signingConfigs.findByName("production") == null
+            ) {
+                throw org.gradle.api.GradleException(
+                    "Assinatura release obrigatoria. Configure android/key.properties " +
+                        "com keystore de producao. " +
+                        "Para testes locais apenas, use -PallowInsecureDebugSigning=true."
+                )
+            }
 
             signingConfig =
                 when {
-                    signingConfigs.findByName("release") != null ->
-                        signingConfigs.getByName("release")
-                    else ->
-                        // Fallback to debug signing when key.properties is not present.
-                        // Replace with a proper keystore before publishing to the Play Store.
+                    signingConfigs.findByName("production") != null ->
+                        signingConfigs.getByName("production")
+                    allowInsecureDebugSigning ->
                         signingConfigs.getByName("debug")
+                    else ->
+                        throw org.gradle.api.GradleException(
+                            "Assinatura release ausente."
+                        )
                 }
         }
     }

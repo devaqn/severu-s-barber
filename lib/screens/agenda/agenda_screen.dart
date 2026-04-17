@@ -633,11 +633,13 @@ class _AgendaScreenState extends State<AgendaScreen> {
         ],
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.agenda),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _novoAgendamento,
-        icon: const Icon(Icons.add),
-        label: const Text('Novo agendamento'),
-      ),
+      floatingActionButton: eventosSelecionados.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _novoAgendamento,
+              icon: const Icon(Icons.add),
+              label: const Text('Novo agendamento'),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : AppPageContainer(

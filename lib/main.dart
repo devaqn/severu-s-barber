@@ -74,8 +74,21 @@ Future<void> _inicializarFirebase() async {
       return;
     }
 
+    final options = DefaultFirebaseOptions.currentPlatform;
+    final hasDesktopConfig = options.apiKey.trim().isNotEmpty &&
+        options.appId.trim().isNotEmpty &&
+        options.projectId.trim().isNotEmpty &&
+        options.messagingSenderId.trim().isNotEmpty;
+
+    if (!hasDesktopConfig) {
+      debugPrint(
+        'Firebase nao inicializado no desktop: firebase_options.dart sem credenciais validas. Rodando em modo offline.',
+      );
+      return;
+    }
+
     await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: options,
     );
   } catch (e) {
     debugPrint('Firebase nao inicializado. Rodando em modo offline. Erro: $e');

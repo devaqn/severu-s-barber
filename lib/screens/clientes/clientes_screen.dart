@@ -192,14 +192,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       drawer: const AppDrawer(selectedItem: AppDrawer.clientes),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: AppTheme.accentColor,
+        foregroundColor: Colors.black,
         onPressed: _novoCliente,
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add, color: Colors.black),
         label: Text(
           '+ Novo Cliente',
           style: GoogleFonts.poppins(
-            color: Colors.white,
+            color: Colors.black,
             fontWeight: FontWeight.w700,
           ),
         ),

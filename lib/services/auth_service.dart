@@ -7,6 +7,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 
 import '../database/database_helper.dart';
 import '../models/usuario.dart';
@@ -22,6 +23,15 @@ class AuthService {
 
   static Usuario? _usuarioLocalLogado;
 
+  static const bool _offlineLoginEnabledDefine = bool.fromEnvironment(
+    'ENABLE_OFFLINE_LOGIN',
+    defaultValue: false,
+  );
+  static const bool _firebaseTestShortcutEnabledDefine = bool.fromEnvironment(
+    'ENABLE_FIREBASE_TEST_SHORTCUT',
+    defaultValue: false,
+  );
+
   static const String _offlineAdminEmailDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_EMAIL',
     defaultValue: 'teste@severus.app',
@@ -32,15 +42,15 @@ class AuthService {
   );
   static const String _firebaseTestAdminNameDefine = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_NAME',
-    defaultValue: 'Administrador Teste',
+    defaultValue: '',
   );
   static const String _firebaseTestAdminEmailDefine = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_EMAIL',
-    defaultValue: 'teste@severus.app',
+    defaultValue: '',
   );
   static const String _firebaseTestAdminPasswordDefine = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_PASSWORD',
-    defaultValue: 'Teste@123!',
+    defaultValue: '',
   );
 
   bool get _firebaseDisponivel {
@@ -51,9 +61,17 @@ class AuthService {
 
   bool get firebaseDisponivel => _firebaseDisponivel;
 
+  bool get _offlineLoginEnabled => _offlineLoginEnabledDefine || !kReleaseMode;
+
   bool get _offlineDisponivel =>
+      _offlineLoginEnabled &&
       _offlineAdminEmailDefine.trim().isNotEmpty &&
       _offlineAdminPasswordDefine.trim().isNotEmpty;
+
+  bool get _firebaseTestCredenciaisDefinidas =>
+      _firebaseTestAdminNameDefine.trim().isNotEmpty &&
+      _firebaseTestAdminEmailDefine.trim().isNotEmpty &&
+      _firebaseTestAdminPasswordDefine.trim().isNotEmpty;
 
   FirebaseAuth get _auth {
     _garantirFirebaseInicializado();
@@ -131,6 +149,17 @@ class AuthService {
   }
 
   Future<Usuario> entrarOuCriarContaTesteFirebase() async {
+    if (kReleaseMode || !_firebaseTestShortcutEnabledDefine) {
+      throw Exception('Atalho de conta de teste desativado nesta versao.');
+    }
+    if (!_firebaseTestCredenciaisDefinidas) {
+      throw Exception(
+        'Conta de teste nao configurada. '
+        'Defina FIREBASE_TEST_ADMIN_NAME, FIREBASE_TEST_ADMIN_EMAIL '
+        'e FIREBASE_TEST_ADMIN_PASSWORD via --dart-define.',
+      );
+    }
+
     final email = SecurityUtils.sanitizeEmail(_firebaseTestAdminEmailDefine);
     const senha = _firebaseTestAdminPasswordDefine;
     final nome = SecurityUtils.sanitizeName(
@@ -964,10 +993,15 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    if (!_offlineLoginEnabled) {
+      throw Exception('Modo offline desativado nesta versao.');
+    }
+
     if (!_offlineDisponivel) {
       throw Exception(
-        'Modo offline bloqueado por seguranca. Configure OFFLINE_ADMIN_EMAIL '
-        'e OFFLINE_ADMIN_PASSWORD via --dart-define.',
+        'Modo offline bloqueado por seguranca. Configure '
+        'ENABLE_OFFLINE_LOGIN=true, OFFLINE_ADMIN_EMAIL e '
+        'OFFLINE_ADMIN_PASSWORD via --dart-define.',
       );
     }
 

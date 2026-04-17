@@ -448,7 +448,7 @@ class _AppDrawerState extends State<AppDrawer> {
                 _DrawerItem(
                   icon: Icons.content_cut,
                   label: 'Atendimentos',
-                  color: AppTheme.purpleStart,
+                  color: AppTheme.accentColor,
                   isActive: widget.selectedItem == AppDrawer.atendimentos,
                   onTap: () => _navigateTo(
                       context, '/atendimentos', AppDrawer.atendimentos),
@@ -731,7 +731,7 @@ class _DrawerItem extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isActive
-            ? AppTheme.accentColor.withValues(alpha: 0.15)
+            ? AppTheme.secondaryColor.withValues(alpha: 0.95)
             : AppTheme.primaryColor.withValues(alpha: 0),
         borderRadius: BorderRadius.circular(12),
         border: isActive

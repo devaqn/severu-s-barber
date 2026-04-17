@@ -1,7 +1,7 @@
 name: barbearia_pro
 description: Severus Barber - Gestao Profissional de Barbearia (Multi-Usuario)
 publish_to: 'none'
-version: 3.0.0+1
+version: 4.0.0+1
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -80,6 +80,10 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/images/severus_icon_square.png"
+  windows:
+    generate: true
+    image_path: "assets/images/severus_icon_windows.png"
+    icon_size: 48
   adaptive_icon_background: "#101010"
   adaptive_icon_foreground: "assets/images/severus_icon_square.png"
   adaptive_icon_foreground_inset: 18

@@ -284,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                                  'Logo não encontrado',
+                    'Logo não encontrado',
                     style: GoogleFonts.inter(color: AppTheme.textSecondary),
                   ),
                 );
@@ -336,7 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 10),
         _cardPair(
           StatCard(
-            title: 'Faturamento Mes',
+            title: 'Faturamento Mês',
             value: AppFormatters.currency(fatMes),
             icon: Icons.calendar_month,
             color: AppTheme.successColor,
