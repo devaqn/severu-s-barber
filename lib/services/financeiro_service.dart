@@ -41,7 +41,6 @@ class FinanceiroService {
 
   static final Set<String> _categoriasAceitas = {
     ...AppConstants.categoriasDespesa,
-    'Luz',
   };
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;

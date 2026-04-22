@@ -4,13 +4,24 @@ class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
 
   Future<bool> isOnline() async {
-    final results = await _connectivity.checkConnectivity();
-    return !results.contains(ConnectivityResult.none);
+    try {
+      final results = await _connectivity.checkConnectivity();
+      return !results.contains(ConnectivityResult.none);
+    } catch (_) {
+      return false;
+    }
   }
 
   Stream<bool> get onConnectivityChanged {
     return _connectivity.onConnectivityChanged
-        .map((results) => !results.contains(ConnectivityResult.none))
+        .map((results) {
+          try {
+            return !results.contains(ConnectivityResult.none);
+          } catch (_) {
+            return false;
+          }
+        })
+        .handleError((_) => false)
         .distinct();
   }
 }

@@ -494,20 +494,37 @@ class AuthService {
   }
 
   Future<void> concluirPrimeiroLogin() async {
-    if (!_firebaseDisponivel) return;
-    final user = _auth.currentUser;
-    if (user == null) return;
+    String? userId;
+    if (_firebaseDisponivel) {
+      userId = _auth.currentUser?.uid;
+    } else {
+      userId = _usuarioLocalLogado?.id;
+    }
+    if (userId == null || userId.trim().isEmpty) {
+      await _marcarPrimeiroLoginConcluidoLocal();
+      return;
+    }
 
-    final perfil = await _buscarUsuarioFirestore(user.uid);
-    if (perfil == null) return;
+    if (!_firebaseDisponivel) {
+      await _marcarPrimeiroLoginConcluidoLocal(userId: userId);
+      return;
+    }
+
+    final perfil = await _buscarUsuarioFirestore(userId);
+    if (perfil == null) {
+      await _marcarPrimeiroLoginConcluidoLocal(userId: userId);
+      return;
+    }
 
     final shopId = _resolveBarbeariaId(perfil);
-    await _usuariosCollection(shopId).doc(user.uid).update({
+    await _usuariosCollection(shopId).doc(userId).update({
       'first_login': false,
       'updated_at': FieldValue.serverTimestamp(),
     });
 
-    await _upsertUsuarioLocal(perfil.copyWith(firstLogin: false));
+    final atualizado = perfil.copyWith(firstLogin: false);
+    await _upsertUsuarioLocal(atualizado);
+    _usuarioLocalLogado = atualizado;
   }
 
   Future<Usuario> atualizarFotoPerfil(String? photoUrl) async {
@@ -977,6 +994,18 @@ class AuthService {
 
   Future<void> _upsertUsuarioLocal(Usuario usuario) async {
     await _db.insert(AppConstants.tableUsuarios, usuario.toMap());
+  }
+
+  Future<void> _marcarPrimeiroLoginConcluidoLocal({String? userId}) async {
+    Usuario? base = _usuarioLocalLogado;
+    if (base == null && userId != null && userId.trim().isNotEmpty) {
+      base = await _getUsuarioLocalPorId(userId);
+    }
+    if (base == null) return;
+
+    final atualizado = base.copyWith(firstLogin: false);
+    await _upsertUsuarioLocal(atualizado);
+    _usuarioLocalLogado = atualizado;
   }
 
   Future<Usuario?> _getUsuarioLocalPorId(String id) async {

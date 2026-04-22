@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   );
   static const bool _botaoSemLoginTemporarioEnabled = bool.fromEnvironment(
     'ENABLE_BYPASS_LOGIN_BUTTON',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   final _formKey = GlobalKey<FormState>();

@@ -19,6 +19,7 @@ import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/agenda/agenda_screen.dart';
 import 'screens/analytics/analytics_screen.dart';
 import 'screens/atendimentos/atendimentos_screen.dart';
+import 'screens/atendimentos/novo_atendimento_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/primeiro_login_screen.dart';
 import 'screens/barbeiro/barbeiro_dashboard_screen.dart';
@@ -164,6 +165,8 @@ class SeverusBarberApp extends StatelessWidget {
                   adminOnly: true, child: ProdutosScreen()),
               AppRoutes.atendimentos: (_) =>
                   const ProtectedRoute(child: AtendimentosScreen()),
+              AppRoutes.novoAtendimento: (_) =>
+                  const ProtectedRoute(child: NovoAtendimentoScreen()),
               AppRoutes.agenda: (_) =>
                   const ProtectedRoute(child: AgendaScreen()),
               AppRoutes.financeiro: (_) => const ProtectedRoute(

@@ -8,6 +8,7 @@ class AppRoutes {
   static const String servicos = '/servicos';
   static const String produtos = '/produtos';
   static const String atendimentos = '/atendimentos';
+  static const String novoAtendimento = '/atendimentos/novo';
   static const String agenda = '/agenda';
   static const String financeiro = '/financeiro';
   static const String estoque = '/estoque';

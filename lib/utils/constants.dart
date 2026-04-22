@@ -57,6 +57,7 @@ class AppConstants {
   static const List<String> categoriasDespesa = [
     'Aluguel',
     'Energia Elétrica',
+    'Luz',
     'Internet',
     'Água',
     'Compra de Produtos',

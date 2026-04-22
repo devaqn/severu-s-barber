@@ -99,6 +99,7 @@ class ComandaController extends ChangeNotifier {
     required String clienteNome,
     String? barbeiroId,
     String? barbeiroNome,
+    String? observacoes,
   }) async {
     isLoading = true;
     errorMsg = null;
@@ -109,6 +110,7 @@ class ComandaController extends ChangeNotifier {
         clienteNome: clienteNome,
         barbeiroId: barbeiroId,
         barbeiroNome: barbeiroNome,
+        observacoes: observacoes,
       );
     } catch (e) {
       errorMsg = e.toString().replaceFirst('Exception: ', '');
