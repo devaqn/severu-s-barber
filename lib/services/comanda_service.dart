@@ -530,7 +530,7 @@ class ComandaService {
       fieldName: 'ID do barbeiro',
       minLength: 1,
     );
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     await _syncFromFirestoreIfOnline();
 
     final result = await _db.rawQuery('''
@@ -553,7 +553,7 @@ class ComandaService {
       fieldName: 'ID do barbeiro',
       minLength: 1,
     );
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     await _syncFromFirestoreIfOnline();
 
     final result = await _db.rawQuery('''
@@ -570,7 +570,7 @@ class ComandaService {
     DateTime inicio,
     DateTime fim,
   ) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     await _syncFromFirestoreIfOnline();
     return _db.rawQuery('''
       SELECT
@@ -605,7 +605,7 @@ class ComandaService {
     DateTime fim, {
     String? barbeiroId,
   }) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final safeBarbeiroId = barbeiroId == null
         ? null
         : SecurityUtils.sanitizeIdentifier(
@@ -639,7 +639,7 @@ class ComandaService {
     DateTime fim, {
     String? barbeiroId,
   }) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final safeBarbeiroId = barbeiroId == null
         ? null
         : SecurityUtils.sanitizeIdentifier(
@@ -714,7 +714,7 @@ class ComandaService {
     DateTime fim, {
     String? barbeiroId,
   }) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final safeBarbeiroId = barbeiroId == null
         ? null
         : SecurityUtils.sanitizeIdentifier(

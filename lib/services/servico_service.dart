@@ -106,7 +106,7 @@ class ServicoService {
   }
 
   Future<void> update(Servico servico) async {
-    SecurityUtils.ensure(servico.id != null, 'ID do servico invalido.');
+    SecurityUtils.ensure(servico.id != null, 'ID do servico inválido.');
     final safeServico = _sanitizarServico(servico);
 
     if (await _isFirebaseOnline()) {

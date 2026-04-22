@@ -6,10 +6,11 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../controllers/dashboard_controller.dart';
 import '../../main.dart' show themeModeNotifier;
 import '../../models/agendamento.dart';
 import '../../models/cliente.dart';
-import '../../services/dashboard_service.dart';
 import '../../utils/app_routes.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
@@ -31,24 +32,21 @@ class DashboardScreen extends StatefulWidget {
 
 /// Estado da dashboard com carregamento assincrono de dados consolidados.
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Servico agregador de dados da tela principal.
-  final DashboardService _service = DashboardService();
-
-  // Future cacheado para evitar recarregar em todo rebuild.
-  late Future<Map<String, dynamic>> _future;
+  DashboardController get _dashboardController =>
+      context.read<DashboardController>();
 
   @override
   void initState() {
     super.initState();
-    // Dispara carga inicial da dashboard.
-    _future = _service.getDadosDashboard();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _dashboardController.carregar();
+    });
   }
 
-  /// Recarrega os dados manualmente e atualiza a Future observada.
+  /// Recarrega os dados manualmente preservando o cache em memoria.
   Future<void> _recarregar() async {
-    setState(() {
-      _future = _service.getDadosDashboard();
-    });
+    await _dashboardController.recarregar();
   }
 
   /// Retorna somente agendamentos do dia corrente para a secao dedicada.
@@ -64,6 +62,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final dashboard = context.watch<DashboardController>();
+
     // Estrutura principal com Drawer e conteudo rolavel.
     return Scaffold(
       appBar: AppBar(
@@ -187,67 +187,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _future,
-        builder: (context, snapshot) {
-          // Estado de carregamento inicial da tela.
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _buildBody(dashboard),
+    );
+  }
 
-          // Estado de erro na carga consolidada.
-          if (snapshot.hasError || !snapshot.hasData) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Erro ao carregar dashboard',
-                    style: GoogleFonts.inter(color: AppTheme.textPrimary),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _recarregar,
-                    child: const Text('Tentar novamente'),
-                  ),
-                ],
-              ),
-            );
-          }
+  Widget _buildBody(DashboardController dashboard) {
+    if (dashboard.isLoading && !dashboard.hasDados) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          // Dados agregados retornados pelo service.
-          final data = snapshot.data!;
-          final agendamentos =
-              (data['proximosAgendamentos'] as List).cast<Agendamento>();
-          final topClientes = (data['topClientes'] as List).cast<Cliente>();
-          final faturamentoPorDia =
-              (data['faturamentoPorDia'] as List).cast<Map<String, dynamic>>();
-          final estoqueBaixo = (data['produtosEstoqueBaixo'] as List).length;
-          final agsHoje = _agendamentosHoje(agendamentos);
-
-          // Conteudo principal da dashboard.
-          return RefreshIndicator(
-            onRefresh: _recarregar,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBannerLogo(),
-                  const SizedBox(height: 16),
-                  _buildResumoCards(data, estoqueBaixo),
-                  const SizedBox(height: 20),
-                  _buildGraficoFaturamento(faturamentoPorDia),
-                  const SizedBox(height: 20),
-                  _buildAgendamentosHoje(agsHoje),
-                  const SizedBox(height: 20),
-                  _buildTopClientes(topClientes),
-                ],
-              ),
+    if (!dashboard.hasDados) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              dashboard.errorMsg?.isNotEmpty == true
+                  ? dashboard.errorMsg!
+                  : 'Erro ao carregar dashboard',
+              style: GoogleFonts.inter(color: AppTheme.textPrimary),
+              textAlign: TextAlign.center,
             ),
-          );
-        },
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _recarregar,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final data = dashboard.dados!;
+    final agendamentos =
+        (data['proximosAgendamentos'] as List).cast<Agendamento>();
+    final topClientes = (data['topClientes'] as List).cast<Cliente>();
+    final faturamentoPorDia =
+        (data['faturamentoPorDia'] as List).cast<Map<String, dynamic>>();
+    final estoqueBaixo = (data['produtosEstoqueBaixo'] as List).length;
+    final agsHoje = _agendamentosHoje(agendamentos);
+
+    return RefreshIndicator(
+      onRefresh: _recarregar,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (dashboard.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+            _buildBannerLogo(),
+            const SizedBox(height: 16),
+            _buildResumoCards(data, estoqueBaixo),
+            const SizedBox(height: 20),
+            _buildGraficoFaturamento(faturamentoPorDia),
+            const SizedBox(height: 20),
+            _buildAgendamentosHoje(agsHoje),
+            const SizedBox(height: 20),
+            _buildTopClientes(topClientes),
+          ],
+        ),
       ),
     );
   }

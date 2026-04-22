@@ -173,7 +173,7 @@ class AgendaService {
   }
 
   Future<void> update(Agendamento agendamento) async {
-    SecurityUtils.ensure(agendamento.id != null, 'ID do agendamento invalido.');
+    SecurityUtils.ensure(agendamento.id != null, 'ID do agendamento inválido.');
     final safeAgendamento = _sanitizarAgendamento(agendamento);
     final usuario = await _usuarioAtual();
 

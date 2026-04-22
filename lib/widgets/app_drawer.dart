@@ -50,6 +50,16 @@ class _AppDrawerState extends State<AppDrawer> {
   int _avatarVersion = 0;
   bool _updatingAvatar = false;
 
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _drawerBg =>
+      _isDarkMode ? AppTheme.primaryColor : AppTheme.lightCard;
+  Color get _drawerSurface =>
+      _isDarkMode ? AppTheme.secondaryColor : AppTheme.lightInputFill;
+  Color get _drawerTextPrimary =>
+      _isDarkMode ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+  Color get _drawerTextSecondary =>
+      _isDarkMode ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -137,7 +147,7 @@ class _AppDrawerState extends State<AppDrawer> {
   Future<void> _openAvatarActions(AuthController auth) async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppTheme.secondaryColor,
+      backgroundColor: _drawerSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -151,7 +161,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.accentColor),
                 title: Text(
                   'Tirar foto',
-                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                  style: GoogleFonts.inter(color: _drawerTextPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -163,7 +173,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.accentColor),
                 title: Text(
                   'Escolher da galeria',
-                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                  style: GoogleFonts.inter(color: _drawerTextPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -175,7 +185,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     color: AppTheme.errorColor),
                 title: Text(
                   'Remover foto',
-                  style: GoogleFonts.inter(color: AppTheme.textPrimary),
+                  style: GoogleFonts.inter(color: _drawerTextPrimary),
                 ),
                 onTap: _avatarPath == null
                     ? null
@@ -285,9 +295,13 @@ class _AppDrawerState extends State<AppDrawer> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.48),
+          color: (_isDarkMode ? Colors.black : Colors.white)
+              .withValues(alpha: _isDarkMode ? 0.48 : 0.68),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+          border: Border.all(
+            color: (_isDarkMode ? Colors.white : AppTheme.accentDark)
+                .withValues(alpha: _isDarkMode ? 0.22 : 0.26),
+          ),
         ),
         child: Column(
           children: [
@@ -414,7 +428,7 @@ class _AppDrawerState extends State<AppDrawer> {
     final isAdmin = auth.isAdmin;
 
     return Drawer(
-      backgroundColor: AppTheme.primaryColor,
+      backgroundColor: _drawerBg,
       child: Column(
         children: [
           _buildHeader(auth, isAdmin),
@@ -550,7 +564,8 @@ class _AppDrawerState extends State<AppDrawer> {
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
-                    color: AppTheme.secondaryColor.withValues(alpha: 0.9)),
+                  color: _drawerTextSecondary.withValues(alpha: 0.3),
+                ),
               ),
             ),
             child: Column(
@@ -559,32 +574,67 @@ class _AppDrawerState extends State<AppDrawer> {
                   valueListenable: themeModeNotifier,
                   builder: (ctx, mode, _) {
                     final dark = mode == ThemeMode.dark;
-                    return Row(
-                      children: [
-                        Icon(
-                          dark ? Icons.dark_mode : Icons.light_mode,
-                          color: AppTheme.textSecondary,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Modo Escuro',
-                            style: GoogleFonts.inter(
-                              color: AppTheme.textPrimary,
-                              fontSize: 14,
+                    final switchWidget = Switch.adaptive(
+                      value: dark,
+                      activeThumbColor: AppTheme.accentColor,
+                      onChanged: (v) {
+                        themeModeNotifier.value =
+                            v ? ThemeMode.dark : ThemeMode.light;
+                      },
+                    );
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 290) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    dark ? Icons.dark_mode : Icons.light_mode,
+                                    color: _drawerTextSecondary,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Modo Escuro',
+                                      style: GoogleFonts.inter(
+                                        color: _drawerTextPrimary,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: switchWidget,
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Icon(
+                              dark ? Icons.dark_mode : Icons.light_mode,
+                              color: _drawerTextSecondary,
+                              size: 18,
                             ),
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: dark,
-                          activeThumbColor: AppTheme.accentColor,
-                          onChanged: (v) {
-                            themeModeNotifier.value =
-                                v ? ThemeMode.dark : ThemeMode.light;
-                          },
-                        ),
-                      ],
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Modo Escuro',
+                                style: GoogleFonts.inter(
+                                  color: _drawerTextPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            switchWidget,
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -593,7 +643,9 @@ class _AppDrawerState extends State<AppDrawer> {
                   child: Text(
                     '${AppConstants.appName} v${AppConstants.appVersion}',
                     style: GoogleFonts.inter(
-                        color: AppTheme.textSecondary, fontSize: 12),
+                      color: _drawerTextSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -686,6 +738,9 @@ class _DrawerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Align(
@@ -693,7 +748,7 @@ class _DrawerSection extends StatelessWidget {
         child: Text(
           title.toUpperCase(),
           style: GoogleFonts.inter(
-            color: AppTheme.textSecondary,
+            color: textColor,
             fontWeight: FontWeight.w600,
             fontSize: 11,
             letterSpacing: 1.1,
@@ -721,12 +776,19 @@ class _DrawerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseBg =
+        isDark ? AppTheme.primaryColor.withValues(alpha: 0) : Colors.transparent;
+    final activeBg = isDark
+        ? AppTheme.secondaryColor.withValues(alpha: 0.95)
+        : AppTheme.lightInputFill;
+    final textColor =
+        isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isActive
-            ? AppTheme.secondaryColor.withValues(alpha: 0.95)
-            : AppTheme.primaryColor.withValues(alpha: 0),
+        color: isActive ? activeBg : baseBg,
         borderRadius: BorderRadius.circular(12),
         border: isActive
             ? const Border(
@@ -747,7 +809,7 @@ class _DrawerItem extends StatelessWidget {
         title: Text(
           label,
           style: GoogleFonts.inter(
-            color: AppTheme.textPrimary,
+            color: textColor,
             fontSize: 14,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
           ),

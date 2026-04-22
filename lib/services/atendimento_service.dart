@@ -74,7 +74,7 @@ class AtendimentoService {
   }
 
   Future<List<Atendimento>> getPorPeriodo(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final maps = await _db.queryAll(
       AppConstants.tableAtendimentos,
       where: 'data BETWEEN ? AND ?',
@@ -190,7 +190,7 @@ class AtendimentoService {
   }
 
   Future<double> getFaturamentoPeriodo(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final result = await _db.rawQuery('''
       SELECT SUM(total) as total
       FROM ${AppConstants.tableAtendimentos}
@@ -225,7 +225,7 @@ class AtendimentoService {
     DateTime inicio,
     DateTime fim,
   ) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final result = await _db.rawQuery('''
       SELECT forma_pagamento, SUM(total) as total
       FROM ${AppConstants.tableAtendimentos}
@@ -240,7 +240,7 @@ class AtendimentoService {
   }
 
   Future<int> getCountPeriodo(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final result = await _db.rawQuery('''
       SELECT COUNT(*) as total
       FROM ${AppConstants.tableAtendimentos}

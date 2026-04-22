@@ -71,7 +71,7 @@ class _ClienteFormScreenState extends State<ClienteFormScreen> {
 
   /// Valida e devolve o objeto cliente para a tela anterior salvar.
   void _salvar() {
-    // Interrompe caso o formulario tenha campos invalidos.
+    // Interrompe caso o formulario tenha campos inválidos.
     if (!_formKey.currentState!.validate()) return;
 
     final safeNome = SecurityUtils.sanitizeName(

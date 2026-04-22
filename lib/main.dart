@@ -10,6 +10,7 @@ import 'controllers/agenda_controller.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/cliente_controller.dart';
 import 'controllers/comanda_controller.dart';
+import 'controllers/dashboard_controller.dart';
 import 'controllers/estoque_controller.dart';
 import 'controllers/financeiro_controller.dart';
 import 'controllers/produto_controller.dart';
@@ -115,6 +116,7 @@ class SeverusBarberApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EstoqueController()),
         ChangeNotifierProvider(create: (_) => AgendaController()),
         ChangeNotifierProvider(create: (_) => ComandaController()),
+        ChangeNotifierProvider(create: (_) => DashboardController()),
         ChangeNotifierProvider(create: (_) => FinanceiroController()),
         ChangeNotifierProvider(create: (_) => ServicoController()),
         ChangeNotifierProvider(create: (_) => ProdutoController()),

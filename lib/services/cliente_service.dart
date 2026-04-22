@@ -142,7 +142,7 @@ class ClienteService {
   }
 
   Future<void> update(Cliente cliente) async {
-    SecurityUtils.ensure(cliente.id != null, 'ID do cliente invalido.');
+    SecurityUtils.ensure(cliente.id != null, 'ID do cliente inválido.');
     final safeCliente = _sanitizarCliente(
       cliente.copyWith(updatedAt: DateTime.now()),
     );
@@ -601,7 +601,7 @@ class ClienteService {
       final hoje = DateTime.now();
       SecurityUtils.ensure(
         !normalizada.isBefore(limiteInferior),
-        'Data de nascimento invalida.',
+        'Data de nascimento inválida.',
       );
       SecurityUtils.ensure(
         !normalizada.isAfter(DateTime(hoje.year, hoje.month, hoje.day)),

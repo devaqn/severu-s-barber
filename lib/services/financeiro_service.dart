@@ -58,7 +58,7 @@ class FinanceiroService {
     List<dynamic>? whereArgs;
 
     if (inicio != null && fim != null) {
-      SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+      SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
       where = 'data BETWEEN ? AND ?';
       whereArgs = [inicio.toIso8601String(), fim.toIso8601String()];
     }
@@ -111,7 +111,7 @@ class FinanceiroService {
   }
 
   Future<void> updateDespesa(Despesa despesa) async {
-    SecurityUtils.ensure(despesa.id != null, 'ID da despesa invalido.');
+    SecurityUtils.ensure(despesa.id != null, 'ID da despesa inválido.');
     final safeDespesa = _sanitizarDespesa(despesa);
 
     if (await _isFirebaseOnline()) {
@@ -185,7 +185,7 @@ class FinanceiroService {
   }
 
   Future<double> getTotalDespesas(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     await _syncDespesasFromFirestoreIfOnline();
 
     final result = await _db.rawQuery('''
@@ -200,7 +200,7 @@ class FinanceiroService {
     DateTime inicio,
     DateTime fim,
   ) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     await _syncDespesasFromFirestoreIfOnline();
 
     return _db.rawQuery('''
@@ -213,7 +213,7 @@ class FinanceiroService {
   }
 
   Future<Map<String, double>> getResumo(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Periodo invalido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
     final faturamento =
         await _comandaService.getFaturamentoPeriodo(inicio, fim);
     final despesas = await getTotalDespesas(inicio, fim);
@@ -813,7 +813,7 @@ class FinanceiroService {
     );
     SecurityUtils.ensure(
       _categoriasAceitas.contains(safeCategoria),
-      'Categoria de despesa invalida.',
+      'Categoria de despesa inválida.',
     );
     final safeValor = SecurityUtils.sanitizeDoubleRange(
       despesa.valor,

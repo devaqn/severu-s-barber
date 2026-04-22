@@ -109,7 +109,7 @@ class ProdutoService {
   }
 
   Future<void> update(Produto produto) async {
-    SecurityUtils.ensure(produto.id != null, 'ID do produto invalido.');
+    SecurityUtils.ensure(produto.id != null, 'ID do produto inválido.');
     final safeProduto = _sanitizarProduto(
       produto.copyWith(updatedAt: DateTime.now()),
     );
@@ -412,7 +412,7 @@ class ProdutoService {
   }
 
   Future<void> updateFornecedor(Fornecedor f) async {
-    SecurityUtils.ensure(f.id != null, 'ID do fornecedor invalido.');
+    SecurityUtils.ensure(f.id != null, 'ID do fornecedor inválido.');
     final safeFornecedor = _sanitizarFornecedor(f);
     await _db.update(
       AppConstants.tableFornecedores,

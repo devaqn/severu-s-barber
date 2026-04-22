@@ -752,7 +752,7 @@ class AuthService {
       case 'invalid-api-key':
       case 'api-key-not-valid':
         return Exception(
-          'Configuracao do Firebase invalida. Verifique google-services.json.',
+          'Configuracao do Firebase inválida. Verifique google-services.json.',
         );
       case 'too-many-requests':
         return Exception('Muitas tentativas. Tente novamente mais tarde.');

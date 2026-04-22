@@ -69,6 +69,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<AuthController>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textSecondary =
+        isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+    final cardSurface = isDark ? AppTheme.secondaryColor : AppTheme.lightCard;
 
     return Scaffold(
       appBar: AppBar(
@@ -229,13 +233,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         icon: Icons.warning_amber_rounded,
                         color: estoqueBaixo > 0
                             ? AppTheme.errorColor
-                            : AppTheme.textSecondary,
+                            : (isDark
+                                ? AppTheme.textSecondary
+                                : AppTheme.lightTextPrimary),
                         gradient: estoqueBaixo > 0
                             ? const [AppTheme.errorColor, AppTheme.accentDark]
-                            : const [
-                                AppTheme.textSecondary,
-                                AppTheme.secondaryColor
-                              ],
+                            : (isDark
+                                ? const [
+                                    AppTheme.textSecondary,
+                                    AppTheme.secondaryColor,
+                                  ]
+                                : const [
+                                    Color(0xFFDADDE8),
+                                    Color(0xFFBEC4D7),
+                                  ]),
                       ),
                       StatCard(
                         title: 'Comandas Abertas',
@@ -262,7 +273,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.secondaryColor,
+                        color: cardSurface,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -277,7 +288,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 Text(
                                   'Valor Total em Estoque',
                                   style: GoogleFonts.inter(
-                                      color: AppTheme.textSecondary),
+                                    color: textSecondary,
+                                  ),
                                 ),
                                 Text(
                                   AppFormatters.currency(valorEstoque),
@@ -342,7 +354,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       style: GoogleFonts.poppins(
         fontSize: 18,
         fontWeight: FontWeight.w700,
-        color: AppTheme.textPrimary,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
@@ -478,6 +490,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildBannerAniversariantes(List<Cliente> clientes) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary =
+        isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+    final textSecondary =
+        isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
     final nomes = clientes.map((c) => c.nome).join(', ');
     final telefones = clientes
         .map((c) =>
@@ -512,7 +529,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             nomes,
             style: GoogleFonts.inter(
-              color: AppTheme.textPrimary,
+              color: textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -520,7 +537,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             telefones,
             style: GoogleFonts.inter(
-              color: AppTheme.textSecondary,
+              color: textSecondary,
               fontSize: 12,
             ),
           ),
@@ -530,20 +547,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildCardPair(Widget left, Widget right) {
-    return Row(
-      children: [
-        Expanded(child: left),
-        const SizedBox(width: 10),
-        Expanded(child: right),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 820) {
+          return Column(
+            children: [
+              left,
+              const SizedBox(height: 10),
+              right,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 10),
+            Expanded(child: right),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildRankingBarbeiros(List<Map<String, dynamic>> ranking) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary =
+        isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+    final textSecondary =
+        isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+    final cardBg = isDark ? AppTheme.secondaryColor : AppTheme.lightCard;
+    final rowBg = isDark
+        ? AppTheme.primaryColor.withValues(alpha: 0.4)
+        : AppTheme.lightInputFill;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.secondaryColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -556,7 +596,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Text(
                 'Ranking de Barbeiros',
                 style: GoogleFonts.poppins(
-                  color: AppTheme.textPrimary,
+                  color: textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -566,7 +606,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (ranking.isEmpty)
             Text(
               'Nenhuma comanda registrada ainda',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+              style: GoogleFonts.inter(color: textSecondary),
             )
           else
             ...ranking.asMap().entries.map((entry) {
@@ -577,13 +617,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 AppTheme.silverColor,
                 AppTheme.bronzeColor,
               ];
-              final posColor = i < 3 ? colors[i] : AppTheme.textSecondary;
+              final posColor = i < 3 ? colors[i] : textSecondary;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                  color: rowBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -605,14 +645,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Text(
                             r['barbeiro_nome'] as String? ?? 'Barbeiro',
                             style: GoogleFonts.poppins(
-                              color: AppTheme.textPrimary,
+                              color: textPrimary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           Text(
                             '${r['total_comandas']} comanda(s)',
                             style: GoogleFonts.inter(
-                                color: AppTheme.textSecondary, fontSize: 12),
+                                color: textSecondary, fontSize: 12),
                           ),
                         ],
                       ),
@@ -636,7 +676,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Text(
                           '% Config.: ${((r['comissao_percentual'] as num?)?.toDouble() ?? 50).toStringAsFixed(1)}%',
                           style: GoogleFonts.inter(
-                            color: AppTheme.textSecondary,
+                            color: textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -652,6 +692,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildGrafico(List<Map<String, dynamic>> pontos) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary =
+        isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+    final textSecondary =
+        isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
+    final cardBg = isDark ? AppTheme.secondaryColor : AppTheme.lightCard;
+
     final data = List<Map<String, dynamic>>.from(pontos)
       ..sort((a, b) => (a['dia'] as String).compareTo(b['dia'] as String));
 
@@ -668,7 +715,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.secondaryColor,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -679,7 +726,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Text(
                 'Faturamento (30 dias)',
                 style: GoogleFonts.poppins(
-                  color: AppTheme.textPrimary,
+                  color: textPrimary,
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
                 ),
@@ -693,7 +740,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ? Center(
                     child: Text(
                       'Sem dados de faturamento',
-                      style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                      style: GoogleFonts.inter(color: textSecondary),
                     ),
                   )
                 : LineChart(
@@ -706,7 +753,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       gridData: FlGridData(
                         drawVerticalLine: false,
                         getDrawingHorizontalLine: (_) => FlLine(
-                          color: AppTheme.textSecondary.withValues(alpha: 0.2),
+                          color: textSecondary.withValues(alpha: 0.2),
                         ),
                       ),
                       titlesData: FlTitlesData(
@@ -731,7 +778,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               return Text(
                                 '${dt.day}/${dt.month}',
                                 style: GoogleFonts.inter(
-                                  color: AppTheme.textSecondary,
+                                  color: textSecondary,
                                   fontSize: 10,
                                 ),
                               );
