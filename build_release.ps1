@@ -2,10 +2,35 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $androidDir = Join-Path $projectRoot "android"
-$flutterBin = "C:\Users\Administrator\flutter\bin\flutter.bat"
-$jdkHome = "C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot"
-$gradleTmp = "C:\gradle-tmp"
-$gradleUserHome = "C:\gradle-home"
+$flutterBin =
+if ($env:FLUTTER_ROOT) {
+    Join-Path $env:FLUTTER_ROOT "bin\flutter.bat"
+} else {
+    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
+    if ($flutterCmd -and $flutterCmd.Source) {
+        $flutterCmd.Source
+    } else {
+        "C:\Users\Administrator\flutter\bin\flutter.bat"
+    }
+}
+$jdkHome =
+if ($env:JAVA_HOME) {
+    $env:JAVA_HOME
+} else {
+    "C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot"
+}
+$gradleTmp =
+if ($env:GRADLE_TMP) {
+    $env:GRADLE_TMP
+} else {
+    "C:\gradle-tmp"
+}
+$gradleUserHome =
+if ($env:GRADLE_USER_HOME) {
+    $env:GRADLE_USER_HOME
+} else {
+    "C:\gradle-home"
+}
 $maxFlutterAttempts = 3
 $maxFallbackAttempts = 3
 
@@ -167,8 +192,9 @@ $env:JAVA_HOME = $jdkHome
 if ($env:Path -notlike "*$jdkHome\bin*") {
     $env:Path = "$jdkHome\bin;$env:Path"
 }
-if ($env:Path -notlike "*C:\Users\Administrator\flutter\bin*") {
-    $env:Path = "C:\Users\Administrator\flutter\bin;$env:Path"
+$flutterDir = Split-Path -Parent $flutterBin
+if ($env:Path -notlike "*$flutterDir*") {
+    $env:Path = "$flutterDir;$env:Path"
 }
 
 $javaNetworkFlags = "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false"
@@ -177,6 +203,15 @@ $env:GRADLE_OPTS = "$javaNetworkFlags -Dorg.gradle.daemon=false -Dorg.gradle.vfs
 $env:GRADLE_USER_HOME = $gradleUserHome
 $env:TEMP = $gradleTmp
 $env:TMP = $gradleTmp
+
+$keyPropertiesPath = Join-Path $androidDir "key.properties"
+$allowInsecureDebugSigning = $false
+$gradleSigningArg = ""
+if (-not (Test-Path $keyPropertiesPath)) {
+    $allowInsecureDebugSigning = $true
+    $gradleSigningArg = " -PallowInsecureDebugSigning=true"
+    Write-Host "AVISO: android/key.properties ausente. Usando assinatura debug para gerar release local."
+}
 
 Push-Location $projectRoot
 try {
@@ -199,6 +234,13 @@ try {
         if ($result.ExitCode -eq 0) {
             Write-Host "Build concluido com sucesso."
             exit 0
+        }
+
+        if ($allowInsecureDebugSigning -and
+            $result.LogText -match "Assinatura release obrigatoria") {
+            $loopbackErrorDetected = $true
+            Write-Host "Flutter build bloqueou por assinatura. Continuando no fallback gradlew com -PallowInsecureDebugSigning=true."
+            break
         }
 
         $loopbackError = $result.LogText -match "Unable to establish loopback connection"
@@ -226,7 +268,7 @@ try {
         Write-Host "Fallback gradlew tentativa ${attempt}/${maxFallbackAttempts}: assembleRelease"
 
         $fallbackLog = Join-Path $gradleTmp "gradlew-fallback-release-attempt-$attempt.log"
-        $gradleCmd = "cd /d `"$androidDir`" && gradlew.bat assembleRelease --no-daemon --stacktrace --info --max-workers=2 --no-watch-fs"
+        $gradleCmd = "cd /d `"$androidDir`" && gradlew.bat assembleRelease$gradleSigningArg --no-daemon --stacktrace --info --max-workers=2 --no-watch-fs"
         $result = Invoke-CmdWithLog -CommandLine $gradleCmd -LogFile $fallbackLog
         $lastFallbackLog = $fallbackLog
 

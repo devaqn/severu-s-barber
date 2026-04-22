@@ -59,6 +59,7 @@ android/app/release/
 *.env
 !.env.example
 key.properties
+android/key.properties
+android/app/google-services.json
 *.keystore
 *.jks
-

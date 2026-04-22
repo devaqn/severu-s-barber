@@ -7,7 +7,7 @@ import '../models/comanda.dart';
 import '../models/item_comanda.dart';
 import '../utils/constants.dart';
 import '../utils/security_utils.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 import 'cliente_service.dart';
 import 'connectivity_service.dart';
 import 'firebase_context_service.dart';

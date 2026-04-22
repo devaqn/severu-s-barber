@@ -31,6 +31,11 @@ done
 
 echo "Variaveis verificadas. Iniciando build de producao..."
 
+if [ ! -f "android/key.properties" ]; then
+  echo "AVISO: android/key.properties ausente. Usando assinatura debug para gerar release local."
+  export ORG_GRADLE_PROJECT_allowInsecureDebugSigning=true
+fi
+
 flutter build apk --release \
   --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
   --dart-define=FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID" \
@@ -55,7 +60,8 @@ flutter build apk --release \
   --dart-define=FIREBASE_TEST_ADMIN_NAME="${FIREBASE_TEST_ADMIN_NAME:-}" \
   --dart-define=OFFLINE_ADMIN_EMAIL="${OFFLINE_ADMIN_EMAIL:-}" \
   --dart-define=OFFLINE_ADMIN_PASSWORD="${OFFLINE_ADMIN_PASSWORD:-}" \
-  --dart-define=ENABLE_FIREBASE_TEST_SHORTCUT=false
+  --dart-define=ENABLE_FIREBASE_TEST_SHORTCUT=false \
+  --dart-define=ENABLE_OFFLINE_LOGIN="${ENABLE_OFFLINE_LOGIN:-false}"
 
 mkdir -p build/release
 cp build/app/outputs/flutter-apk/app-release.apk build/release/severus-barber.apk
