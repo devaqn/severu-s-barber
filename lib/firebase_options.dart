@@ -1,19 +1,18 @@
 // firebase_options.dart
-// Valores padrao locais para facilitar testes sem --dart-define.
-// Em producao, sobrescreva via --dart-define ou flutterfire configure.
+// Sem defaults sensiveis: use --dart-define para fornecer credenciais.
+// Em desktop, quando vazio, a inicializacao cai em modo offline.
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-const String _kFirebaseProjectId = 'severus-barber';
-const String _kFirebaseMessagingSenderId = '48617578696';
-const String _kFirebaseStorageBucket = 'severus-barber.firebasestorage.app';
-const String _kFirebaseAuthDomain = 'severus-barber.firebaseapp.com';
-const String _kFirebaseApiKey = 'AIzaSyCrT0Q97eOxitlFhpsdoGPr8qj7KgWrGlA';
-const String _kFirebaseAndroidAppId =
-    '1:48617578696:android:62d3eb55041c8046a705fd';
-const String _kFirebaseWebAppId = _kFirebaseAndroidAppId;
+const String _kFirebaseProjectId = '';
+const String _kFirebaseMessagingSenderId = '';
+const String _kFirebaseStorageBucket = '';
+const String _kFirebaseAuthDomain = '';
+const String _kFirebaseApiKey = '';
+const String _kFirebaseAndroidAppId = '';
+const String _kFirebaseWebAppId = '';
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {

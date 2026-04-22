@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "48617578696",
-    "project_id": "severus-barber",
-    "storage_bucket": "severus-barber.firebasestorage.app"
+    "project_number": "000000000000",
+    "project_id": "seu-projeto-firebase",
+    "storage_bucket": "seu-projeto.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:48617578696:android:62d3eb55041c8046a705fd",
+        "mobilesdk_app_id": "1:000000000000:android:xxxxxxxxxxxxxxxx",
         "android_client_info": {
           "package_name": "com.severusbarber.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCrT0Q97eOxitlFhpsdoGPr8qj7KgWrGlA"
+          "current_key": "AIzaSy..."
         }
       ],
       "services": {

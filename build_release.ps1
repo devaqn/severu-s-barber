@@ -33,10 +33,104 @@ if ($env:GRADLE_USER_HOME) {
 }
 $maxFlutterAttempts = 3
 $maxFallbackAttempts = 3
+$envFile = Join-Path $projectRoot ".env"
+$requiredEnvKeys = @(
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_MESSAGING_SENDER_ID",
+    "FIREBASE_ANDROID_API_KEY",
+    "FIREBASE_ANDROID_APP_ID"
+)
+$dartDefineKeys = @(
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_MESSAGING_SENDER_ID",
+    "FIREBASE_STORAGE_BUCKET",
+    "FIREBASE_AUTH_DOMAIN",
+    "FIREBASE_WEB_API_KEY",
+    "FIREBASE_WEB_APP_ID",
+    "FIREBASE_ANDROID_API_KEY",
+    "FIREBASE_ANDROID_APP_ID",
+    "FIREBASE_IOS_API_KEY",
+    "FIREBASE_IOS_APP_ID",
+    "FIREBASE_IOS_BUNDLE_ID",
+    "FIREBASE_MACOS_API_KEY",
+    "FIREBASE_MACOS_APP_ID",
+    "FIREBASE_MACOS_BUNDLE_ID",
+    "FIREBASE_WINDOWS_API_KEY",
+    "FIREBASE_WINDOWS_APP_ID",
+    "FIREBASE_LINUX_API_KEY",
+    "FIREBASE_LINUX_APP_ID",
+    "FIREBASE_TEST_ADMIN_EMAIL",
+    "FIREBASE_TEST_ADMIN_PASSWORD",
+    "FIREBASE_TEST_ADMIN_NAME",
+    "OFFLINE_ADMIN_EMAIL",
+    "OFFLINE_ADMIN_PASSWORD",
+    "ENABLE_FIREBASE_TEST_SHORTCUT",
+    "ENABLE_OFFLINE_LOGIN"
+)
 
 function Ensure-Directory {
     param([string]$Path)
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
+}
+
+function Parse-DotEnv {
+    param([string]$EnvPath)
+
+    $values = @{}
+    if (-not (Test-Path $EnvPath)) {
+        return $values
+    }
+
+    foreach ($line in Get-Content $EnvPath) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+        if ($trimmed.StartsWith("#")) { continue }
+
+        $eqIndex = $trimmed.IndexOf("=")
+        if ($eqIndex -lt 1) { continue }
+
+        $key = $trimmed.Substring(0, $eqIndex).Trim()
+        $value = $trimmed.Substring($eqIndex + 1).Trim()
+        if ([string]::IsNullOrWhiteSpace($key)) { continue }
+
+        if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+            ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        $values[$key] = $value
+    }
+
+    return $values
+}
+
+function Ensure-RequiredEnvVars {
+    param(
+        [hashtable]$Values,
+        [string[]]$RequiredKeys
+    )
+
+    foreach ($key in $RequiredKeys) {
+        if (-not $Values.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($Values[$key])) {
+            throw "Variavel obrigatoria $key nao definida no .env"
+        }
+    }
+}
+
+function Build-DartDefineArgs {
+    param(
+        [hashtable]$Values,
+        [string[]]$Keys
+    )
+
+    $args = @()
+    foreach ($key in $Keys) {
+        if (-not $Values.ContainsKey($key)) { continue }
+        $value = $Values[$key]
+        if ([string]::IsNullOrWhiteSpace($value)) { continue }
+        $args += " --dart-define=$key=$value"
+    }
+    return ($args -join "")
 }
 
 function Invoke-CmdWithLog {
@@ -204,6 +298,13 @@ $env:GRADLE_USER_HOME = $gradleUserHome
 $env:TEMP = $gradleTmp
 $env:TMP = $gradleTmp
 
+$dotenvValues = Parse-DotEnv -EnvPath $envFile
+if ($dotenvValues.Count -eq 0) {
+    throw "Arquivo .env nao encontrado ou vazio em $envFile"
+}
+Ensure-RequiredEnvVars -Values $dotenvValues -RequiredKeys $requiredEnvKeys
+$dartDefineArgs = Build-DartDefineArgs -Values $dotenvValues -Keys $dartDefineKeys
+
 $keyPropertiesPath = Join-Path $androidDir "key.properties"
 $allowInsecureDebugSigning = $false
 $gradleSigningArg = ""
@@ -227,7 +328,7 @@ try {
         Write-Host "Tentativa ${attempt}/${maxFlutterAttempts}: flutter build apk --release"
 
         $logFile = Join-Path $gradleTmp "flutter-build-release-attempt-$attempt.log"
-        $flutterCmd = "`"$flutterBin`" build apk --release"
+        $flutterCmd = "`"$flutterBin`" build apk --release$dartDefineArgs"
         $result = Invoke-CmdWithLog -CommandLine $flutterCmd -LogFile $logFile
         $lastFlutterLog = $logFile
 

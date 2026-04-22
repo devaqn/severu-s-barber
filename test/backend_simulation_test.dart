@@ -152,13 +152,15 @@ void main() {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       ));
+      final agora = DateTime.now();
+      final dataAgenda = DateTime(agora.year, agora.month, agora.day, 12, 0);
 
       final agendamentoId = await agendaService.insert(Agendamento(
         clienteId: clienteId,
         clienteNome: 'Cliente Agenda',
         servicoId: 1,
         servicoNome: 'Corte de Cabelo',
-        dataHora: DateTime.now().add(const Duration(hours: 2)),
+        dataHora: dataAgenda,
         createdAt: DateTime.now(),
         observacoes: 'Cliente pediu pontualidade',
       ));
@@ -169,11 +171,13 @@ void main() {
     });
 
     test('Agendamento sem cliente (avulso) funciona', () async {
+      final agora = DateTime.now();
+      final dataAgenda = DateTime(agora.year, agora.month, agora.day, 13, 0);
       final id = await agendaService.insert(Agendamento(
         clienteNome: 'Cliente Avulso',
         servicoId: 1,
         servicoNome: 'Barba',
-        dataHora: DateTime.now().add(const Duration(hours: 1)),
+        dataHora: dataAgenda,
         createdAt: DateTime.now(),
       ));
       expect(id, greaterThan(0));
@@ -186,13 +190,15 @@ void main() {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       ));
+      final agora = DateTime.now();
+      final dataAgenda = DateTime(agora.year, agora.month, agora.day, 14, 0);
 
       final id = await agendaService.insert(Agendamento(
         clienteId: clienteId,
         clienteNome: 'Cliente Agenda Edit',
         servicoId: 1,
         servicoNome: 'Corte de Cabelo',
-        dataHora: DateTime.now().add(const Duration(hours: 3)),
+        dataHora: dataAgenda,
         createdAt: DateTime.now(),
       ));
 
@@ -220,13 +226,15 @@ void main() {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       ));
+      final agora = DateTime.now();
+      final dataAgenda = DateTime(agora.year, agora.month, agora.day, 15, 0);
 
       final id = await agendaService.insert(Agendamento(
         clienteId: clienteId,
         clienteNome: 'Cliente Agenda Faturamento',
         servicoId: 1,
         servicoNome: 'Corte de Cabelo',
-        dataHora: DateTime.now().add(const Duration(hours: 1)),
+        dataHora: dataAgenda,
         createdAt: DateTime.now(),
       ));
 
