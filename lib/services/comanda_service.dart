@@ -6,6 +6,7 @@ import '../database/database_helper.dart';
 import '../models/comanda.dart';
 import '../models/item_comanda.dart';
 import '../utils/constants.dart';
+import '../utils/firebase_error_handler.dart';
 import '../utils/security_utils.dart';
 import 'package:sqflite/sqflite.dart';
 import 'cliente_service.dart';
@@ -786,8 +787,17 @@ class ComandaService {
     if (!await _isFirebaseOnline()) return;
     final shopId = await _context.getBarbeariaIdAtual();
     if (shopId == null || shopId.trim().isEmpty) return;
-    await _syncPendingLocalComandasIfOnline();
 
+    // Sync em background: falha silenciosa — SQLite continua sendo a fonte.
+    await FirebaseErrorHandler.wrapSilent(_syncPendingLocalComandasIfOnline);
+
+    // Leitura do Firestore também é silenciosa: se falhar, dados locais permanecem.
+    await FirebaseErrorHandler.wrapSilent(
+      () => _sincronizarComandasDoFirestore(shopId),
+    );
+  }
+
+  Future<void> _sincronizarComandasDoFirestore(String shopId) async {
     final comandasSnap = await _context
         .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
         .orderBy('data_abertura', descending: true)
@@ -981,13 +991,44 @@ class ComandaService {
     }
   }
 
+  /// Sincroniza comandas pendentes em dois passos para evitar bloquear
+  /// com histórico grande:
+  ///   1. Comandas sem `firebase_id` (nunca enviadas ao Firestore).
+  ///   2. Comandas modificadas nas últimas 48 h e já com `firebase_id`.
+  /// Cada etapa é limitada a [kSyncBatchSize] registros por chamada.
+  /// Máximo de comandas sincronizadas por chamada de [_syncPendingLocalComandasIfOnline].
+  /// Exportada como pública para permitir testes e ajuste de configuração.
+  static const int kSyncBatchSize = 20;
+
   Future<void> _syncPendingLocalComandasIfOnline() async {
     if (!await _isFirebaseOnline()) return;
-    final rows = await _db.queryAll(
+
+    // Etapa 1 — Sem firebase_id (criadas offline, nunca enviadas)
+    final semFirebaseId = await _db.queryAll(
       AppConstants.tableComandas,
+      where: "firebase_id IS NULL OR trim(firebase_id) = ''",
       orderBy: 'updated_at DESC',
+      limit: kSyncBatchSize,
     );
-    for (final row in rows) {
+    for (final row in semFirebaseId) {
+      final id = (row['id'] as num?)?.toInt();
+      if (id == null) continue;
+      await _syncComandaByLocalIdIfOnline(id);
+    }
+
+    // Etapa 2 — Já sincronizadas, mas atualizadas nas últimas 48 h
+    final threshold = DateTime.now()
+        .subtract(const Duration(hours: 48))
+        .toIso8601String();
+    final recentes = await _db.queryAll(
+      AppConstants.tableComandas,
+      where:
+          "firebase_id IS NOT NULL AND trim(firebase_id) != '' AND updated_at >= ?",
+      whereArgs: [threshold],
+      orderBy: 'updated_at DESC',
+      limit: kSyncBatchSize,
+    );
+    for (final row in recentes) {
       final id = (row['id'] as num?)?.toInt();
       if (id == null) continue;
       await _syncComandaByLocalIdIfOnline(id);
@@ -1054,7 +1095,7 @@ class ComandaService {
     int comandaId,
   ) async {
     final rows = await txn.rawQuery('''
-      SELECT 
+      SELECT
         COALESCE(SUM(quantidade * preco_unitario), 0) as total,
         COALESCE(SUM(comissao_valor), 0) as comissao_total
       FROM ${AppConstants.tableComandasItens}

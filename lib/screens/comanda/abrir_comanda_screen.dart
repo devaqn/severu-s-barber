@@ -462,45 +462,44 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
             ),
           ),
           if (_sugestoesClientes.isNotEmpty)
-            RadioGroup<Cliente>(
-              groupValue: _clienteSelecionado,
-              onChanged: (v) => setState(() => _clienteSelecionado = v),
-              child: Column(
-                children: _sugestoesClientes.take(5).map((c) {
-                  return InkWell(
-                    onTap: () => setState(() => _clienteSelecionado = c),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Row(
-                        children: [
-                          Radio<Cliente>(
-                            value: c,
-                            activeColor: AppTheme.accentColor,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(c.nome),
-                                Text(
-                                  c.telefone,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+            Column(
+              children: _sugestoesClientes.take(5).map((c) {
+                return InkWell(
+                  onTap: () => setState(() => _clienteSelecionado = c),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
                     ),
-                  );
-                }).toList(),
-              ),
+                    child: Row(
+                      children: [
+                        Radio<Cliente>(
+                          value: c,
+                          groupValue: _clienteSelecionado,
+                          activeColor: AppTheme.accentColor,
+                          onChanged: (v) =>
+                              setState(() => _clienteSelecionado = v),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(c.nome),
+                              Text(
+                                c.telefone,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
         ],
       ],

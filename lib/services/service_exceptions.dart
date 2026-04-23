@@ -17,3 +17,9 @@ class NotFoundException extends ServiceException {
 class ConflictException extends ServiceException {
   const ConflictException(super.message);
 }
+
+/// Lançada quando uma operação de rede (Firebase/Firestore) falha.
+/// Sempre contém uma mensagem legível para exibir ao usuário.
+class NetworkException extends ServiceException {
+  const NetworkException(super.message);
+}

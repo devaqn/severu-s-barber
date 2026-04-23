@@ -14,6 +14,7 @@ import '../database/database_helper.dart';
 import '../models/caixa.dart';
 import '../models/despesa.dart';
 import '../utils/constants.dart';
+import '../utils/firebase_error_handler.dart';
 import '../utils/security_utils.dart';
 import 'comanda_service.dart';
 import 'connectivity_service.dart';
@@ -86,7 +87,7 @@ class FinanceiroService {
       final uid = _auth.currentUser?.uid;
       if (shopId != null && uid != null) {
         final firebaseId = _uuid.v4();
-        await _context
+        await FirebaseErrorHandler.wrap(() => _context
             .collection(barbeariaId: shopId, nome: AppConstants.tableDespesas)
             .doc(firebaseId)
             .set({
@@ -99,7 +100,7 @@ class FinanceiroService {
           'created_by': uid,
           'created_at': FieldValue.serverTimestamp(),
           'updated_at': FieldValue.serverTimestamp(),
-        });
+        }));
 
         localMap['firebase_id'] = firebaseId;
         localMap['barbearia_id'] = shopId;
@@ -214,8 +215,21 @@ class FinanceiroService {
 
   Future<Map<String, double>> getResumo(DateTime inicio, DateTime fim) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
-    final faturamento =
+
+    // Faturamento via comandas (fluxo atual)
+    final faturamentoComandas =
         await _comandaService.getFaturamentoPeriodo(inicio, fim);
+
+    // Faturamento via atendimentos legados (pré-comanda)
+    final legadoResult = await _db.rawQuery('''
+      SELECT SUM(total) AS total
+      FROM ${AppConstants.tableAtendimentos}
+      WHERE data BETWEEN ? AND ?
+    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+    final faturamentoLegado =
+        (legadoResult.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    final faturamento = faturamentoComandas + faturamentoLegado;
     final despesas = await getTotalDespesas(inicio, fim);
     final lucro = faturamento - despesas;
 
@@ -354,8 +368,19 @@ class FinanceiroService {
       );
     }
 
-    final pagamentos = await _comandaService.getFaturamentoPorPagamento(
+    // Soma comandas (fluxo atual)
+    final pagamentos = Map<String, double>.from(
+      await _comandaService.getFaturamentoPorPagamento(
+          caixa.dataAbertura, agora),
+    );
+
+    // Soma atendimentos legados (fluxo pré-comanda)
+    final pagamentosLegados = await _getFaturamentoPorPagamentoLegado(
         caixa.dataAbertura, agora);
+    for (final entry in pagamentosLegados.entries) {
+      pagamentos[entry.key] =
+          (pagamentos[entry.key] ?? 0.0) + entry.value;
+    }
 
     final valorFinal =
         caixa.valorInicial + pagamentos.values.fold(0.0, (a, b) => a + b);
@@ -374,6 +399,26 @@ class FinanceiroService {
     );
 
     await _syncCaixaByLocalIdIfOnline(safeCaixaId);
+  }
+
+  /// Retorna faturamento agrupado por forma de pagamento da tabela legada
+  /// [atendimentos] — usada antes da migração para o fluxo de comandas.
+  Future<Map<String, double>> _getFaturamentoPorPagamentoLegado(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
+    final result = await _db.rawQuery('''
+      SELECT forma_pagamento, SUM(total) AS total
+      FROM ${AppConstants.tableAtendimentos}
+      WHERE data BETWEEN ? AND ?
+      GROUP BY forma_pagamento
+    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+
+    return {
+      for (final row in result)
+        (row['forma_pagamento'] as String?) ?? AppConstants.pgDinheiro:
+            (row['total'] as num?)?.toDouble() ?? 0.0,
+    };
   }
 
   /// Sangria: retirada de dinheiro do caixa durante o expediente.
@@ -504,16 +549,21 @@ class FinanceiroService {
     final shopId = await _context.getBarbeariaIdAtual();
     if (shopId == null || shopId.trim().isEmpty) return;
 
-    await _syncPendingLocalDespesasIfOnline(shopId);
+    // Falha silenciosa: SQLite permanece como fonte se Firebase não estiver acessível.
+    await FirebaseErrorHandler.wrapSilent(
+      () => _syncPendingLocalDespesasIfOnline(shopId),
+    );
 
-    final snap = await _context
-        .collection(barbeariaId: shopId, nome: AppConstants.tableDespesas)
-        .orderBy('data', descending: true)
-        .get();
+    await FirebaseErrorHandler.wrapSilent(() async {
+      final snap = await _context
+          .collection(barbeariaId: shopId, nome: AppConstants.tableDespesas)
+          .orderBy('data', descending: true)
+          .get();
 
-    for (final doc in snap.docs) {
-      await _upsertDespesaLocalFromFirestore(doc.id, doc.data(), shopId);
-    }
+      for (final doc in snap.docs) {
+        await _upsertDespesaLocalFromFirestore(doc.id, doc.data(), shopId);
+      }
+    });
   }
 
   Future<void> _syncPendingLocalDespesasIfOnline(String shopId) async {
@@ -638,16 +688,20 @@ class FinanceiroService {
     final shopId = await _context.getBarbeariaIdAtual();
     if (shopId == null || shopId.trim().isEmpty) return;
 
-    await _syncPendingLocalCaixasIfOnline(shopId);
+    await FirebaseErrorHandler.wrapSilent(
+      () => _syncPendingLocalCaixasIfOnline(shopId),
+    );
 
-    final snap = await _context
-        .collection(barbeariaId: shopId, nome: AppConstants.tableCaixas)
-        .orderBy('data_abertura', descending: true)
-        .get();
+    await FirebaseErrorHandler.wrapSilent(() async {
+      final snap = await _context
+          .collection(barbeariaId: shopId, nome: AppConstants.tableCaixas)
+          .orderBy('data_abertura', descending: true)
+          .get();
 
-    for (final doc in snap.docs) {
-      await _upsertCaixaLocalFromFirestore(doc.id, doc.data(), shopId);
-    }
+      for (final doc in snap.docs) {
+        await _upsertCaixaLocalFromFirestore(doc.id, doc.data(), shopId);
+      }
+    });
   }
 
   Future<void> _syncPendingLocalCaixasIfOnline(String shopId) async {
@@ -813,7 +867,7 @@ class FinanceiroService {
     );
     SecurityUtils.ensure(
       _categoriasAceitas.contains(safeCategoria),
-      'Categoria de despesa inválida.',
+      'Categoria de despesa invalida.',
     );
     final safeValor = SecurityUtils.sanitizeDoubleRange(
       despesa.valor,

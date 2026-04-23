@@ -135,12 +135,16 @@ class AppTheme {
           surfaceVariant: Color(0xFFFAF2E1),
           onSurfaceVariant: Color(0xFF4F5566),
           outline: Color(0xFFC9A24A),
+          outlineVariant: Color(0xFFE7DCC3),
           background: Color(0xFFF7F3E9),
           onBackground: Color(0xFF1A1A2E),
           error: Color(0xFFC0392B),
           onError: Color(0xFFFFFFFF),
+          shadow: Color(0x14000000),
         ),
         scaffoldBackgroundColor: lightBackground,
+
+        // ── AppBar ──────────────────────────────────────────────────────
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFFB8860B),
           foregroundColor: Color(0xFF000000),
@@ -148,12 +152,19 @@ class AppTheme {
           actionsIconTheme: IconThemeData(color: Color(0xFF000000)),
           elevation: 0,
           centerTitle: true,
+          surfaceTintColor: Colors.transparent,
         ),
+
+        // ── Ícones globais ───────────────────────────────────────────────
         iconTheme: const IconThemeData(color: lightTextPrimary),
+
+        // ── Botões ───────────────────────────────────────────────────────
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFB8860B),
             foregroundColor: const Color(0xFF000000),
+            elevation: 0,
+            shadowColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -168,6 +179,13 @@ class AppTheme {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFFB8860B),
+          ),
+        ),
+
+        // ── Cartões ──────────────────────────────────────────────────────
         cardTheme: const CardThemeData(
           color: Color(0xFFFFFCF6),
           shape: RoundedRectangleBorder(
@@ -175,8 +193,19 @@ class AppTheme {
             side: BorderSide(color: Color(0xFFE7DCC3), width: 0.8),
           ),
           elevation: 1,
+          shadowColor: Color(0x18B8860B),
+          surfaceTintColor: Colors.transparent,
         ),
+
+        // ── Divisor ──────────────────────────────────────────────────────
         dividerColor: const Color(0xFFE7DCC3),
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFFE7DCC3),
+          thickness: 1,
+          space: 1,
+        ),
+
+        // ── Campos de texto ──────────────────────────────────────────────
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: lightInputFill,
@@ -200,45 +229,148 @@ class AppTheme {
             borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: errorColor, width: 1.8),
           ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
-        chipTheme: const ChipThemeData(
-          backgroundColor: Color(0xFFFAF2E1),
-          selectedColor: Color(0xFFECD8A7),
-          disabledColor: Color(0xFFE7DCC3),
-          checkmarkColor: Color(0xFF1A1A2E),
-          labelStyle: TextStyle(color: Color(0xFF1A1A2E)),
-          secondaryLabelStyle: TextStyle(color: Color(0xFF1A1A2E)),
-          side: BorderSide(color: Color(0xFFC9A24A)),
-          shape: StadiumBorder(),
+
+        // ── Switch / Checkbox / Radio ─────────────────────────────────────
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Color(0xFFB8860B);
+            }
+            return const Color(0xFF9E9E9E);
+          }),
+          trackColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Color(0xFFB8860B).withOpacity(0.4);
+            }
+            return const Color(0xFFBDBDBD).withOpacity(0.4);
+          }),
         ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: accentColor,
-          foregroundColor: Color(0xFF000000),
+        checkboxTheme: CheckboxThemeData(
+          fillColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Color(0xFFB8860B);
+            }
+            return Colors.transparent;
+          }),
+          checkColor: WidgetStateProperty.all(Colors.black),
+          side: const BorderSide(color: Color(0xFFC9A24A), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         ),
-        popupMenuTheme: const PopupMenuThemeData(
-          color: Color(0xFFFFFCF6),
-          textStyle: TextStyle(color: Color(0xFF1A1A2E)),
+        radioTheme: RadioThemeData(
+          fillColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Color(0xFFB8860B);
+            }
+            return const Color(0xFF4F5566);
+          }),
         ),
+
+        // ── ListTile ──────────────────────────────────────────────────────
+        listTileTheme: ListTileThemeData(
+          tileColor: Colors.transparent,
+          selectedTileColor: const Color(0xFFB8860B).withOpacity(0.1),
+          selectedColor: const Color(0xFFB8860B),
+          iconColor: lightTextSecondary,
+          textColor: lightTextPrimary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+
+        // ── Drawer ───────────────────────────────────────────────────────
+        drawerTheme: const DrawerThemeData(
+          backgroundColor: Color(0xFFFFFCF6),
+          surfaceTintColor: Colors.transparent,
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              topRight: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
+          ),
+        ),
+
+        // ── SegmentedButton ───────────────────────────────────────────────
+        segmentedButtonTheme: SegmentedButtonThemeData(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return const Color(0xFFB8860B);
+              }
+              return const Color(0xFFFFFCF6);
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return Colors.black;
+              }
+              return lightTextPrimary;
+            }),
+          ),
+        ),
+
+        // ── Dialog ───────────────────────────────────────────────────────
+        dialogTheme: DialogThemeData(
+          backgroundColor: const Color(0xFFFFFCF6),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          titleTextStyle: const TextStyle(
+            color: Color(0xFF1A1A2E),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+          contentTextStyle: const TextStyle(
+            color: Color(0xFF4F5566),
+            fontSize: 14,
+          ),
+        ),
+
+        // ── BottomSheet ───────────────────────────────────────────────────
         bottomSheetTheme: const BottomSheetThemeData(
           backgroundColor: Color(0xFFFFFCF6),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          showDragHandle: true,
+          dragHandleColor: Color(0xFFC9A24A),
         ),
-        snackBarTheme: const SnackBarThemeData(
-          backgroundColor: Color(0xFF24243A),
-          contentTextStyle: TextStyle(color: Color(0xFFFFFFFF)),
-          actionTextColor: Color(0xFFD4AF37),
+
+        // ── SnackBar ──────────────────────────────────────────────────────
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF1A1A2E),
+          contentTextStyle: const TextStyle(color: Color(0xFFFFFFFF)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
+
+        // ── TabBar ────────────────────────────────────────────────────────
+        tabBarTheme: const TabBarThemeData(
+          labelColor: Color(0xFFB8860B),
+          unselectedLabelColor: Color(0xFF4F5566),
+          indicatorColor: Color(0xFFB8860B),
+          indicatorSize: TabBarIndicatorSize.tab,
+        ),
+
+        // ── ProgressIndicator ─────────────────────────────────────────────
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: Color(0xFFB8860B),
+        ),
+
+        // ── Texto ─────────────────────────────────────────────────────────
         textTheme: const TextTheme(
           titleLarge: TextStyle(
             color: Color(0xFF1A1A2E),
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
           titleMedium: TextStyle(
             color: Color(0xFF1A1A2E),
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
           bodyLarge: TextStyle(color: Color(0xFF1A1A2E)),
-          bodyMedium: TextStyle(color: Color(0xFF1A1A2E)),
-          bodySmall: TextStyle(color: Color(0xFF5F6378)),
+          bodyMedium: TextStyle(color: Color(0xFF4F5566)),
+          bodySmall: TextStyle(color: Color(0xFF4F5566)),
           labelLarge: TextStyle(
             color: Color(0xFF000000),
             fontWeight: FontWeight.w600,

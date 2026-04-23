@@ -9,7 +9,7 @@
 if "%OS%"=="Windows_NT" setlocal
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-set DEFAULT_JVM_OPTS="-Djava.io.tmpdir=C:\gradle-tmp" "-Djava.net.preferIPv4Stack=true" "-Djava.net.preferIPv6Addresses=false"
+set DEFAULT_JVM_OPTS="-Djava.net.preferIPv4Stack=true" "-Djava.net.preferIPv6Addresses=false"
 
 set DIRNAME=%~dp0
 if "%DIRNAME%" == "" set DIRNAME=.

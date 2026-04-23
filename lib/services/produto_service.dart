@@ -439,19 +439,44 @@ class ProdutoService {
       min: 1,
       max: 100,
     );
+    // Unifica vendas de atendimentos legados E de comandas (fluxo principal)
     return _db.rawQuery('''
-      SELECT 
-        ai.item_id,
-        ai.nome,
-        SUM(ai.quantidade) as total_vendas,
-        SUM(ai.quantidade * ai.preco_unitario) as faturamento_total,
+      SELECT
+        vendas.item_id,
+        vendas.nome,
+        SUM(vendas.total_vendas)     AS total_vendas,
+        SUM(vendas.faturamento)      AS faturamento_total,
         p.preco_custo,
-        (AVG(ai.preco_unitario) - p.preco_custo) as margem_unitaria,
-        SUM(ai.quantidade) * (AVG(ai.preco_unitario) - p.preco_custo) as lucro_total
-      FROM ${AppConstants.tableAtendimentoItens} ai
-      JOIN ${AppConstants.tableProdutos} p ON ai.item_id = p.id
-      WHERE ai.tipo = 'produto'
-      GROUP BY ai.item_id, ai.nome
+        (SUM(vendas.faturamento) / NULLIF(SUM(vendas.total_vendas), 0)
+          - p.preco_custo)           AS margem_unitaria,
+        SUM(vendas.total_vendas) *
+          (SUM(vendas.faturamento) / NULLIF(SUM(vendas.total_vendas), 0)
+            - p.preco_custo)         AS lucro_total
+      FROM (
+        -- Vendas via atendimentos (fluxo legado)
+        SELECT
+          item_id,
+          nome,
+          SUM(quantidade)                      AS total_vendas,
+          SUM(quantidade * preco_unitario)     AS faturamento
+        FROM ${AppConstants.tableAtendimentoItens}
+        WHERE tipo = 'produto'
+        GROUP BY item_id
+
+        UNION ALL
+
+        -- Vendas via comandas (fluxo principal atual)
+        SELECT
+          item_id,
+          nome,
+          SUM(quantidade)                      AS total_vendas,
+          SUM(quantidade * preco_unitario)     AS faturamento
+        FROM ${AppConstants.tableComandasItens}
+        WHERE tipo = 'produto'
+        GROUP BY item_id
+      ) AS vendas
+      JOIN ${AppConstants.tableProdutos} p ON p.id = vendas.item_id
+      GROUP BY vendas.item_id
       ORDER BY total_vendas DESC
       LIMIT ?
     ''', [safeLimit]);
@@ -720,31 +745,6 @@ class ProdutoService {
       quantidade: safeQuantidade,
       estoqueMinimo: safeEstoqueMinimo,
       comissaoPercentual: safeComissao,
-    );
-  }
-
-  Fornecedor _sanitizarFornecedor(Fornecedor fornecedor) {
-    final safeNome = SecurityUtils.sanitizeName(
-      fornecedor.nome,
-      fieldName: 'Nome do fornecedor',
-    );
-    final safeTelefone = fornecedor.telefone == null
-        ? null
-        : SecurityUtils.sanitizePhone(fornecedor.telefone!);
-    final safeEmail = fornecedor.email == null
-        ? null
-        : SecurityUtils.sanitizeEmail(fornecedor.email!);
-    final safeObs = SecurityUtils.sanitizeOptionalText(
-      fornecedor.observacoes,
-      maxLength: 400,
-      allowNewLines: true,
-    );
-
-    return fornecedor.copyWith(
-      nome: safeNome,
-      telefone: safeTelefone,
-      email: safeEmail,
-      observacoes: safeObs,
     );
   }
 }
