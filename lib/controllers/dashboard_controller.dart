@@ -1,15 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 import '../services/dashboard_service.dart';
+import 'controller_mixin.dart';
 
-class DashboardController extends ChangeNotifier {
+class DashboardController extends ChangeNotifier with ControllerMixin {
   DashboardController({DashboardService? dashboardService})
       : _service = dashboardService ?? DashboardService();
 
   final DashboardService _service;
 
-  bool isLoading = false;
-  String? errorMsg;
   Map<String, dynamic>? dados;
   DateTime? ultimaAtualizacao;
 
@@ -26,19 +25,8 @@ class DashboardController extends ChangeNotifier {
     await _carregarDados();
   }
 
-  Future<void> _carregarDados() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-
-    try {
-      dados = await _service.getDadosDashboard();
-      ultimaAtualizacao = DateTime.now();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> _carregarDados() => runSilent(() async {
+        dados = await _service.getDadosDashboard();
+        ultimaAtualizacao = DateTime.now();
+      });
 }

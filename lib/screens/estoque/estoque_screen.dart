@@ -326,8 +326,6 @@ class _EstoqueScreenState extends State<EstoqueScreen>
         title: const Text('Estoque'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.black87,
           tabs: const [
             Tab(text: 'Visao Geral'),
             Tab(text: 'Movimentacoes'),

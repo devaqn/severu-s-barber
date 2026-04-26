@@ -144,20 +144,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           }
 
           final data = snapshot.data!;
-          final fatHoje = (data['faturamentoDia'] as num).toDouble();
-          final fatMes = (data['faturamentoMes'] as num).toDouble();
-          final lucro = (data['lucroEstimado'] as num).toDouble();
-          final despesas = (data['despesasMes'] as num).toDouble();
-          final atendHoje = data['atendimentosDia'] as int;
-          final valorEstoque = (data['valorEstoque'] as num).toDouble();
-          final estoqueBaixo = (data['produtosEstoqueBaixo'] as List).length;
+          final fatHoje = (data['faturamentoDia'] as num?)?.toDouble() ?? 0.0;
+          final fatMes = (data['faturamentoMes'] as num?)?.toDouble() ?? 0.0;
+          final lucro = (data['lucroEstimado'] as num?)?.toDouble() ?? 0.0;
+          final despesas = (data['despesasMes'] as num?)?.toDouble() ?? 0.0;
+          final atendHoje = (data['atendimentosDia'] as int?) ?? 0;
+          final valorEstoque = (data['valorEstoque'] as num?)?.toDouble() ?? 0.0;
+          final estoqueBaixo =
+              ((data['produtosEstoqueBaixo'] as List?) ?? const []).length;
           final faturamentoPorDia =
-              (data['faturamentoPorDia'] as List).cast<Map<String, dynamic>>();
+              ((data['faturamentoPorDia'] as List?) ?? const [])
+                  .cast<Map<String, dynamic>>();
           final rankingBarbeiros =
-              (data['rankingBarbeiros'] as List).cast<Map<String, dynamic>>();
-          final comandasAbertas = data['comandasAbertas'] as int;
+              ((data['rankingBarbeiros'] as List?) ?? const [])
+                  .cast<Map<String, dynamic>>();
+          final comandasAbertas = (data['comandasAbertas'] as int?) ?? 0;
           final aniversariantesHoje =
-              (data['aniversariantesHoje'] as List).cast<Cliente>();
+              ((data['aniversariantesHoje'] as List?) ?? const [])
+                  .cast<Cliente>();
 
           return AppPageContainer(
             child: RefreshIndicator(

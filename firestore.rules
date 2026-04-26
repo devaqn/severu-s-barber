@@ -103,7 +103,7 @@ service cloud.firestore {
     }
 
     match /barbearias/{shopId}/{collection}/{id} {
-      allow read, write: if isInShop(shopId);
+      allow read, write: if isInShop(shopId) && isAdmin(shopId);
     }
   }
 }

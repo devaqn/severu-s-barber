@@ -3,15 +3,14 @@ import 'package:flutter/foundation.dart';
 import '../models/caixa.dart';
 import '../models/despesa.dart';
 import '../services/financeiro_service.dart';
+import 'controller_mixin.dart';
 
-class FinanceiroController extends ChangeNotifier {
+class FinanceiroController extends ChangeNotifier with ControllerMixin {
   FinanceiroController({FinanceiroService? financeiroService})
       : _service = financeiroService ?? FinanceiroService();
 
   final FinanceiroService _service;
 
-  bool isLoading = false;
-  String? errorMsg;
   List<Despesa> despesas = [];
   Map<String, double> resumo = const {
     'faturamento': 0,
@@ -22,110 +21,34 @@ class FinanceiroController extends ChangeNotifier {
   Future<void> carregarResumo({
     required DateTime inicio,
     required DateTime fim,
-  }) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      resumo = await _service.getResumo(inicio, fim);
-      despesas = await _service.getDespesas(inicio: inicio, fim: fim);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  }) =>
+      runSilent(() async {
+        resumo = await _service.getResumo(inicio, fim);
+        despesas = await _service.getDespesas(inicio: inicio, fim: fim);
+      });
 
   Future<List<Despesa>> getDespesas({DateTime? inicio, DateTime? fim}) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      despesas = await _service.getDespesas(inicio: inicio, fim: fim);
-      return despesas;
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Despesa>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+    despesas =
+        await runCatch(() => _service.getDespesas(inicio: inicio, fim: fim)) ??
+            const [];
+    return despesas;
   }
 
   Future<Map<String, double>> getResumo(DateTime inicio, DateTime fim) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      resumo = await _service.getResumo(inicio, fim);
-      return resumo;
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const {'faturamento': 0, 'despesas': 0, 'lucro': 0};
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+    resumo = await runCatch(() => _service.getResumo(inicio, fim)) ??
+        const {'faturamento': 0, 'despesas': 0, 'lucro': 0};
+    return resumo;
   }
 
-  Future<int> insertDespesa(Despesa despesa) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.insertDespesa(despesa);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<int> insertDespesa(Despesa despesa) =>
+      runOrThrow(() => _service.insertDespesa(despesa));
 
-  Future<void> updateDespesa(Despesa despesa) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      await _service.updateDespesa(despesa);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> updateDespesa(Despesa despesa) =>
+      runOrThrow(() => _service.updateDespesa(despesa));
 
-  Future<void> deleteDespesa(int id) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      await _service.deleteDespesa(id);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> deleteDespesa(int id) =>
+      runOrThrow(() => _service.deleteDespesa(id));
 
-  Future<Caixa?> getCaixaAberto() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getCaixaAberto();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return null;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<Caixa?> getCaixaAberto() =>
+      runCatch(() => _service.getCaixaAberto());
 }

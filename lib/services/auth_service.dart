@@ -38,11 +38,11 @@ class AuthService {
 
   static const String _offlineAdminEmailDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_EMAIL',
-    defaultValue: 'teste@severus.app',
+    defaultValue: '',
   );
   static const String _offlineAdminPasswordDefine = String.fromEnvironment(
     'OFFLINE_ADMIN_PASSWORD',
-    defaultValue: 'Teste@123!',
+    defaultValue: '',
   );
   static const String _firebaseTestAdminNameDefine = String.fromEnvironment(
     'FIREBASE_TEST_ADMIN_NAME',

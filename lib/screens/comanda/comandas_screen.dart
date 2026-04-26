@@ -94,14 +94,10 @@ class _ComandasScreenState extends State<ComandasScreen>
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 18,
-            color: Colors.black,
           ),
         ),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.black87,
-          indicatorColor: Colors.black,
           tabs: const [
             Tab(text: 'Abertas'),
             Tab(text: 'Fechadas'),

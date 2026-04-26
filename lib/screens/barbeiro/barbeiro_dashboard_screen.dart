@@ -149,14 +149,16 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
           }
 
           final data = snapshot.data!;
-          final fatHoje = data['fatHoje'] as double;
-          final fatMes = data['fatMes'] as double;
-          final comissaoHoje = data['comissaoHoje'] as double;
-          final comissaoMes = data['comissaoMes'] as double;
-          final comandasHoje = data['comandasHoje'] as List<Comanda>;
+          final fatHoje = (data['fatHoje'] as double?) ?? 0.0;
+          final fatMes = (data['fatMes'] as double?) ?? 0.0;
+          final comissaoHoje = (data['comissaoHoje'] as double?) ?? 0.0;
+          final comissaoMes = (data['comissaoMes'] as double?) ?? 0.0;
+          final comandasHoje =
+              (data['comandasHoje'] as List<Comanda>?) ?? const <Comanda>[];
           final comandaAberta = data['comandaAberta'] as Comanda?;
           final aniversariantesHoje =
-              (data['aniversariantesHoje'] as List).cast<Cliente>();
+              ((data['aniversariantesHoje'] as List?) ?? const [])
+                  .cast<Cliente>();
 
           return AppPageContainer(
             child: RefreshIndicator(

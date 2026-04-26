@@ -220,11 +220,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final data = dashboard.dados!;
     final agendamentos =
-        (data['proximosAgendamentos'] as List).cast<Agendamento>();
-    final topClientes = (data['topClientes'] as List).cast<Cliente>();
+        ((data['proximosAgendamentos'] as List?) ?? const []).cast<Agendamento>();
+    final topClientes =
+        ((data['topClientes'] as List?) ?? const []).cast<Cliente>();
     final faturamentoPorDia =
-        (data['faturamentoPorDia'] as List).cast<Map<String, dynamic>>();
-    final estoqueBaixo = (data['produtosEstoqueBaixo'] as List).length;
+        ((data['faturamentoPorDia'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>();
+    final estoqueBaixo =
+        ((data['produtosEstoqueBaixo'] as List?) ?? const []).length;
     final agsHoje = _agendamentosHoje(agendamentos);
 
     return RefreshIndicator(
@@ -302,12 +305,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Monta os cards de indicadores em pares horizontais.
   Widget _buildResumoCards(Map<String, dynamic> data, int estoqueBaixo) {
-    // Conversoes para valores numericos usados nos cards.
-    final fatHoje = (data['faturamentoDia'] as num).toDouble();
-    final fatSemana = (data['faturamentoSemana'] as num).toDouble();
-    final fatMes = (data['faturamentoMes'] as num).toDouble();
-    final lucroMes = (data['lucroEstimado'] as num).toDouble();
-    final atendHoje = data['atendimentosDia'] as int;
+    final fatHoje = (data['faturamentoDia'] as num?)?.toDouble() ?? 0.0;
+    final fatSemana = (data['faturamentoSemana'] as num?)?.toDouble() ?? 0.0;
+    final fatMes = (data['faturamentoMes'] as num?)?.toDouble() ?? 0.0;
+    final lucroMes = (data['lucroEstimado'] as num?)?.toDouble() ?? 0.0;
+    final atendHoje = (data['atendimentosDia'] as int?) ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

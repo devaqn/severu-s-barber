@@ -360,10 +360,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
 
     final ordenados = List<Map<String, dynamic>>.from(_horariosMaisLucrativos)
-      ..sort((a, b) => (a['hora'] as int).compareTo(b['hora'] as int));
+      ..sort((a, b) =>
+          ((a['hora'] as int?) ?? 0).compareTo((b['hora'] as int?) ?? 0));
     final topHorario = ordenados.reduce(
-      (a, b) => (a['faturamento'] as num).toDouble() >
-              (b['faturamento'] as num).toDouble()
+      (a, b) => ((a['faturamento'] as num?)?.toDouble() ?? 0) >
+              ((b['faturamento'] as num?)?.toDouble() ?? 0)
           ? a
           : b,
     );
@@ -388,7 +389,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 leading: const Icon(Icons.star, color: AppTheme.goldColor),
                 title: const Text('Melhor faixa horária'),
                 subtitle: Text(
-                  '${topHorario['hora']}h - ${(topHorario['hora'] as int) + 1}h',
+                  '${topHorario['hora']}h - ${((topHorario['hora'] as int?) ?? 0) + 1}h',
                 ),
                 trailing: Text(
                   AppFormatters.currency(
@@ -434,7 +435,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                       ),
                     ),
                     barGroups: ordenados.map((item) {
-                      final hora = item['hora'] as int;
+                      final hora = (item['hora'] as int?) ?? 0;
                       final fat =
                           (item['faturamento'] as num?)?.toDouble() ?? 0;
                       return BarChartGroupData(
@@ -443,7 +444,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                           BarChartRodData(
                             toY: fat,
                             width: 16,
-                            color: hora == (topHorario['hora'] as int)
+                            color: hora == ((topHorario['hora'] as int?) ?? 0)
                                 ? AppTheme.goldColor
                                 : AppTheme.accentColor.withValues(alpha: 0.8),
                             borderRadius: const BorderRadius.vertical(
@@ -461,7 +462,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 contentPadding: EdgeInsets.zero,
                 leading:
                     const Icon(Icons.access_time, color: AppTheme.infoColor),
-                title: Text('${h['hora']}h - ${(h['hora'] as int) + 1}h'),
+                title: Text('${h['hora']}h - ${((h['hora'] as int?) ?? 0) + 1}h'),
                 subtitle: Text('${h['quantidade']} atendimento(s)'),
                 trailing: Text(
                   AppFormatters.currency(
@@ -497,8 +498,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             else
               ..._clientesSumidos.map((item) {
                 final cliente = item['cliente'] as Cliente;
-                final diasSemVir = item['diasSemVir'] as int;
-                final media = item['mediaIntervalo'] as int;
+                final diasSemVir = (item['diasSemVir'] as int?) ?? 0;
+                final media = (item['mediaIntervalo'] as int?) ?? 0;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(

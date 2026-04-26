@@ -4,206 +4,63 @@ import '../models/fornecedor.dart';
 import '../models/movimento_estoque.dart';
 import '../models/produto.dart';
 import '../services/produto_service.dart';
+import 'controller_mixin.dart';
 
-class ProdutoController extends ChangeNotifier {
+class ProdutoController extends ChangeNotifier with ControllerMixin {
   ProdutoController({ProdutoService? produtoService})
       : _service = produtoService ?? ProdutoService();
 
   final ProdutoService _service;
 
-  bool isLoading = false;
-  String? errorMsg;
   List<Produto> produtos = [];
 
   Future<List<Produto>> getAll({bool apenasAtivos = true}) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      final dados = await _service.getAll(apenasAtivos: apenasAtivos);
-      produtos = List<Produto>.from(dados);
-      return dados;
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Produto>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+    final dados =
+        await runCatch(() => _service.getAll(apenasAtivos: apenasAtivos));
+    produtos = dados != null ? List<Produto>.from(dados) : const [];
+    return produtos;
   }
 
-  Future<Produto?> getById(int id) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getById(id);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return null;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<Produto?> getById(int id) => runCatch(() => _service.getById(id));
 
-  Future<double> getValorTotalEstoque() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getValorTotalEstoque();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return 0;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<double> getValorTotalEstoque() async =>
+      await runCatch(() => _service.getValorTotalEstoque()) ?? 0.0;
 
-  Future<List<Produto>> getProdutosEstoqueBaixo() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getProdutosEstoqueBaixo();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Produto>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<List<Produto>> getProdutosEstoqueBaixo() async =>
+      await runCatch(() => _service.getProdutosEstoqueBaixo()) ?? const [];
 
-  Future<List<Produto>> getProdutosParados() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getProdutosParados();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Produto>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<List<Produto>> getProdutosParados() async =>
+      await runCatch(() => _service.getProdutosParados()) ?? const [];
 
-  Future<List<Map<String, dynamic>>> getSugestoesReposicao() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getSugestoesReposicao();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Map<String, dynamic>>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<List<Map<String, dynamic>>> getSugestoesReposicao() async =>
+      await runCatch(() => _service.getSugestoesReposicao()) ?? const [];
 
-  Future<List<MovimentoEstoque>> getMovimentos({int? produtoId}) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getMovimentos(produtoId: produtoId);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <MovimentoEstoque>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<List<MovimentoEstoque>> getMovimentos({int? produtoId}) async =>
+      await runCatch(() => _service.getMovimentos(produtoId: produtoId)) ??
+      const [];
 
-  Future<List<Fornecedor>> getFornecedores() async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.getFornecedores();
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      return const <Fornecedor>[];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<List<Fornecedor>> getFornecedores() async =>
+      await runCatch(() => _service.getFornecedores()) ?? const [];
 
   Future<void> entradaEstoque({
     required int produtoId,
     required int quantidade,
     required double valorUnitario,
     String? observacao,
-  }) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      await _service.entradaEstoque(
-        produtoId: produtoId,
-        quantidade: quantidade,
-        valorUnitario: valorUnitario,
-        observacao: observacao,
-      );
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  }) =>
+      runOrThrow(() => _service.entradaEstoque(
+            produtoId: produtoId,
+            quantidade: quantidade,
+            valorUnitario: valorUnitario,
+            observacao: observacao,
+          ));
 
-  Future<int> insertFornecedor(Fornecedor fornecedor) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      return await _service.insertFornecedor(fornecedor);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<int> insertFornecedor(Fornecedor fornecedor) =>
+      runOrThrow(() => _service.insertFornecedor(fornecedor));
 
-  Future<void> updateFornecedor(Fornecedor fornecedor) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      await _service.updateFornecedor(fornecedor);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> updateFornecedor(Fornecedor fornecedor) =>
+      runOrThrow(() => _service.updateFornecedor(fornecedor));
 
-  Future<void> deleteFornecedor(int id) async {
-    isLoading = true;
-    errorMsg = null;
-    notifyListeners();
-    try {
-      await _service.deleteFornecedor(id);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      rethrow;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> deleteFornecedor(int id) =>
+      runOrThrow(() => _service.deleteFornecedor(id));
 }
