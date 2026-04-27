@@ -11,7 +11,9 @@ service cloud.firestore {
     }
 
     function isInShop(shopId) {
-      return isAuth() && exists(userPath(shopId));
+      return isAuth()
+        && exists(userPath(shopId))
+        && get(userPath(shopId)).data.revoked != true;
     }
 
     function getUser(shopId) {
@@ -24,6 +26,38 @@ service cloud.firestore {
 
     function isBarbeiro(shopId) {
       return isInShop(shopId) && getUser(shopId).role == 'barbeiro';
+    }
+
+    function clientProtectedFieldsAbsent() {
+      return !request.resource.data.keys().hasAny([
+        'total_gasto',
+        'pontos_fidelidade',
+        'total_atendimentos'
+      ]);
+    }
+
+    function clientProtectedFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'total_gasto',
+        'pontos_fidelidade',
+        'total_atendimentos'
+      ]);
+    }
+
+    function productPriceFieldsAbsent() {
+      return !request.resource.data.keys().hasAny([
+        'preco_venda',
+        'preco_custo',
+        'estoque_minimo'
+      ]);
+    }
+
+    function productPriceFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'preco_venda',
+        'preco_custo',
+        'estoque_minimo'
+      ]);
     }
 
     function isBootstrapAdmin(shopId, uid) {
@@ -50,7 +84,11 @@ service cloud.firestore {
 
     match /barbearias/{shopId}/clientes/{id} {
       allow read: if isInShop(shopId);
-      allow write: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow create: if isInShop(shopId)
+        && (isAdmin(shopId) || (isBarbeiro(shopId) && clientProtectedFieldsAbsent()));
+      allow update: if isInShop(shopId)
+        && (isAdmin(shopId) || (isBarbeiro(shopId) && clientProtectedFieldsUnchanged()));
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/servicos/{id} {
@@ -60,7 +98,11 @@ service cloud.firestore {
 
     match /barbearias/{shopId}/produtos/{id} {
       allow read: if isInShop(shopId);
-      allow write: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow create: if isInShop(shopId)
+        && (isAdmin(shopId) || (isBarbeiro(shopId) && productPriceFieldsAbsent()));
+      allow update: if isInShop(shopId)
+        && (isAdmin(shopId) || (isBarbeiro(shopId) && productPriceFieldsUnchanged()));
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/comandas/{id} {

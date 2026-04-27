@@ -9,7 +9,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/usuario.dart';
+import 'package:barbearia_pro/models/usuario.dart';
 
 void main() {
   final createdAt = DateTime(2026, 1, 15, 9, 0);
@@ -182,7 +182,7 @@ void main() {
         'email': '',
         'role': 'barbeiro',
       });
-      expect(u.ativo, isTrue);       // default true
+      expect(u.ativo, isTrue); // default true
       expect(u.firstLogin, isFalse); // default false
       expect(u.comissaoPercentual, closeTo(50.0, 0.001)); // default
     });

@@ -15,6 +15,9 @@ import 'controllers/estoque_controller.dart';
 import 'controllers/financeiro_controller.dart';
 import 'controllers/produto_controller.dart';
 import 'controllers/servico_controller.dart';
+import 'services/agenda_service.dart';
+import 'services/comanda_service.dart';
+import 'services/financeiro_service.dart';
 import 'screens/admin/barbeiros_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/agenda/agenda_screen.dart';
@@ -40,6 +43,13 @@ import 'firebase_options.dart';
 
 final ValueNotifier<ThemeMode> themeModeNotifier =
     ValueNotifier(ThemeMode.dark);
+final ComandaService _sharedComandaService = ComandaService();
+final AgendaService _sharedAgendaService = AgendaService(
+  comandaService: _sharedComandaService,
+);
+final FinanceiroService _sharedFinanceiroService = FinanceiroService(
+  comandaService: _sharedComandaService,
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -110,14 +120,26 @@ class SeverusBarberApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<ComandaService>.value(value: _sharedComandaService),
+        Provider<AgendaService>.value(value: _sharedAgendaService),
+        Provider<FinanceiroService>.value(value: _sharedFinanceiroService),
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => ClienteController()),
         ChangeNotifierProvider(create: (_) => AtendimentoController()),
         ChangeNotifierProvider(create: (_) => EstoqueController()),
-        ChangeNotifierProvider(create: (_) => AgendaController()),
-        ChangeNotifierProvider(create: (_) => ComandaController()),
+        ChangeNotifierProvider(
+          create: (_) => AgendaController(agendaService: _sharedAgendaService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ComandaController(comandaService: _sharedComandaService),
+        ),
         ChangeNotifierProvider(create: (_) => DashboardController()),
-        ChangeNotifierProvider(create: (_) => FinanceiroController()),
+        ChangeNotifierProvider(
+          create: (_) => FinanceiroController(
+            financeiroService: _sharedFinanceiroService,
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => ServicoController()),
         ChangeNotifierProvider(create: (_) => ProdutoController()),
       ],

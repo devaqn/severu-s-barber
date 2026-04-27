@@ -99,6 +99,7 @@ class AppConstants {
 
   // ── Configurações de gráfico ────────────────────────────────────────
   static const int diasGraficoFaturamento = 30;
+  static const int kSyncBatchSize = 20;
 
   // ── Análise de clientes sumidos ─────────────────────────────────────
   /// Se o cliente não aparece em X dias após sua média, é marcado como "sumido"

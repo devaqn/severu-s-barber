@@ -20,6 +20,10 @@ class ConflictException extends ServiceException {
 
 /// Lançada quando uma operação de rede (Firebase/Firestore) falha.
 /// Sempre contém uma mensagem legível para exibir ao usuário.
+class BusinessException extends ServiceException {
+  const BusinessException(super.message);
+}
+
 class NetworkException extends ServiceException {
   const NetworkException(super.message);
 }

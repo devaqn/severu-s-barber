@@ -37,12 +37,17 @@ class ClienteService {
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
-  Future<List<Cliente>> getAll() async {
+  Future<List<Cliente>> getAll({int? limit, int? offset}) async {
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableClientes,
+      where: shopIdFiltro == null ? null : 'barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? null : [shopIdFiltro],
       orderBy: 'nome ASC',
+      limit: limit,
+      offset: offset,
     );
     return maps.map((m) => Cliente.fromMap(m)).toList();
   }
@@ -81,11 +86,12 @@ class ClienteService {
       max: 1 << 30,
     );
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableClientes,
-      where: 'id = ?',
-      whereArgs: [safeId],
+      where: shopIdFiltro == null ? 'id = ?' : 'id = ? AND barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? [safeId] : [safeId, shopIdFiltro],
     );
     if (maps.isEmpty) return null;
     return Cliente.fromMap(maps.first);
@@ -98,11 +104,16 @@ class ClienteService {
       allowNewLines: false,
     );
     if (normalized.length < 2) return <Cliente>[];
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableClientes,
-      where: 'nome LIKE ?',
-      whereArgs: ['%$normalized%'],
+      where: shopIdFiltro == null
+          ? 'nome LIKE ?'
+          : 'nome LIKE ? AND barbearia_id = ?',
+      whereArgs: shopIdFiltro == null
+          ? ['%$normalized%']
+          : ['%$normalized%', shopIdFiltro],
       orderBy: 'nome ASC',
     );
     return maps.map((m) => Cliente.fromMap(m)).toList();
@@ -203,10 +214,15 @@ class ClienteService {
       min: 1,
       max: 1 << 30,
     );
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
     final maps = await _db.queryAll(
       AppConstants.tableAtendimentos,
-      where: 'cliente_id = ?',
-      whereArgs: [safeClienteId],
+      where: shopIdFiltro == null
+          ? 'cliente_id = ?'
+          : 'cliente_id = ? AND barbearia_id = ?',
+      whereArgs: shopIdFiltro == null
+          ? [safeClienteId]
+          : [safeClienteId, shopIdFiltro],
       orderBy: 'data DESC',
     );
     return maps.map((m) => Atendimento.fromMap(m)).toList();
@@ -300,44 +316,58 @@ class ClienteService {
   }
 
   Future<List<Map<String, dynamic>>> getClientesSumidos() async {
-    final clientes = await getAll();
-    final sumidos = <Map<String, dynamic>>[];
-
-    for (final cliente in clientes) {
-      if (cliente.totalAtendimentos < 2 || cliente.ultimaVisita == null) {
-        continue;
-      }
-
-      final atendimentos = await getHistorico(cliente.id!);
-      if (atendimentos.length < 2) continue;
-
-      var somaIntervalos = 0;
-      for (var i = 0; i < atendimentos.length - 1; i++) {
-        final diff = atendimentos[i]
-            .data
-            .difference(atendimentos[i + 1].data)
-            .inDays
-            .abs();
-        somaIntervalos += diff;
-      }
-      final mediaIntervaloDias = somaIntervalos / (atendimentos.length - 1);
-      final diasSemVir =
-          DateTime.now().difference(cliente.ultimaVisita!).inDays;
-      final limite = mediaIntervaloDias + AppConstants.diasToleranciaCliente;
-
-      if (diasSemVir > limite) {
-        sumidos.add({
-          'cliente': cliente,
-          'diasSemVir': diasSemVir,
-          'mediaIntervalo': mediaIntervaloDias.round(),
-        });
-      }
+    await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final filtroBarbeariaJoin =
+        shopIdFiltro == null ? '' : 'AND a.barbearia_id = ?';
+    final filtroBarbeariaCliente =
+        shopIdFiltro == null ? '' : 'AND c.barbearia_id = ?';
+    final args = <dynamic>[AppConstants.statusConcluido];
+    if (shopIdFiltro != null) {
+      args
+        ..add(shopIdFiltro)
+        ..add(shopIdFiltro);
     }
 
-    sumidos.sort(
-      (a, b) => (b['diasSemVir'] as int).compareTo(a['diasSemVir'] as int),
-    );
-    return sumidos;
+    final rows = await _db.rawQuery('''
+      SELECT
+        c.*,
+        COUNT(a.id) AS total_visitas,
+        MAX(a.data_hora) AS ultima_visita_agendada,
+        ((julianday(MAX(a.data_hora)) - julianday(MIN(a.data_hora))) /
+          NULLIF(COUNT(a.id) - 1, 0)) AS media_intervalo_dias,
+        (julianday('now') - julianday(MAX(a.data_hora))) AS dias_sem_vir
+      FROM ${AppConstants.tableClientes} c
+      JOIN ${AppConstants.tableAgendamentos} a
+        ON a.cliente_id = c.id
+        AND a.status = ?
+        $filtroBarbeariaJoin
+      WHERE 1 = 1
+        $filtroBarbeariaCliente
+      GROUP BY c.id
+      HAVING total_visitas >= 3
+        AND dias_sem_vir > (media_intervalo_dias * 1.5)
+      ORDER BY dias_sem_vir DESC
+      LIMIT 50
+    ''', args);
+
+    return rows.map((row) {
+      final clienteMap = Map<String, dynamic>.from(row);
+      clienteMap['ultima_visita'] =
+          row['ultima_visita'] ?? row['ultima_visita_agendada'];
+      clienteMap['total_atendimentos'] =
+          (row['total_atendimentos'] as num?)?.toInt() ??
+              (row['total_visitas'] as num?)?.toInt() ??
+              0;
+      final diasSemVir = (row['dias_sem_vir'] as num?)?.round() ?? 0;
+      final mediaIntervalo =
+          (row['media_intervalo_dias'] as num?)?.round() ?? 0;
+      return {
+        'cliente': Cliente.fromMap(clienteMap),
+        'diasSemVir': diasSemVir,
+        'mediaIntervalo': mediaIntervalo,
+      };
+    }).toList(growable: false);
   }
 
   Future<List<Cliente>> getRanking({int limit = 10}) async {
@@ -349,9 +379,12 @@ class ClienteService {
     );
 
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableClientes,
+      where: shopIdFiltro == null ? null : 'barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? null : [shopIdFiltro],
       orderBy: 'total_gasto DESC',
       limit: safeLimit,
     );
@@ -365,6 +398,12 @@ class ClienteService {
     final md = '$mes-$dia';
 
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereBarbearia = shopIdFiltro == null ? '' : 'AND barbearia_id = ?';
+    final args = <dynamic>[md];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
 
     final rows = await _db.rawQuery('''
       SELECT *
@@ -372,8 +411,9 @@ class ClienteService {
       WHERE data_nascimento IS NOT NULL
         AND data_nascimento != ''
         AND strftime('%m-%d', data_nascimento) = ?
+        $whereBarbearia
       ORDER BY nome ASC
-    ''', [md]);
+    ''', args);
     return rows.map((m) => Cliente.fromMap(m)).toList(growable: false);
   }
 
@@ -439,7 +479,11 @@ class ClienteService {
         [existing.first['id']],
       );
     } else {
-      await _db.insert(AppConstants.tableClientes, localMap);
+      await _db.insert(
+        AppConstants.tableClientes,
+        localMap,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
   }
 
@@ -533,6 +577,13 @@ class ClienteService {
     );
     if (rows.isEmpty) return null;
     return rows.first['firebase_id'] as String?;
+  }
+
+  Future<String?> _barbeariaIdParaFiltro() async {
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return null;
+    if (shopId == AppConstants.localBarbeariaId) return null;
+    return shopId;
   }
 
   Future<void> _syncClienteByLocalIdIfOnline(int localId) async {

@@ -4,9 +4,9 @@
 // Mostra resumo por forma de pagamento ao fechar.
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../models/caixa.dart';
 import '../../services/financeiro_service.dart';
 import '../../utils/formatters.dart';
@@ -22,7 +22,8 @@ class CaixaScreen extends StatefulWidget {
 }
 
 class _CaixaScreenState extends State<CaixaScreen> {
-  final FinanceiroService _service = FinanceiroService();
+  late FinanceiroService _service;
+  bool _serviceResolved = false;
 
   Caixa? _caixaAberto;
   List<Caixa> _historico = [];
@@ -39,9 +40,17 @@ class _CaixaScreenState extends State<CaixaScreen> {
       _isDarkMode ? AppTheme.textSecondary : AppTheme.lightTextSecondary;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_serviceResolved) return;
+    _service = context.read<FinanceiroService>();
+    _serviceResolved = true;
+  }
+
+  @override
   void initState() {
     super.initState();
-    _carregar();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _carregar());
   }
 
   void _erro(String msg) {
@@ -640,13 +649,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
         ),
         const SizedBox(height: 12),
         ..._historico.map((c) {
-          // Parse resumo de pagamentos do JSON.
-          Map<String, dynamic>? resumo;
-          if (c.resumoPagamentos != null) {
-            try {
-              resumo = jsonDecode(c.resumoPagamentos!) as Map<String, dynamic>;
-            } catch (_) {}
-          }
+          final resumo = c.resumoPagamentos;
 
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
@@ -680,7 +683,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
                     )
                   : null,
               children: [
-                if (resumo != null)
+                if (resumo.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: Column(

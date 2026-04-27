@@ -41,14 +41,24 @@ class ProdutoService {
 
   Future<List<Produto>> getAll({bool apenasAtivos = true}) async {
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereParts = <String>[];
+    final args = <dynamic>[];
+    if (apenasAtivos) {
+      whereParts.add('p.ativo = 1');
+    }
+    if (shopIdFiltro != null) {
+      whereParts.add('p.barbearia_id = ?');
+      args.add(shopIdFiltro);
+    }
 
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
       LEFT JOIN ${AppConstants.tableFornecedores} f ON p.fornecedor_id = f.id
-      ${apenasAtivos ? "WHERE p.ativo = 1" : ""}
+      ${whereParts.isEmpty ? '' : 'WHERE ${whereParts.join(' AND ')}'}
       ORDER BY p.nome ASC
-    ''');
+    ''', args);
     return maps.map((m) => Produto.fromMap(m)).toList();
   }
 
@@ -60,14 +70,16 @@ class ProdutoService {
       max: 1 << 30,
     );
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
       LEFT JOIN ${AppConstants.tableFornecedores} f ON p.fornecedor_id = f.id
       WHERE p.id = ?
+        ${shopIdFiltro == null ? '' : 'AND p.barbearia_id = ?'}
       LIMIT 1
-    ''', [safeId]);
+    ''', shopIdFiltro == null ? [safeId] : [safeId, shopIdFiltro]);
     if (maps.isEmpty) return null;
     return Produto.fromMap(maps.first);
   }
@@ -191,13 +203,19 @@ class ProdutoService {
   }
 
   Future<List<Produto>> getProdutosEstoqueBaixo() async {
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final args = <dynamic>[];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
       LEFT JOIN ${AppConstants.tableFornecedores} f ON p.fornecedor_id = f.id
       WHERE p.ativo = 1 AND p.quantidade <= p.estoque_minimo
+        ${shopIdFiltro == null ? '' : 'AND p.barbearia_id = ?'}
       ORDER BY p.quantidade ASC
-    ''');
+    ''', args);
     return maps.map((m) => Produto.fromMap(m)).toList();
   }
 
@@ -389,10 +407,21 @@ class ProdutoService {
         max: 1 << 30,
       );
     }
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereParts = <String>[];
+    final whereArgs = <dynamic>[];
+    if (produtoId != null) {
+      whereParts.add('produto_id = ?');
+      whereArgs.add(produtoId);
+    }
+    if (shopIdFiltro != null) {
+      whereParts.add('barbearia_id = ?');
+      whereArgs.add(shopIdFiltro);
+    }
     final maps = await _db.queryAll(
       AppConstants.tableMovimentosEstoque,
-      where: produtoId != null ? 'produto_id = ?' : null,
-      whereArgs: produtoId != null ? [produtoId] : null,
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'data DESC',
     );
     return maps.map((m) => MovimentoEstoque.fromMap(m)).toList();
@@ -584,7 +613,11 @@ class ProdutoService {
       };
 
       if (existing.isEmpty) {
-        await _db.insert(AppConstants.tableProdutos, map);
+        await _db.insert(
+          AppConstants.tableProdutos,
+          map,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       } else {
         await _db.update(
           AppConstants.tableProdutos,
@@ -701,6 +734,13 @@ class ProdutoService {
     );
   }
 
+  Future<String?> _barbeariaIdParaFiltro() async {
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return null;
+    if (shopId == AppConstants.localBarbeariaId) return null;
+    return shopId;
+  }
+
   Produto _sanitizarProduto(Produto produto) {
     final safeNome =
         SecurityUtils.sanitizeName(produto.nome, fieldName: 'Nome do produto');
@@ -745,6 +785,33 @@ class ProdutoService {
       quantidade: safeQuantidade,
       estoqueMinimo: safeEstoqueMinimo,
       comissaoPercentual: safeComissao,
+    );
+  }
+
+  Fornecedor _sanitizarFornecedor(Fornecedor fornecedor) {
+    final safeNome = SecurityUtils.sanitizeName(
+      fornecedor.nome,
+      fieldName: 'Nome do fornecedor',
+    );
+    final safeTelefone = fornecedor.telefone == null
+        ? null
+        : SecurityUtils.sanitizePhone(fornecedor.telefone!);
+    final safeEmail = SecurityUtils.sanitizeOptionalText(
+      fornecedor.email,
+      maxLength: 120,
+      allowNewLines: false,
+    );
+    final safeObs = SecurityUtils.sanitizeOptionalText(
+      fornecedor.observacoes,
+      maxLength: 500,
+      allowNewLines: true,
+    );
+
+    return fornecedor.copyWith(
+      nome: safeNome,
+      telefone: safeTelefone,
+      email: safeEmail,
+      observacoes: safeObs,
     );
   }
 }

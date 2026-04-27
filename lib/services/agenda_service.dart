@@ -6,6 +6,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -53,10 +54,22 @@ class AgendaService {
     await _syncFromFirestoreIfOnline();
 
     final barbeiroFiltro = await _barbeiroFiltroAtual();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereParts = <String>[];
+    final whereArgs = <dynamic>[];
+    if (barbeiroFiltro != null) {
+      whereParts.add('barbeiro_id = ?');
+      whereArgs.add(barbeiroFiltro);
+    }
+    if (shopIdFiltro != null) {
+      whereParts.add('barbearia_id = ?');
+      whereArgs.add(shopIdFiltro);
+    }
+
     final maps = await _db.queryAll(
       AppConstants.tableAgendamentos,
-      where: barbeiroFiltro == null ? null : 'barbeiro_id = ?',
-      whereArgs: barbeiroFiltro == null ? null : [barbeiroFiltro],
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'data_hora ASC',
     );
     return maps.map((m) => Agendamento.fromMap(m)).toList(growable: false);
@@ -69,12 +82,17 @@ class AgendaService {
     final fim =
         DateTime(data.year, data.month, data.day, 23, 59, 59).toIso8601String();
     final barbeiroFiltro = await _barbeiroFiltroAtual();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     var where = 'data_hora BETWEEN ? AND ?';
     final whereArgs = <dynamic>[inicio, fim];
     if (barbeiroFiltro != null) {
       where += ' AND barbeiro_id = ?';
       whereArgs.add(barbeiroFiltro);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND barbearia_id = ?';
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
@@ -105,12 +123,17 @@ class AgendaService {
     final inicio = DateTime(ano, mes, 1).toIso8601String();
     final fim = DateTime(ano, mes + 1, 0, 23, 59, 59).toIso8601String();
     final barbeiroFiltro = await _barbeiroFiltroAtual();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     var where = 'data_hora BETWEEN ? AND ?';
     final whereArgs = <dynamic>[inicio, fim];
     if (barbeiroFiltro != null) {
       where += ' AND barbeiro_id = ?';
       whereArgs.add(barbeiroFiltro);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND barbearia_id = ?';
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
@@ -128,6 +151,10 @@ class AgendaService {
     final usuario = await _usuarioAtual();
     final barbeiroId = safeAgendamento.barbeiroId ?? usuario.uid;
     final barbeiroNome = safeAgendamento.barbeiroNome ?? usuario.nome;
+    await _verificarConflito(
+      safeAgendamento,
+      barbeiroId: barbeiroId,
+    );
 
     final localMap = <String, dynamic>{
       ...safeAgendamento.toMap(),
@@ -177,15 +204,31 @@ class AgendaService {
     final safeAgendamento = _sanitizarAgendamento(agendamento);
     final usuario = await _usuarioAtual();
 
+    final row = await _db.queryAll(
+      AppConstants.tableAgendamentos,
+      where: 'id = ?',
+      whereArgs: [safeAgendamento.id],
+      limit: 1,
+    );
+    if (row.isEmpty) {
+      throw const NotFoundException('Agendamento nao encontrado.');
+    }
+    final registroAtual = row.first;
+    final barbeiroId = safeAgendamento.barbeiroId ??
+        (registroAtual['barbeiro_id'] as String?) ??
+        usuario.uid;
+    final barbeiroNome = safeAgendamento.barbeiroNome ??
+        (registroAtual['barbeiro_nome'] as String?) ??
+        usuario.nome;
+    await _verificarConflito(
+      safeAgendamento,
+      barbeiroId: barbeiroId,
+      ignorarId: safeAgendamento.id,
+    );
+
     if (await _isFirebaseOnline()) {
       await _syncLocalByIdIfOnline(safeAgendamento.id!);
 
-      final row = await _db.queryAll(
-        AppConstants.tableAgendamentos,
-        where: 'id = ?',
-        whereArgs: [safeAgendamento.id],
-        limit: 1,
-      );
       final firebaseId =
           row.isEmpty ? null : row.first['firebase_id'] as String?;
       final shopId = await _context.getBarbeariaIdAtual();
@@ -199,12 +242,8 @@ class AgendaService {
           'cliente_nome': safeAgendamento.clienteNome,
           'servico_id': safeAgendamento.servicoId,
           'servico_nome': safeAgendamento.servicoNome,
-          'barbeiro_id': safeAgendamento.barbeiroId ??
-              row.first['barbeiro_id'] ??
-              usuario.uid,
-          'barbeiro_nome': safeAgendamento.barbeiroNome ??
-              row.first['barbeiro_nome'] ??
-              usuario.nome,
+          'barbeiro_id': barbeiroId,
+          'barbeiro_nome': barbeiroNome,
           'data_hora': Timestamp.fromDate(safeAgendamento.dataHora),
           'status': safeAgendamento.status,
           'faturamento_registrado': safeAgendamento.faturamentoRegistrado,
@@ -220,6 +259,8 @@ class AgendaService {
       AppConstants.tableAgendamentos,
       {
         ...safeAgendamento.toMap(),
+        'barbeiro_id': barbeiroId,
+        'barbeiro_nome': barbeiroNome,
         'faturamento_registrado': safeAgendamento.faturamentoRegistrado ? 1 : 0,
         'updated_at': DateTime.now().toIso8601String(),
       },
@@ -228,7 +269,11 @@ class AgendaService {
     );
   }
 
-  Future<void> updateStatus(int id, String status) async {
+  Future<void> updateStatus(
+    int id,
+    String status, {
+    String formaPagamento = AppConstants.pgDinheiro,
+  }) async {
     SecurityUtils.sanitizeIntRange(
       id,
       fieldName: 'ID do agendamento',
@@ -239,6 +284,11 @@ class AgendaService {
       status,
       fieldName: 'Status',
       allowedValues: AppConstants.statusAgendamento,
+    );
+    final safeFormaPagamento = SecurityUtils.sanitizeEnumValue(
+      formaPagamento,
+      fieldName: 'Forma de pagamento',
+      allowedValues: AppConstants.formasPagamento,
     );
 
     final row = await _db.queryAll(
@@ -260,7 +310,11 @@ class AgendaService {
     if (statusAtual == safeStatus) return;
 
     if (safeStatus == AppConstants.statusConcluido && !faturamentoRegistrado) {
-      await _registrarFaturamentoAgendamento(id, registroAtual);
+      await _registrarFaturamentoAgendamento(
+        id,
+        registroAtual,
+        formaPagamento: safeFormaPagamento,
+      );
       faturamentoRegistrado = true;
     }
 
@@ -294,8 +348,9 @@ class AgendaService {
 
   Future<void> _registrarFaturamentoAgendamento(
     int agendamentoId,
-    Map<String, dynamic> agendamentoRow,
-  ) async {
+    Map<String, dynamic> agendamentoRow, {
+    required String formaPagamento,
+  }) async {
     final clienteId = (agendamentoRow['cliente_id'] as num?)?.toInt();
     final clienteNomeRaw = (agendamentoRow['cliente_nome'] as String?)?.trim();
     final clienteNome = (clienteNomeRaw == null || clienteNomeRaw.isEmpty)
@@ -336,7 +391,7 @@ class AgendaService {
 
     await _comandaService.fecharComanda(
       comandaId: comanda.id!,
-      formaPagamento: AppConstants.pgDinheiro,
+      formaPagamento: formaPagamento,
       observacoes: 'Fechamento automatico do agendamento #$agendamentoId',
     );
   }
@@ -383,6 +438,7 @@ class AgendaService {
 
     final agora = DateTime.now().toIso8601String();
     final barbeiroFiltro = await _barbeiroFiltroAtual();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     var where = 'data_hora >= ? AND status NOT IN (?, ?)';
     final whereArgs = <dynamic>[
@@ -393,6 +449,10 @@ class AgendaService {
     if (barbeiroFiltro != null) {
       where += ' AND barbeiro_id = ?';
       whereArgs.add(barbeiroFiltro);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND barbearia_id = ?';
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
@@ -558,7 +618,11 @@ class AgendaService {
       return;
     }
 
-    await _db.insert(AppConstants.tableAgendamentos, localMap);
+    await _db.insert(
+      AppConstants.tableAgendamentos,
+      localMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<String?> _barbeiroFiltroAtual() async {
@@ -567,6 +631,86 @@ class AgendaService {
       return usuario.uid;
     }
     return null;
+  }
+
+  Future<String?> _barbeariaIdParaFiltro() async {
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return null;
+    if (shopId == AppConstants.localBarbeariaId) return null;
+    return shopId;
+  }
+
+  Future<void> _verificarConflito(
+    Agendamento agendamento, {
+    required String? barbeiroId,
+    int? ignorarId,
+  }) async {
+    if (barbeiroId == null || barbeiroId.trim().isEmpty) return;
+
+    final duracaoMinutos = await _duracaoServicoMinutos(agendamento.servicoId);
+    final inicio = agendamento.dataHora;
+    final fim = inicio.add(Duration(minutes: duracaoMinutos));
+    final janelaInicio =
+        inicio.subtract(const Duration(hours: 12)).toIso8601String();
+    final janelaFim = fim.add(const Duration(hours: 12)).toIso8601String();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+
+    var where = '''
+      a.barbeiro_id = ?
+      AND a.status NOT IN (?, ?)
+      AND a.data_hora BETWEEN ? AND ?
+    ''';
+    final args = <dynamic>[
+      barbeiroId,
+      AppConstants.statusCancelado,
+      'Recusado',
+      janelaInicio,
+      janelaFim,
+    ];
+    if (ignorarId != null) {
+      where += ' AND a.id != ?';
+      args.add(ignorarId);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND a.barbearia_id = ?';
+      args.add(shopIdFiltro);
+    }
+
+    final rows = await _db.rawQuery('''
+      SELECT a.id, a.data_hora, COALESCE(s.duracao_minutos, 30) AS duracao_minutos
+      FROM ${AppConstants.tableAgendamentos} a
+      LEFT JOIN ${AppConstants.tableServicos} s ON s.id = a.servico_id
+      WHERE $where
+    ''', args);
+
+    for (final row in rows) {
+      final dataHoraRaw = row['data_hora'] as String?;
+      if (dataHoraRaw == null) continue;
+      final outroInicio = DateTime.tryParse(dataHoraRaw);
+      if (outroInicio == null) continue;
+      final outraDuracao =
+          ((row['duracao_minutos'] as num?)?.toInt() ?? 30).clamp(1, 720);
+      final outroFim = outroInicio.add(Duration(minutes: outraDuracao));
+      if (inicio.isBefore(outroFim) && fim.isAfter(outroInicio)) {
+        throw const ValidationException(
+          'Barbeiro já possui um agendamento nesse horário.',
+        );
+      }
+    }
+  }
+
+  Future<int> _duracaoServicoMinutos(int? servicoId) async {
+    if (servicoId == null) return 30;
+
+    final rows = await _db.queryAll(
+      AppConstants.tableServicos,
+      where: 'id = ?',
+      whereArgs: [servicoId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return 30;
+    final duracao = (rows.first['duracao_minutos'] as num?)?.toInt() ?? 30;
+    return duracao.clamp(1, 720);
   }
 
   Future<_UsuarioAtual> _usuarioAtual() async {

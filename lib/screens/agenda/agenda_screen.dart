@@ -143,8 +143,17 @@ class _AgendaScreenState extends State<AgendaScreen> {
     );
 
     if (salvar != true || agendamento.id == null) return;
+    String? formaPagamento;
+    if (status == AppConstants.statusConcluido) {
+      formaPagamento = await _selecionarFormaPagamento();
+      if (formaPagamento == null) return;
+    }
     try {
-      await _agendaController.updateStatus(agendamento.id!, status);
+      await _agendaController.updateStatus(
+        agendamento.id!,
+        status,
+        formaPagamento: formaPagamento,
+      );
       if (mounted) {
         UiFeedback.showSnack(
           context,
@@ -164,6 +173,45 @@ class _AgendaScreenState extends State<AgendaScreen> {
         );
       }
     }
+  }
+
+  Future<String?> _selecionarFormaPagamento() {
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Forma de pagamento',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                ...AppConstants.formasPagamento.map(
+                  (forma) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      forma == AppConstants.pgDinheiro
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      color: forma == AppConstants.pgDinheiro
+                          ? AppTheme.accentColor
+                          : null,
+                    ),
+                    title: Text(forma),
+                    onTap: () => Navigator.pop(ctx, forma),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _cancelarAgendamento(Agendamento agendamento) async {

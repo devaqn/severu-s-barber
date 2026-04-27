@@ -9,8 +9,8 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/comanda.dart';
-import '../../lib/models/item_comanda.dart';
+import 'package:barbearia_pro/models/comanda.dart';
+import 'package:barbearia_pro/models/item_comanda.dart';
 
 void main() {
   // ─── helpers ────────────────────────────────────────────────
@@ -82,8 +82,8 @@ void main() {
       expect(reconstruido.itemId, equals(original.itemId));
       expect(reconstruido.nome, equals(original.nome));
       expect(reconstruido.quantidade, equals(original.quantidade));
-      expect(reconstruido.precoUnitario,
-          closeTo(original.precoUnitario, 0.001));
+      expect(
+          reconstruido.precoUnitario, closeTo(original.precoUnitario, 0.001));
       expect(reconstruido.comissaoPercentual,
           closeTo(original.comissaoPercentual, 0.001));
     });
@@ -150,8 +150,8 @@ void main() {
       expect(reconstruido.barbeiroId, equals(original.barbeiroId));
       expect(reconstruido.status, equals(original.status));
       expect(reconstruido.total, closeTo(original.total, 0.001));
-      expect(reconstruido.comissaoTotal,
-          closeTo(original.comissaoTotal, 0.001));
+      expect(
+          reconstruido.comissaoTotal, closeTo(original.comissaoTotal, 0.001));
       expect(reconstruido.formaPagamento, equals(original.formaPagamento));
       expect(reconstruido.dataFechamento, isNotNull);
     });
@@ -190,10 +190,10 @@ void main() {
     });
 
     test('comandas com id null são diferentes se campos diferem', () {
-      final a = Comanda(
-          clienteNome: 'A', dataAbertura: abertura, status: 'aberta');
-      final b = Comanda(
-          clienteNome: 'B', dataAbertura: abertura, status: 'aberta');
+      final a =
+          Comanda(clienteNome: 'A', dataAbertura: abertura, status: 'aberta');
+      final b =
+          Comanda(clienteNome: 'B', dataAbertura: abertura, status: 'aberta');
       expect(a, isNot(equals(b)));
     });
   });
@@ -203,8 +203,14 @@ void main() {
     test('total da comanda bate com soma dos subtotais dos itens', () {
       final itens = [
         makeItem(quantidade: 1, preco: 50.0, comissao: 0.40),
-        makeItem(id: 2, tipo: 'produto', itemId: 20, nome: 'Pomada',
-            quantidade: 2, preco: 25.0, comissao: 0.20),
+        makeItem(
+            id: 2,
+            tipo: 'produto',
+            itemId: 20,
+            nome: 'Pomada',
+            quantidade: 2,
+            preco: 25.0,
+            comissao: 0.20),
       ];
 
       final totalCalculado =

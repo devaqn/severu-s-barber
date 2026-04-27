@@ -6,7 +6,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/services/comanda_service.dart';
+import 'package:barbearia_pro/services/comanda_service.dart';
 
 void main() {
   group('ComandaService sync constants', () {

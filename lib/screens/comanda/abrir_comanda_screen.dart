@@ -473,13 +473,15 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
                     ),
                     child: Row(
                       children: [
-                        Radio<Cliente>(
-                          value: c,
-                          groupValue: _clienteSelecionado,
-                          activeColor: AppTheme.accentColor,
-                          onChanged: (v) =>
-                              setState(() => _clienteSelecionado = v),
+                        Icon(
+                          _clienteSelecionado == c
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: _clienteSelecionado == c
+                              ? AppTheme.accentColor
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,7 +491,9 @@ class _AbrirComandaScreenState extends State<AbrirComandaScreen> {
                                 c.telefone,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                               ),
                             ],

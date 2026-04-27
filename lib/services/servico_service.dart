@@ -5,6 +5,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -206,14 +207,24 @@ class ServicoService {
       max: 100,
     );
 
+    // Union legacy atendimento_itens with current comandas_itens so analytics
+    // remain accurate after the comanda migration.
     return _db.rawQuery('''
       SELECT
-        ai.nome,
-        SUM(ai.quantidade) as total_vendas,
-        SUM(ai.quantidade * ai.preco_unitario) as faturamento_total
-      FROM ${AppConstants.tableAtendimentoItens} ai
-      WHERE ai.tipo = 'servico'
-      GROUP BY ai.nome
+        nome,
+        SUM(quantidade) AS total_vendas,
+        SUM(quantidade * preco_unitario) AS faturamento_total
+      FROM (
+        SELECT nome, quantidade, preco_unitario
+        FROM ${AppConstants.tableAtendimentoItens}
+        WHERE tipo = 'servico'
+        UNION ALL
+        SELECT s.nome, ci.quantidade, ci.preco_unitario
+        FROM ${AppConstants.tableComandasItens} ci
+        JOIN ${AppConstants.tableServicos} s ON s.id = ci.item_id
+        WHERE ci.tipo = 'servico'
+      )
+      GROUP BY nome
       ORDER BY total_vendas DESC
       LIMIT ?
     ''', [safeLimit]);
@@ -256,7 +267,11 @@ class ServicoService {
       };
 
       if (existing.isEmpty) {
-        await _db.insert(AppConstants.tableServicos, map);
+        await _db.insert(
+          AppConstants.tableServicos,
+          map,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       } else {
         await _db.update(
           AppConstants.tableServicos,

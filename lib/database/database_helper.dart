@@ -869,27 +869,39 @@ class DatabaseHelper {
     ];
 
     for (final s in servicos) {
-      await db.insert(AppConstants.tableServicos, s);
+      await db.insert(
+        AppConstants.tableServicos,
+        s,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
-    await db.insert(AppConstants.tableUsuarios, {
-      'id': 'admin_local',
-      'nome': 'Administrador',
-      'email': 'admin@severusbarber.com',
-      'telefone': null,
-      'photo_url': null,
-      'barbearia_id': AppConstants.localBarbeariaId,
-      'role': AppConstants.roleAdmin,
-      'ativo': 1,
-      'comissao_percentual': 0.0,
-      'first_login': 0,
-      'created_at': now,
-    });
+    await db.insert(
+      AppConstants.tableUsuarios,
+      {
+        'id': 'admin_local',
+        'nome': 'Administrador',
+        'email': 'admin@severusbarber.com',
+        'telefone': null,
+        'photo_url': null,
+        'barbearia_id': AppConstants.localBarbeariaId,
+        'role': AppConstants.roleAdmin,
+        'ativo': 1,
+        'comissao_percentual': 0.0,
+        'first_login': 0,
+        'created_at': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future<int> insert(String table, Map<String, dynamic> data) async {
+  Future<int> insert(
+    String table,
+    Map<String, dynamic> data, {
+    ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.fail,
+  }) async {
     final db = await database;
-    return db.insert(table, data, conflictAlgorithm: ConflictAlgorithm.replace);
+    return db.insert(table, data, conflictAlgorithm: conflictAlgorithm);
   }
 
   Future<int> update(
@@ -917,6 +929,7 @@ class DatabaseHelper {
     String? where,
     List<dynamic>? whereArgs,
     int? limit,
+    int? offset,
   }) async {
     final db = await database;
     return db.query(
@@ -925,6 +938,7 @@ class DatabaseHelper {
       where: where,
       whereArgs: whereArgs,
       limit: limit,
+      offset: offset,
     );
   }
 

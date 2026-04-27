@@ -1,6 +1,6 @@
-// ============================================================
+﻿// ============================================================
 // financeiro_service.dart
-// Serviço financeiro com Firestore como fonte principal
+// ServiÃ§o financeiro com Firestore como fonte principal
 // e SQLite como cache offline.
 // ============================================================
 
@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
@@ -52,23 +53,35 @@ class FinanceiroService {
     return _connectivity.isOnline();
   }
 
-  Future<List<Despesa>> getDespesas({DateTime? inicio, DateTime? fim}) async {
+  Future<List<Despesa>> getDespesas({
+    DateTime? inicio,
+    DateTime? fim,
+    int? limit,
+    int? offset,
+  }) async {
     await _syncDespesasFromFirestoreIfOnline();
 
-    String? where;
-    List<dynamic>? whereArgs;
+    final whereParts = <String>[];
+    final whereArgs = <dynamic>[];
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     if (inicio != null && fim != null) {
-      SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
-      where = 'data BETWEEN ? AND ?';
-      whereArgs = [inicio.toIso8601String(), fim.toIso8601String()];
+      SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
+      whereParts.add('data BETWEEN ? AND ?');
+      whereArgs.addAll([inicio.toIso8601String(), fim.toIso8601String()]);
+    }
+    if (shopIdFiltro != null) {
+      whereParts.add('barbearia_id = ?');
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
       AppConstants.tableDespesas,
-      where: where,
-      whereArgs: whereArgs,
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'data DESC',
+      limit: limit,
+      offset: offset,
     );
     return maps.map((m) => Despesa.fromMap(m)).toList(growable: false);
   }
@@ -88,19 +101,20 @@ class FinanceiroService {
       if (shopId != null && uid != null) {
         final firebaseId = _uuid.v4();
         await FirebaseErrorHandler.wrap(() => _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableDespesas)
-            .doc(firebaseId)
-            .set({
-          'descricao': safeDespesa.descricao,
-          'categoria': safeDespesa.categoria,
-          'valor': safeDespesa.valor,
-          'data': Timestamp.fromDate(safeDespesa.data),
-          'observacoes': safeDespesa.observacoes,
-          'barbearia_id': shopId,
-          'created_by': uid,
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        }));
+                .collection(
+                    barbeariaId: shopId, nome: AppConstants.tableDespesas)
+                .doc(firebaseId)
+                .set({
+              'descricao': safeDespesa.descricao,
+              'categoria': safeDespesa.categoria,
+              'valor': safeDespesa.valor,
+              'data': Timestamp.fromDate(safeDespesa.data),
+              'observacoes': safeDespesa.observacoes,
+              'barbearia_id': shopId,
+              'created_by': uid,
+              'created_at': FieldValue.serverTimestamp(),
+              'updated_at': FieldValue.serverTimestamp(),
+            }));
 
         localMap['firebase_id'] = firebaseId;
         localMap['barbearia_id'] = shopId;
@@ -112,7 +126,7 @@ class FinanceiroService {
   }
 
   Future<void> updateDespesa(Despesa despesa) async {
-    SecurityUtils.ensure(despesa.id != null, 'ID da despesa inválido.');
+    SecurityUtils.ensure(despesa.id != null, 'ID da despesa invÃ¡lido.');
     final safeDespesa = _sanitizarDespesa(despesa);
 
     if (await _isFirebaseOnline()) {
@@ -186,14 +200,21 @@ class FinanceiroService {
   }
 
   Future<double> getTotalDespesas(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
     await _syncDespesasFromFirestoreIfOnline();
+
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final args = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
 
     final result = await _db.rawQuery('''
       SELECT SUM(valor) as total
       FROM ${AppConstants.tableDespesas}
       WHERE data BETWEEN ? AND ?
-    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
+    ''', args);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
@@ -201,31 +222,47 @@ class FinanceiroService {
     DateTime inicio,
     DateTime fim,
   ) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
     await _syncDespesasFromFirestoreIfOnline();
+
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final args = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
 
     return _db.rawQuery('''
       SELECT categoria, SUM(valor) as total
       FROM ${AppConstants.tableDespesas}
       WHERE data BETWEEN ? AND ?
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
       GROUP BY categoria
       ORDER BY total DESC
-    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+    ''', args);
   }
 
   Future<Map<String, double>> getResumo(DateTime inicio, DateTime fim) async {
-    SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
+    SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
 
     // Faturamento via comandas (fluxo atual)
     final faturamentoComandas =
         await _comandaService.getFaturamentoPeriodo(inicio, fim);
 
-    // Faturamento via atendimentos legados (pré-comanda)
+    // Faturamento via atendimentos legados (prÃ©-comanda)
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final legadoArgs = <dynamic>[
+      inicio.toIso8601String(),
+      fim.toIso8601String(),
+    ];
+    if (shopIdFiltro != null) {
+      legadoArgs.add(shopIdFiltro);
+    }
     final legadoResult = await _db.rawQuery('''
       SELECT SUM(total) AS total
       FROM ${AppConstants.tableAtendimentos}
       WHERE data BETWEEN ? AND ?
-    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
+    ''', legadoArgs);
     final faturamentoLegado =
         (legadoResult.first['total'] as num?)?.toDouble() ?? 0.0;
 
@@ -249,10 +286,14 @@ class FinanceiroService {
 
   Future<Caixa?> getCaixaAberto() async {
     await _syncCaixasFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableCaixas,
-      where: "status = 'aberto'",
+      where: shopIdFiltro == null
+          ? "status = 'aberto'"
+          : "status = 'aberto' AND barbearia_id = ?",
+      whereArgs: shopIdFiltro == null ? null : [shopIdFiltro],
       orderBy: 'data_abertura DESC',
       limit: 1,
     );
@@ -262,9 +303,12 @@ class FinanceiroService {
 
   Future<Caixa?> getUltimoCaixa() async {
     await _syncCaixasFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableCaixas,
+      where: shopIdFiltro == null ? null : 'barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? null : [shopIdFiltro],
       orderBy: 'data_abertura DESC',
       limit: 1,
     );
@@ -272,20 +316,24 @@ class FinanceiroService {
     return Caixa.fromMap(maps.first);
   }
 
-  Future<List<Caixa>> getCaixas({int limit = 30}) async {
+  Future<List<Caixa>> getCaixas({int? limit = 30, int? offset}) async {
     final safeLimit = SecurityUtils.sanitizeIntRange(
-      limit,
+      limit ?? 30,
       fieldName: 'Limite',
       min: 1,
       max: 365,
     );
 
     await _syncCaixasFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableCaixas,
+      where: shopIdFiltro == null ? null : 'barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? null : [shopIdFiltro],
       orderBy: 'data_abertura DESC',
       limit: safeLimit,
+      offset: offset,
     );
     return maps.map((m) => Caixa.fromMap(m)).toList(growable: false);
   }
@@ -364,7 +412,7 @@ class FinanceiroService {
     }
     if (caixa.id != safeCaixaId) {
       throw const ConflictException(
-        'Caixa informado não corresponde ao caixa aberto atual.',
+        'Caixa informado nÃ£o corresponde ao caixa aberto atual.',
       );
     }
 
@@ -374,12 +422,11 @@ class FinanceiroService {
           caixa.dataAbertura, agora),
     );
 
-    // Soma atendimentos legados (fluxo pré-comanda)
-    final pagamentosLegados = await _getFaturamentoPorPagamentoLegado(
-        caixa.dataAbertura, agora);
+    // Soma atendimentos legados (fluxo prÃ©-comanda)
+    final pagamentosLegados =
+        await _getFaturamentoPorPagamentoLegado(caixa.dataAbertura, agora);
     for (final entry in pagamentosLegados.entries) {
-      pagamentos[entry.key] =
-          (pagamentos[entry.key] ?? 0.0) + entry.value;
+      pagamentos[entry.key] = (pagamentos[entry.key] ?? 0.0) + entry.value;
     }
 
     final valorFinal =
@@ -402,17 +449,23 @@ class FinanceiroService {
   }
 
   /// Retorna faturamento agrupado por forma de pagamento da tabela legada
-  /// [atendimentos] — usada antes da migração para o fluxo de comandas.
+  /// [atendimentos] â€” usada antes da migraÃ§Ã£o para o fluxo de comandas.
   Future<Map<String, double>> _getFaturamentoPorPagamentoLegado(
     DateTime inicio,
     DateTime fim,
   ) async {
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final args = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
     final result = await _db.rawQuery('''
       SELECT forma_pagamento, SUM(total) AS total
       FROM ${AppConstants.tableAtendimentos}
       WHERE data BETWEEN ? AND ?
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
       GROUP BY forma_pagamento
-    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+    ''', args);
 
     return {
       for (final row in result)
@@ -450,17 +503,89 @@ class FinanceiroService {
       throw const NotFoundException('Caixa aberto nao encontrado.');
     }
 
-    // Registra a sangria como uma despesa interna.
-    await insertDespesa(Despesa(
-      descricao: safeObs ?? 'Sangria de caixa',
-      categoria: 'Outros',
-      valor: safeValor,
-      data: DateTime.now(),
-      observacoes: 'Sangria — Caixa #$safeCaixaId',
-    ));
+    await _db.transaction((txn) async {
+      final saldo = await _saldoDinheiroDisponivelCaixaComExecutor(caixa, txn);
+      if (safeValor > saldo) {
+        throw BusinessException(
+          'Sangria excede o saldo disponível no caixa. '
+          'Saldo atual: R\$ ${_formatarMoedaSimples(saldo)}',
+        );
+      }
+
+      final now = DateTime.now();
+      final nowIso = now.toIso8601String();
+      await txn.insert(
+        AppConstants.tableDespesas,
+        {
+          ...Despesa(
+            descricao: safeObs ?? 'Sangria de caixa',
+            categoria: 'Outros',
+            valor: safeValor,
+            data: now,
+            observacoes: 'Sangria — Caixa #$safeCaixaId',
+          ).toMap(),
+          'created_at': nowIso,
+          'updated_at': nowIso,
+        },
+      );
+    });
   }
 
-  /// Reforço: adição de dinheiro ao caixa durante o expediente.
+  Future<double> _saldoDinheiroDisponivelCaixaComExecutor(
+    Caixa caixa,
+    DatabaseExecutor executor,
+  ) async {
+    final caixaId = caixa.id;
+    if (caixaId == null) return 0;
+    final inicio = caixa.dataAbertura.toIso8601String();
+    final fim = DateTime.now().toIso8601String();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+
+    final comandasArgs = <dynamic>[
+      AppConstants.comandaFechada,
+      AppConstants.pgDinheiro,
+      inicio,
+      fim,
+    ];
+    if (shopIdFiltro != null) {
+      comandasArgs.add(shopIdFiltro);
+    }
+    final comandasResult = await executor.rawQuery('''
+      SELECT COALESCE(SUM(total), 0) AS total
+      FROM ${AppConstants.tableComandas}
+      WHERE status = ?
+        AND forma_pagamento = ?
+        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
+    ''', comandasArgs);
+
+    final sangriasArgs = <dynamic>[
+      inicio,
+      fim,
+      '%Caixa #$caixaId%',
+    ];
+    if (shopIdFiltro != null) {
+      sangriasArgs.add(shopIdFiltro);
+    }
+    final sangriasResult = await executor.rawQuery('''
+      SELECT COALESCE(SUM(valor), 0) AS total
+      FROM ${AppConstants.tableDespesas}
+      WHERE data BETWEEN ? AND ?
+        AND observacoes LIKE ?
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
+    ''', sangriasArgs);
+
+    final comandasDinheiro =
+        (comandasResult.first['total'] as num?)?.toDouble() ?? 0.0;
+    final sangrias = (sangriasResult.first['total'] as num?)?.toDouble() ?? 0.0;
+    return caixa.valorInicial + comandasDinheiro - sangrias;
+  }
+
+  String _formatarMoedaSimples(double value) {
+    return value.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  /// ReforÃ§o: adiÃ§Ã£o de dinheiro ao caixa durante o expediente.
   Future<void> reforco({
     required int caixaId,
     required double valor,
@@ -474,7 +599,7 @@ class FinanceiroService {
     );
     final safeValor = SecurityUtils.sanitizeDoubleRange(
       valor,
-      fieldName: 'Valor do reforço',
+      fieldName: 'Valor do reforÃ§o',
       min: 0.01,
       max: 999999,
     );
@@ -489,14 +614,14 @@ class FinanceiroService {
       throw const NotFoundException('Caixa aberto nao encontrado.');
     }
 
-    // Atualiza o valor inicial do caixa para refletir o reforço.
+    // Atualiza o valor inicial do caixa para refletir o reforÃ§o.
     await _db.update(
       AppConstants.tableCaixas,
       {
         'valor_inicial': caixa.valorInicial + safeValor,
         'observacoes': safeObs != null
-            ? 'Reforço: $safeObs'
-            : 'Reforço de caixa — R\$ ${safeValor.toStringAsFixed(2)}',
+            ? 'ReforÃ§o: $safeObs'
+            : 'ReforÃ§o de caixa â€” R\$ ${safeValor.toStringAsFixed(2)}',
         'updated_at': DateTime.now().toIso8601String(),
       },
       'id = ?',
@@ -549,7 +674,7 @@ class FinanceiroService {
     final shopId = await _context.getBarbeariaIdAtual();
     if (shopId == null || shopId.trim().isEmpty) return;
 
-    // Falha silenciosa: SQLite permanece como fonte se Firebase não estiver acessível.
+    // Falha silenciosa: SQLite permanece como fonte se Firebase nÃ£o estiver acessÃ­vel.
     await FirebaseErrorHandler.wrapSilent(
       () => _syncPendingLocalDespesasIfOnline(shopId),
     );
@@ -678,7 +803,11 @@ class FinanceiroService {
         [existing.first['id']],
       );
     } else {
-      await _db.insert(AppConstants.tableDespesas, localMap);
+      await _db.insert(
+        AppConstants.tableDespesas,
+        localMap,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
   }
 
@@ -826,7 +955,11 @@ class FinanceiroService {
         [existing.first['id']],
       );
     } else {
-      await _db.insert(AppConstants.tableCaixas, localMap);
+      await _db.insert(
+        AppConstants.tableCaixas,
+        localMap,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
   }
 
@@ -848,6 +981,13 @@ class FinanceiroService {
       return DateTime.tryParse(value);
     }
     return null;
+  }
+
+  Future<String?> _barbeariaIdParaFiltro() async {
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return null;
+    if (shopId == AppConstants.localBarbeariaId) return null;
+    return shopId;
   }
 
   Despesa _sanitizarDespesa(Despesa despesa) {

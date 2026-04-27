@@ -6,12 +6,11 @@
 //   - Operações sem erro passam sem modificação
 // ============================================================
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/services/service_exceptions.dart';
-import '../../lib/utils/firebase_error_handler.dart';
+import 'package:barbearia_pro/services/service_exceptions.dart';
+import 'package:barbearia_pro/utils/firebase_error_handler.dart';
 
 // Helper para criar FirebaseException com código arbitrário
 FirebaseException firestoreEx(String code, [String? message]) =>

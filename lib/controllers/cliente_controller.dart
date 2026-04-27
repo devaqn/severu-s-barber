@@ -50,16 +50,8 @@ class ClienteController extends ChangeNotifier with ControllerMixin {
 
   Future<Cliente?> getById(int id) => runCatch(() => _service.getById(id));
 
-  Future<List<Cliente>> search(String query) async {
-    errorMsg = null;
-    try {
-      return await _service.search(query);
-    } catch (e) {
-      errorMsg = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
-      return const <Cliente>[];
-    }
-  }
+  Future<List<Cliente>> search(String query) async =>
+      await runCatch(() => _service.search(query)) ?? const <Cliente>[];
 
   Future<List<Atendimento>> getHistorico(int clienteId) async =>
       await runCatch(() => _service.getHistorico(clienteId)) ?? const [];

@@ -4,6 +4,8 @@
 // Controla o resumo financeiro por forma de pagamento.
 // ============================================================
 
+import 'dart:convert';
+
 class Caixa {
   final int? id;
   final DateTime dataAbertura;
@@ -18,8 +20,8 @@ class Caixa {
   /// 'aberto' ou 'fechado'
   final String status;
 
-  /// Resumo por forma de pagamento (JSON serializado)
-  final String? resumoPagamentos;
+  /// Resumo por forma de pagamento: chave = forma, valor = total recebido
+  final Map<String, double> resumoPagamentos;
   final String? observacoes;
 
   const Caixa({
@@ -29,7 +31,7 @@ class Caixa {
     this.valorInicial = 0.0,
     this.valorFinal,
     this.status = 'aberto',
-    this.resumoPagamentos,
+    this.resumoPagamentos = const {},
     this.observacoes,
   });
 
@@ -43,9 +45,22 @@ class Caixa {
       valorInicial: (map['valor_inicial'] as num?)?.toDouble() ?? 0.0,
       valorFinal: (map['valor_final'] as num?)?.toDouble(),
       status: (map['status'] as String?) ?? 'aberto',
-      resumoPagamentos: map['resumo_pagamentos'] as String?,
+      resumoPagamentos: _parseResumoPagamentos(map['resumo_pagamentos']),
       observacoes: map['observacoes'] as String?,
     );
+  }
+
+  static Map<String, double> _parseResumoPagamentos(Object? raw) {
+    if (raw == null) return const {};
+    try {
+      final decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is! Map) return const {};
+      return decoded.map(
+        (k, v) => MapEntry(k.toString(), (v as num?)?.toDouble() ?? 0.0),
+      );
+    } catch (_) {
+      return const {};
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -56,7 +71,8 @@ class Caixa {
       'valor_inicial': valorInicial,
       'valor_final': valorFinal,
       'status': status,
-      'resumo_pagamentos': resumoPagamentos,
+      'resumo_pagamentos':
+          resumoPagamentos.isEmpty ? null : jsonEncode(resumoPagamentos),
       'observacoes': observacoes,
     };
   }
@@ -70,7 +86,7 @@ class Caixa {
     double? valorInicial,
     double? valorFinal,
     String? status,
-    String? resumoPagamentos,
+    Map<String, double>? resumoPagamentos,
     String? observacoes,
   }) {
     return Caixa(

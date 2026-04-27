@@ -40,6 +40,7 @@ class ComandaService {
   final FirebaseContextService _context;
   final ConnectivityService _connectivity;
   final Uuid _uuid;
+  DocumentSnapshot<Map<String, dynamic>>? _lastSyncCursor;
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -49,7 +50,12 @@ class ComandaService {
     return _connectivity.isOnline();
   }
 
-  Future<List<Comanda>> getAll({String? barbeiroId, String? status}) async {
+  Future<List<Comanda>> getAll({
+    String? barbeiroId,
+    String? status,
+    int? limit,
+    int? offset,
+  }) async {
     await _syncFromFirestoreIfOnline();
 
     final safeBarbeiroId = barbeiroId == null
@@ -71,24 +77,29 @@ class ComandaService {
             ],
           );
 
-    String? where;
-    List<dynamic>? whereArgs;
-    if (safeBarbeiroId != null && safeStatus != null) {
-      where = 'barbeiro_id = ? AND status = ?';
-      whereArgs = [safeBarbeiroId, safeStatus];
-    } else if (safeBarbeiroId != null) {
-      where = 'barbeiro_id = ?';
-      whereArgs = [safeBarbeiroId];
-    } else if (safeStatus != null) {
-      where = 'status = ?';
-      whereArgs = [safeStatus];
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereParts = <String>[];
+    final whereArgs = <dynamic>[];
+    if (safeBarbeiroId != null) {
+      whereParts.add('barbeiro_id = ?');
+      whereArgs.add(safeBarbeiroId);
+    }
+    if (safeStatus != null) {
+      whereParts.add('status = ?');
+      whereArgs.add(safeStatus);
+    }
+    if (shopIdFiltro != null) {
+      whereParts.add('barbearia_id = ?');
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
       AppConstants.tableComandas,
-      where: where,
-      whereArgs: whereArgs,
+      where: whereParts.isEmpty ? null : whereParts.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'data_abertura DESC',
+      limit: limit,
+      offset: offset,
     );
     final comandas = maps.map((m) => Comanda.fromMap(m)).toList();
     return _anexarItens(comandas);
@@ -102,11 +113,12 @@ class ComandaService {
       max: 1 << 30,
     );
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
       AppConstants.tableComandas,
-      where: 'id = ?',
-      whereArgs: [safeId],
+      where: shopIdFiltro == null ? 'id = ?' : 'id = ? AND barbearia_id = ?',
+      whereArgs: shopIdFiltro == null ? [safeId] : [safeId, shopIdFiltro],
       limit: 1,
     );
     if (maps.isEmpty) return null;
@@ -126,12 +138,17 @@ class ComandaService {
             minLength: 1,
           );
 
-    final where = safeBarbeiroId != null
-        ? 'status = ? AND barbeiro_id = ?'
-        : 'status = ?';
-    final whereArgs = safeBarbeiroId != null
-        ? [AppConstants.comandaAberta, safeBarbeiroId]
-        : [AppConstants.comandaAberta];
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    var where = 'status = ?';
+    final whereArgs = <dynamic>[AppConstants.comandaAberta];
+    if (safeBarbeiroId != null) {
+      where += ' AND barbeiro_id = ?';
+      whereArgs.add(safeBarbeiroId);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND barbearia_id = ?';
+      whereArgs.add(shopIdFiltro);
+    }
 
     final maps = await _db.queryAll(
       AppConstants.tableComandas,
@@ -156,6 +173,7 @@ class ComandaService {
 
     var where = 'data_abertura BETWEEN ? AND ?';
     final whereArgs = <dynamic>[inicio, fim];
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     if (barbeiroId != null) {
       final safeBarbeiroId = SecurityUtils.sanitizeIdentifier(
@@ -165,6 +183,10 @@ class ComandaService {
       );
       where += ' AND barbeiro_id = ?';
       whereArgs.add(safeBarbeiroId);
+    }
+    if (shopIdFiltro != null) {
+      where += ' AND barbearia_id = ?';
+      whereArgs.add(shopIdFiltro);
     }
 
     final maps = await _db.queryAll(
@@ -503,12 +525,13 @@ class ComandaService {
       min: 1,
       max: 1 << 30,
     );
+    final agora = DateTime.now().toIso8601String();
     final updated = await _db.update(
       AppConstants.tableComandas,
       {
         'status': AppConstants.comandaCancelada,
-        'data_fechamento': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'data_fechamento': agora,
+        'updated_at': agora,
       },
       'id = ? AND status = ?',
       [safeComandaId, AppConstants.comandaAberta],
@@ -594,10 +617,16 @@ class ComandaService {
 
   Future<int> getCountComandasAbertas() async {
     await _syncFromFirestoreIfOnline();
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final args = <dynamic>[];
+    if (shopIdFiltro != null) {
+      args.add(shopIdFiltro);
+    }
     final result = await _db.rawQuery('''
       SELECT COUNT(*) as total FROM ${AppConstants.tableComandas}
       WHERE status = 'aberta'
-    ''');
+        ${shopIdFiltro == null ? '' : 'AND barbearia_id = ?'}
+    ''', args);
     return (result.first['total'] as num?)?.toInt() ?? 0;
   }
 
@@ -624,6 +653,11 @@ class ComandaService {
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
     }
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereBarbearia = shopIdFiltro == null ? '' : ' AND barbearia_id = ?';
+    if (shopIdFiltro != null) {
+      whereArgs.add(shopIdFiltro);
+    }
 
     final result = await _db.rawQuery('''
       SELECT SUM(total) as total
@@ -631,6 +665,7 @@ class ComandaService {
       WHERE status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
         $whereBarbeiro
+        $whereBarbearia
     ''', whereArgs);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -658,6 +693,11 @@ class ComandaService {
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
     }
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereBarbearia = shopIdFiltro == null ? '' : ' AND barbearia_id = ?';
+    if (shopIdFiltro != null) {
+      whereArgs.add(shopIdFiltro);
+    }
 
     final result = await _db.rawQuery('''
       SELECT COUNT(*) as total
@@ -665,6 +705,7 @@ class ComandaService {
       WHERE status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
         $whereBarbeiro
+        $whereBarbearia
     ''', whereArgs);
     return (result.first['total'] as num?)?.toInt() ?? 0;
   }
@@ -695,6 +736,11 @@ class ComandaService {
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
     }
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereBarbearia = shopIdFiltro == null ? '' : ' AND barbearia_id = ?';
+    if (shopIdFiltro != null) {
+      whereArgs.add(shopIdFiltro);
+    }
 
     return _db.rawQuery('''
       SELECT 
@@ -705,6 +751,7 @@ class ComandaService {
       WHERE status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) >= ?
         $whereBarbeiro
+        $whereBarbearia
       GROUP BY DATE(COALESCE(data_fechamento, data_abertura))
       ORDER BY dia ASC
     ''', whereArgs);
@@ -733,6 +780,11 @@ class ComandaService {
     if (safeBarbeiroId != null) {
       whereArgs.add(safeBarbeiroId);
     }
+    final shopIdFiltro = await _barbeariaIdParaFiltro();
+    final whereBarbearia = shopIdFiltro == null ? '' : ' AND barbearia_id = ?';
+    if (shopIdFiltro != null) {
+      whereArgs.add(shopIdFiltro);
+    }
 
     final result = await _db.rawQuery('''
       SELECT forma_pagamento, SUM(total) as total
@@ -740,6 +792,7 @@ class ComandaService {
       WHERE status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
         $whereBarbeiro
+        $whereBarbearia
       GROUP BY forma_pagamento
     ''', whereArgs);
 
@@ -798,10 +851,19 @@ class ComandaService {
   }
 
   Future<void> _sincronizarComandasDoFirestore(String shopId) async {
-    final comandasSnap = await _context
+    var query = _context
         .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
-        .orderBy('data_abertura', descending: true)
-        .get();
+        .orderBy('updated_at')
+        .limit(AppConstants.kSyncBatchSize);
+    final cursor = _lastSyncCursor;
+    if (cursor != null) {
+      query = query.startAfterDocument(cursor);
+    }
+
+    final comandasSnap = await query.get();
+    if (comandasSnap.docs.isNotEmpty) {
+      _lastSyncCursor = comandasSnap.docs.last;
+    }
 
     for (final doc in comandasSnap.docs) {
       final data = doc.data();
@@ -833,7 +895,11 @@ class ComandaService {
 
       int localComandaId;
       if (existing.isEmpty) {
-        localComandaId = await _db.insert(AppConstants.tableComandas, map);
+        localComandaId = await _db.insert(
+          AppConstants.tableComandas,
+          map,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       } else {
         localComandaId = (existing.first['id'] as num).toInt();
         await _db.update(
@@ -874,7 +940,11 @@ class ComandaService {
           'updated_at': _normalizeDate(itemData['updated_at']),
         };
         if (existingItem.isEmpty) {
-          await _db.insert(AppConstants.tableComandasItens, itemMap);
+          await _db.insert(
+            AppConstants.tableComandasItens,
+            itemMap,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
         } else {
           await _db.update(
             AppConstants.tableComandasItens,
@@ -998,7 +1068,7 @@ class ComandaService {
   /// Cada etapa é limitada a [kSyncBatchSize] registros por chamada.
   /// Máximo de comandas sincronizadas por chamada de [_syncPendingLocalComandasIfOnline].
   /// Exportada como pública para permitir testes e ajuste de configuração.
-  static const int kSyncBatchSize = 20;
+  static const int kSyncBatchSize = AppConstants.kSyncBatchSize;
 
   Future<void> _syncPendingLocalComandasIfOnline() async {
     if (!await _isFirebaseOnline()) return;
@@ -1017,9 +1087,8 @@ class ComandaService {
     }
 
     // Etapa 2 — Já sincronizadas, mas atualizadas nas últimas 48 h
-    final threshold = DateTime.now()
-        .subtract(const Duration(hours: 48))
-        .toIso8601String();
+    final threshold =
+        DateTime.now().subtract(const Duration(hours: 48)).toIso8601String();
     final recentes = await _db.queryAll(
       AppConstants.tableComandas,
       where:
@@ -1058,6 +1127,13 @@ class ComandaService {
     if (value is DateTime) return value.toIso8601String();
     if (value is String && value.trim().isNotEmpty) return value;
     return null;
+  }
+
+  Future<String?> _barbeariaIdParaFiltro() async {
+    final shopId = await _context.getBarbeariaIdAtual();
+    if (shopId == null || shopId.trim().isEmpty) return null;
+    if (shopId == AppConstants.localBarbeariaId) return null;
+    return shopId;
   }
 
   Future<double> _resolverComissaoPercentual(

@@ -7,13 +7,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kReleaseMode, visibleForTesting;
+import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
 import '../models/usuario.dart';
 import '../utils/constants.dart';
 import '../utils/security_utils.dart';
 import 'firebase_context_service.dart';
+
+class AuthException implements Exception {
+  final String message;
+  const AuthException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 class AuthService {
   AuthService({
@@ -81,6 +90,15 @@ class AuthService {
       !kReleaseMode &&
       _firebaseTestShortcutEnabledDefine &&
       _firebaseTestCredenciaisDefinidas;
+
+  @visibleForTesting
+  void setUsuarioLocalLogadoForTests(Usuario usuario) {
+    assert(() {
+      _usuarioLocalLogado = usuario;
+      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      return true;
+    }());
+  }
 
   FirebaseAuth get _auth {
     _garantirFirebaseInicializado();
@@ -714,7 +732,12 @@ class AuthService {
     );
 
     if (_firebaseDisponivel) {
-      await _usuariosCollection(shopId).doc(sanitizedId).delete();
+      await _usuariosCollection(shopId).doc(sanitizedId).set({
+        'ativo': false,
+        'revoked': true,
+        'revoked_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
 
     await _db.delete(
@@ -948,6 +971,7 @@ class AuthService {
         data['uid'] = data['uid'] ?? uid;
         data['barbearia_id'] = data['barbearia_id'] ?? cachedShop;
         data['created_at'] = _normalizeDateValue(data['created_at']);
+        _throwIfRevoked(data);
         return Usuario.fromFirestore(data);
       }
     }
@@ -967,10 +991,17 @@ class AuthService {
       data['uid'] = data['uid'] ?? uid;
       data['barbearia_id'] = shopId;
       data['created_at'] = _normalizeDateValue(data['created_at']);
+      _throwIfRevoked(data);
       return Usuario.fromFirestore(data);
     }
 
     return null;
+  }
+
+  void _throwIfRevoked(Map<String, dynamic> data) {
+    if (data['revoked'] == true) {
+      throw const AuthException('Conta desativada. Contate o administrador.');
+    }
   }
 
   String _normalizeDateValue(dynamic value) {
@@ -993,7 +1024,11 @@ class AuthService {
   }
 
   Future<void> _upsertUsuarioLocal(Usuario usuario) async {
-    await _db.insert(AppConstants.tableUsuarios, usuario.toMap());
+    await _db.insert(
+      AppConstants.tableUsuarios,
+      usuario.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> _marcarPrimeiroLoginConcluidoLocal({String? userId}) async {

@@ -10,7 +10,8 @@ class _FakeClienteService extends ClienteService {
   bool falharInsert = false;
 
   @override
-  Future<List<Cliente>> getAll() async => List<Cliente>.from(_data);
+  Future<List<Cliente>> getAll({int? limit, int? offset}) async =>
+      List<Cliente>.from(_data);
 
   @override
   Stream<List<Cliente>> streamClientes() async* {

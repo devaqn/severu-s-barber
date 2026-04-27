@@ -10,8 +10,7 @@ mixin ControllerMixin on ChangeNotifier {
   bool isLoading = false;
   String? errorMsg;
 
-  String _parseError(Object e) =>
-      e.toString().replaceFirst('Exception: ', '');
+  String _parseError(Object e) => e.toString().replaceFirst('Exception: ', '');
 
   Future<void> runSilent(Future<void> Function() fn) async {
     isLoading = true;
@@ -27,7 +26,7 @@ mixin ControllerMixin on ChangeNotifier {
     }
   }
 
-  Future<T?> runCatch<T>(Future<T> Function() fn) async {
+  Future<T?> runCatch<T>(Future<T?> Function() fn) async {
     isLoading = true;
     errorMsg = null;
     notifyListeners();

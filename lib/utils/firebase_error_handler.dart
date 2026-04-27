@@ -4,7 +4,6 @@
 // legíveis para o usuário e em NetworkException tipada.
 // ============================================================
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/service_exceptions.dart';

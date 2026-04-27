@@ -140,6 +140,42 @@ void main() {
       expect(c!.totalAtendimentos, 1);
       expect(c.totalGasto, closeTo(80.0, 0.001));
     });
+
+    test('Clientes sumidos usa agenda concluida sem N+1', () async {
+      final clienteId = await clienteService.insert(Cliente(
+        nome: 'Cliente Sumido',
+        telefone: '11912345678',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+
+      final agora = DateTime.now();
+      for (final dias in const [120, 90, 60]) {
+        final data = agora.subtract(Duration(days: dias));
+        await db.insert(AppConstants.tableAgendamentos, {
+          'cliente_id': clienteId,
+          'cliente_nome': 'Cliente Sumido',
+          'servico_id': 1,
+          'servico_nome': 'Corte de Cabelo',
+          'data_hora': data.toIso8601String(),
+          'status': AppConstants.statusConcluido,
+          'faturamento_registrado': 1,
+          'created_at': data.toIso8601String(),
+          'updated_at': data.toIso8601String(),
+        });
+      }
+
+      final sumidos = await clienteService.getClientesSumidos();
+      expect(
+        sumidos.any((item) => (item['cliente'] as Cliente).id == clienteId),
+        isTrue,
+      );
+      final item = sumidos.firstWhere(
+        (item) => (item['cliente'] as Cliente).id == clienteId,
+      );
+      expect(item['diasSemVir'] as int, greaterThanOrEqualTo(59));
+      expect(item['mediaIntervalo'] as int, closeTo(30, 1));
+    });
   });
 
   // ─── GRUPO 2: AGENDA ────────────────────────────────────────────────────────
@@ -297,9 +333,18 @@ void main() {
 
   group('Barbeiros', () {
     test('Excluir barbeiro remove perfil da listagem local', () async {
-      await authService.login(
-        email: 'teste@severus.app',
-        password: 'Teste@123!',
+      authService.setUsuarioLocalLogadoForTests(
+        Usuario(
+          id: 'admin_local',
+          nome: 'Administrador Local',
+          email: 'teste@severus.app',
+          role: UserRole.admin,
+          ativo: true,
+          comissaoPercentual: 0,
+          firstLogin: false,
+          barbeariaId: AppConstants.localBarbeariaId,
+          createdAt: DateTime.now(),
+        ),
       );
 
       final barbeiro = Usuario(

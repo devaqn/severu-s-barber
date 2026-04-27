@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/agendamento.dart';
 import '../services/agenda_service.dart';
+import '../utils/constants.dart';
 import 'controller_mixin.dart';
 
 class AgendaController extends ChangeNotifier with ControllerMixin {
@@ -28,8 +29,18 @@ class AgendaController extends ChangeNotifier with ControllerMixin {
   Future<void> update(Agendamento agendamento) =>
       runOrThrow(() => _service.update(agendamento));
 
-  Future<void> updateStatus(int id, String status) =>
-      runOrThrow(() => _service.updateStatus(id, status));
+  Future<void> updateStatus(
+    int id,
+    String status, {
+    String? formaPagamento,
+  }) =>
+      runOrThrow(
+        () => _service.updateStatus(
+          id,
+          status,
+          formaPagamento: formaPagamento ?? AppConstants.pgDinheiro,
+        ),
+      );
 
   Future<void> delete(int id) => runOrThrow(() => _service.delete(id));
 }

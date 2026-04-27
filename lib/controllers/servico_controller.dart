@@ -17,9 +17,7 @@ class ServicoController extends ChangeNotifier with ControllerMixin {
       });
 
   Future<List<Servico>> getAll({bool apenasAtivos = true}) async {
-    final dados =
-        await runCatch(() => _service.getAll(apenasAtivos: apenasAtivos));
-    servicos = dados != null ? List<Servico>.from(dados) : const [];
+    await carregar(apenasAtivos: apenasAtivos);
     return servicos;
   }
 

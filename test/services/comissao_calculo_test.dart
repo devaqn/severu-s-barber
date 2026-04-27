@@ -12,13 +12,12 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/item_comanda.dart';
+import 'package:barbearia_pro/models/item_comanda.dart';
 
 // Replica exata da lógica de _resolverComissaoPercentual:
 //   - Se > 1 assume escala 0..100 e divide por 100
 //   - Clamp [0.0, 1.0]
 double resolverComissaoPercentual(double raw, {double fallback = 0.0}) {
-  final fb = fallback > 1 ? fallback / 100 : fallback;
   final escala = raw > 1 ? raw / 100 : raw;
   return escala.clamp(0.0, 1.0);
 }
@@ -60,7 +59,7 @@ void main() {
   });
 
   group('ItemComanda.comissaoValor com comissão resolvida', () {
-    test('serviço R$80, 40% comissão → R$32 de comissão', () {
+    test('serviço R\$80, 40% comissão → R\$32 de comissão', () {
       final comissao = resolverComissaoPercentual(40.0); // 0.40
       final item = ItemComanda(
         tipo: 'servico',
@@ -73,7 +72,7 @@ void main() {
       expect(item.lucroCasa, closeTo(48.0, 0.001));
     });
 
-    test('produto R$30 × 3 unidades, 20% comissão → R$18 de comissão', () {
+    test('produto R\$30 × 3 unidades, 20% comissão → R\$18 de comissão', () {
       final comissao = resolverComissaoPercentual(20.0); // 0.20
       final item = ItemComanda(
         tipo: 'produto',
@@ -88,7 +87,7 @@ void main() {
     });
 
     test('sem barbeiro (comissão 0) → casa fica com 100%', () {
-      final item = ItemComanda(
+      const item = ItemComanda(
         tipo: 'servico',
         itemId: 3,
         nome: 'Barba',
@@ -103,7 +102,7 @@ void main() {
   group('Cálculo de comanda com múltiplos itens', () {
     test('soma total e comissão de uma comanda completa', () {
       final itens = [
-        // Corte: R$80, 40% → comissão R$32
+        // Corte: R\$80, 40% → comissão R\$32
         ItemComanda(
           tipo: 'servico',
           itemId: 1,
@@ -119,7 +118,7 @@ void main() {
           precoUnitario: 40.0,
           comissaoPercentual: resolverComissaoPercentual(40),
         ),
-        // Pomada: R$30 × 2, 20% → comissão R$12
+        // Pomada: R\$30 × 2, 20% → comissão R$12
         ItemComanda(
           tipo: 'produto',
           itemId: 3,

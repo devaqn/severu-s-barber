@@ -126,6 +126,10 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<bool> entrarSemLoginTemporario() async {
+    // Hard-blocked in release — only callable from debug/profile builds
+    if (kReleaseMode) {
+      return false;
+    }
     _loading = true;
     _errorMsg = null;
     notifyListeners();

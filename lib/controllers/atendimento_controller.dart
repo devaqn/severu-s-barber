@@ -26,12 +26,12 @@ class AtendimentoController extends ChangeNotifier with ControllerMixin {
       runOrThrow(() => _service.registrar(atendimento));
 
   Future<void> registrarAtendimento(Atendimento atendimento) =>
-      runSilent(() async {
+      runOrThrow(() async {
         await _service.registrar(atendimento);
-        await carregar();
+        await _service.getAll(limit: 100).then((v) => atendimentos = v);
       });
 
-  Future<void> deletar(int id) => runSilent(() async {
+  Future<void> deletar(int id) => runOrThrow(() async {
         await _service.delete(id);
         atendimentos.removeWhere((a) => a.id == id);
       });
