@@ -8,7 +8,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-v7-green?logo=sqlite)](https://www.sqlite.org)
 [![Testes](https://img.shields.io/badge/Testes-115%20passando-brightgreen)](#-testes-automatizados)
 [![Versão](https://img.shields.io/badge/Versão-5.0.0-purple)](#)
-[![Última atualização](https://img.shields.io/badge/Atualizado-Abril%202026-brightgreen)](#)
+[![Última atualização](https://img.shields.io/badge/Atualizado-Maio%202026-brightgreen)](#)
 [![License](https://img.shields.io/badge/License-Privado-red)](#)
 
 ---
@@ -504,4 +504,4 @@ Projeto privado — uso exclusivo interno. Todos os direitos reservados.
 
 ---
 
-*Severus Barber · v5.0.0+5 · Flutter 3.x · Firebase Auth · Cloud Firestore · SQLite v7 · 115 testes · Atualizado em 26/04/2026*
+*Severus Barber · v5.0.0+5 · Flutter 3.x · Firebase Auth · Cloud Firestore · SQLite v7 · 115 testes · Atualizado em 02/05/2026*
