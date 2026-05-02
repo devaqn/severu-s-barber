@@ -26,13 +26,14 @@ class _ComandasScreenState extends State<ComandasScreen>
   late Future<List<Comanda>> _futureAbertas;
   int _abertasCount = 0;
   int _fechadasCount = 0;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      if (!mounted) return;
+      if (_disposed) return;
       setState(() {});
     });
     _carregar();
@@ -40,12 +41,14 @@ class _ComandasScreenState extends State<ComandasScreen>
 
   @override
   void dispose() {
+    _disposed = true;
     _searchCtrl.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _carregar() async {
+    if (_disposed) return;
     final auth = context.read<AuthController>();
     final comandaController = context.read<ComandaController>();
     final barbeiroId = auth.isAdmin ? null : auth.usuarioId;
@@ -58,6 +61,7 @@ class _ComandasScreenState extends State<ComandasScreen>
       status: 'fechada',
     );
 
+    if (_disposed) return;
     setState(() {
       _futureAbertas = futurasAbertas;
       _futureFechadas = futurasFechadas;
@@ -68,13 +72,13 @@ class _ComandasScreenState extends State<ComandasScreen>
         futurasAbertas,
         futurasFechadas,
       ]);
-      if (!mounted) return;
+      if (_disposed) return;
       setState(() {
         _abertasCount = resultados[0].length;
         _fechadasCount = resultados[1].length;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (_disposed) return;
       setState(() {
         _abertasCount = 0;
         _fechadasCount = 0;

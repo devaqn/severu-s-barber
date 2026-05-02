@@ -71,7 +71,8 @@ class AuthController extends ChangeNotifier {
       } else {
         _status = AuthStatus.naoAutenticado;
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('AuthController.inicializar error: $e\n$st');
       _status = AuthStatus.naoAutenticado;
     }
     notifyListeners();
@@ -126,8 +127,8 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<bool> entrarSemLoginTemporario() async {
-    // Hard-blocked in release — only callable from debug/profile builds
-    if (kReleaseMode) {
+    // Only callable from debug builds — blocked in profile and release.
+    if (!kDebugMode) {
       return false;
     }
     _loading = true;
@@ -146,6 +147,7 @@ class AuthController extends ChangeNotifier {
         createdAt: DateTime.now(),
       );
       _status = AuthStatus.autenticadoAdmin;
+      _authService.setCachedBarbeariaId(AppConstants.localBarbeariaId);
       return true;
     } catch (e) {
       _errorMsg = e.toString().replaceFirst('Exception: ', '');
@@ -295,6 +297,11 @@ class AuthController extends ChangeNotifier {
     try {
       await _authService.alterarSenha(novaSenha);
       await _authService.concluirPrimeiroLogin();
+      // Keep the in-memory user in sync so the screen doesn't need to call
+      // setSessaoAposLogin manually.
+      if (_usuario != null) {
+        _usuario = _usuario!.copyWith(firstLogin: false);
+      }
       return true;
     } catch (e) {
       _errorMsg = e.toString().replaceFirst('Exception: ', '');

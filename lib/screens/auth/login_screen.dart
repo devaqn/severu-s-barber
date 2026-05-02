@@ -18,10 +18,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const String _contaTesteEmail = String.fromEnvironment(
-    'FIREBASE_TEST_ADMIN_EMAIL',
-    defaultValue: '',
-  );
   static const bool _botaoSemLoginTemporarioEnabled = bool.fromEnvironment(
     'ENABLE_BYPASS_LOGIN_BUTTON',
     defaultValue: false,
@@ -350,16 +346,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         label: const Text('Entrar com conta de teste'),
                       ),
                     ),
-                    if (_contaTesteEmail.trim().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Conta teste Firebase: $_contaTesteEmail',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
                   ],
                   const SizedBox(height: 18),
                   if (_checandoCadastroPublico)

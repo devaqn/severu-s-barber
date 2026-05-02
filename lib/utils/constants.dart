@@ -66,6 +66,7 @@ class AppConstants {
     'Salários',
     'Equipamentos',
     'Comissões',
+    'Reforço',
     'Outros',
   ];
 

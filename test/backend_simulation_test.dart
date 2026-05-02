@@ -966,7 +966,7 @@ void main() {
       expect(despesas.any((d) => d.valor == 100.0), isTrue);
     });
 
-    test('Reforço de caixa aumenta valor inicial', () async {
+    test('Reforço de caixa cria entrada auditável', () async {
       final caixaId = await financeiroService.abrirCaixa(valorInicial: 200.0);
 
       await financeiroService.reforco(
@@ -976,7 +976,11 @@ void main() {
       );
 
       final caixa = await financeiroService.getCaixaAberto();
-      expect(caixa!.valorInicial, closeTo(300.0, 0.001));
+      expect(caixa!.valorInicial, closeTo(200.0, 0.001));
+
+      final despesas = await financeiroService.getDespesas();
+      final reforco = despesas.firstWhere((d) => d.categoria == 'Reforço');
+      expect(reforco.valor, closeTo(-100.0, 0.001));
     });
   });
 

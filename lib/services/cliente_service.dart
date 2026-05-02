@@ -52,29 +52,35 @@ class ClienteService {
     return maps.map((m) => Cliente.fromMap(m)).toList();
   }
 
-  Stream<List<Cliente>> streamClientes() async* {
-    if (!await _isFirebaseOnline()) {
-      yield await getAll();
-      return;
+  Stream<List<Cliente>> streamClientes() {
+    if (!_firebaseDisponivel) {
+      return Stream.fromFuture(getAll());
     }
 
-    final shopId = await _context.getBarbeariaIdAtual();
-    if (shopId == null || shopId.trim().isEmpty) {
-      yield await getAll();
-      return;
-    }
-
-    final query = _context
-        .collection(barbeariaId: shopId, nome: AppConstants.tableClientes)
-        .orderBy('nome');
-
-    yield* query.snapshots().asyncMap((snap) async {
-      for (final doc in snap.docs) {
-        await _upsertLocalFromFirestoreDoc(doc.id, doc.data(), shopId);
+    return _auth.authStateChanges().asyncExpand((user) async* {
+      if (user == null) {
+        yield await getAll();
+        return;
       }
-      return snap.docs
-          .map((doc) => _fromFirestore(doc.data(), doc.id, shopId))
-          .toList(growable: false);
+
+      final shopId = await _context.getBarbeariaIdAtual(forceRefresh: true);
+      if (shopId == null || shopId.trim().isEmpty) {
+        yield await getAll();
+        return;
+      }
+
+      final query = _context
+          .collection(barbeariaId: shopId, nome: AppConstants.tableClientes)
+          .orderBy('nome');
+
+      yield* query.snapshots().asyncMap((snap) async {
+        for (final doc in snap.docs) {
+          await _upsertLocalFromFirestoreDoc(doc.id, doc.data(), shopId);
+        }
+        return snap.docs
+            .map((doc) => _fromFirestore(doc.data(), doc.id, shopId))
+            .toList(growable: false);
+      });
     });
   }
 

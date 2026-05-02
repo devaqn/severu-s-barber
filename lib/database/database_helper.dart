@@ -716,6 +716,10 @@ class DatabaseHelper {
     String columnName,
     String columnDefinition,
   ) async {
+    assert(
+      RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(tableName),
+      'Unsafe table name: $tableName',
+    );
     final info = await db.rawQuery('PRAGMA table_info($tableName)');
     final exists = info.any((row) => row['name'] == columnName);
     if (exists) return;

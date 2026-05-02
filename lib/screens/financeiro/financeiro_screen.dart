@@ -59,6 +59,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
       TextEditingController(text: '40');
   final TextEditingController _qtdCtrl = TextEditingController(text: '60');
   static const Color _lightBg = Color(0xFFF7F7FA);
+  bool _disposed = false;
 
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get _pageBg => _isDarkMode ? AppTheme.primaryColor : _lightBg;
@@ -74,13 +75,14 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
     // Inicializa tabs e carrega dados iniciais.
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (!_disposed) setState(() {});
     });
     _carregar();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     // Libera recursos da tela e controllers de texto.
     _tabController.dispose();
     _precoAtualCtrl.dispose();
@@ -91,16 +93,23 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Carrega resumo, despesas e serie semanal para grafico.
   Future<void> _carregar() async {
+    if (_disposed) return;
     setState(() => _loading = true);
     try {
-      _resumo = await _financeiroController.getResumo(_inicio, _fim);
-      _despesas =
+      final resumo = await _financeiroController.getResumo(_inicio, _fim);
+      final despesas =
           await _financeiroController.getDespesas(inicio: _inicio, fim: _fim);
-      _semanas = await _calcularSerieSemanal();
+      final semanas = await _calcularSerieSemanal();
+      if (_disposed) return;
+      setState(() {
+        _resumo = resumo;
+        _despesas = despesas;
+        _semanas = semanas;
+      });
     } catch (e) {
       _erro('Falha ao carregar financeiro: $e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!_disposed) setState(() => _loading = false);
     }
   }
 
@@ -129,6 +138,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Exibe snackbar de erro em fundo vermelho.
   void _erro(String msg) {
+    if (_disposed) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(backgroundColor: AppTheme.errorColor, content: Text(msg)),
     );
@@ -136,6 +146,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen>
 
   /// Exibe snackbar de sucesso em fundo verde.
   void _sucesso(String msg) {
+    if (_disposed) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(backgroundColor: AppTheme.successColor, content: Text(msg)),
     );

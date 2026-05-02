@@ -52,18 +52,6 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
 
       if (!mounted) return;
 
-      // Atualiza o estado local imediatamente para evitar loop em modo offline:
-      // se o Firebase estiver indisponível, inicializar() pode retornar o
-      // usuário local ainda com firstLogin=true, causando redirecionamento.
-      final usuarioAtual = authController.usuario;
-      if (usuarioAtual != null) {
-        authController
-            .setSessaoAposLogin(usuarioAtual.copyWith(firstLogin: false));
-      }
-
-      await authController.inicializar();
-      if (!mounted) return;
-
       UiFeedback.showSnack(
         context,
         'Senha atualizada com sucesso.',

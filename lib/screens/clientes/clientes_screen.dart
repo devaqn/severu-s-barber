@@ -23,6 +23,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _buscaCtrl = TextEditingController();
 
   bool _mostrarBusca = false;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     _controller.dispose();
     _buscaCtrl.dispose();
     super.dispose();
@@ -48,7 +50,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     if (cliente == null) return;
     try {
       await _controller.salvar(cliente);
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Cliente cadastrado com sucesso.',
@@ -56,7 +58,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Falha ao salvar cliente: $e',
@@ -74,7 +76,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     if (atualizado == null) return;
     try {
       await _controller.salvar(atualizado);
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Cliente atualizado com sucesso.',
@@ -82,7 +84,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Falha ao atualizar cliente: $e',
@@ -116,7 +118,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
     try {
       await _controller.deletar(cliente.id!);
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Cliente removido com sucesso.',
@@ -124,7 +126,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Falha ao excluir cliente: $e',

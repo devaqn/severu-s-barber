@@ -34,18 +34,26 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   DashboardController get _dashboardController =>
       context.read<DashboardController>();
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (_disposed) return;
       _dashboardController.carregar();
     });
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   /// Recarrega os dados manualmente preservando o cache em memoria.
   Future<void> _recarregar() async {
+    if (_disposed) return;
     await _dashboardController.recarregar();
   }
 
@@ -95,25 +103,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: const Icon(Icons.content_cut, color: AppTheme.textPrimary),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Severus Barber',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Severus Barber',
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
-                ),
-                Text(
-                  'Gestao Profissional',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
+                  Text(
+                    'Gestao Profissional',
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -219,13 +231,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final data = dashboard.dados!;
-    final agendamentos =
-        ((data['proximosAgendamentos'] as List?) ?? const []).cast<Agendamento>();
+    final agendamentos = ((data['proximosAgendamentos'] as List?) ?? const [])
+        .cast<Agendamento>();
     final topClientes =
         ((data['topClientes'] as List?) ?? const []).cast<Cliente>();
-    final faturamentoPorDia =
-        ((data['faturamentoPorDia'] as List?) ?? const [])
-            .cast<Map<String, dynamic>>();
+    final faturamentoPorDia = ((data['faturamentoPorDia'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     final estoqueBaixo =
         ((data['produtosEstoqueBaixo'] as List?) ?? const []).length;
     final agsHoje = _agendamentosHoje(agendamentos);
@@ -429,12 +440,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Row(
             children: [
-              Text(
-                'Faturamento',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+              Flexible(
+                child: Text(
+                  'Faturamento',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -580,17 +594,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Icon(Icons.calendar_today, color: AppTheme.infoColor),
               const SizedBox(width: 8),
-              Text(
-                'Hoje',
-                style: GoogleFonts.poppins(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  'Hoje',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                agora,
-                style: GoogleFonts.inter(color: AppTheme.textSecondary),
+              Flexible(
+                child: Text(
+                  agora,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                ),
               ),
               const Spacer(),
               TextButton(
@@ -710,11 +730,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const Icon(Icons.emoji_events, color: AppTheme.goldColor),
               const SizedBox(width: 8),
-              Text(
-                'Top Clientes',
-                style: GoogleFonts.poppins(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  'Top Clientes',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const Spacer(),

@@ -7,7 +7,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show kDebugMode, kReleaseMode, visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
@@ -74,7 +75,11 @@ class AuthService {
 
   bool get firebaseDisponivel => _firebaseDisponivel;
 
-  bool get _offlineLoginEnabled => _offlineLoginEnabledDefine || !kReleaseMode;
+  bool get _offlineLoginEnabled => _offlineLoginEnabledDefine || kDebugMode;
+
+  void setCachedBarbeariaId(String? value) {
+    _context.setCachedBarbeariaId(value);
+  }
 
   bool get _offlineDisponivel =>
       _offlineLoginEnabled &&
@@ -95,7 +100,7 @@ class AuthService {
   void setUsuarioLocalLogadoForTests(Usuario usuario) {
     assert(() {
       _usuarioLocalLogado = usuario;
-      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      _context.setCachedBarbeariaId(usuario.barbeariaId);
       return true;
     }());
   }
@@ -125,7 +130,7 @@ class AuthService {
     final remoto = await _buscarUsuarioFirestore(user.uid);
     if (remoto != null) {
       await _upsertUsuarioLocal(remoto);
-      FirebaseContextService.setCachedBarbeariaId(remoto.barbeariaId);
+      _context.setCachedBarbeariaId(remoto.barbeariaId);
       _usuarioLocalLogado = remoto;
       return remoto;
     }
@@ -167,7 +172,7 @@ class AuthService {
       }
 
       await _upsertUsuarioLocal(usuario);
-      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      _context.setCachedBarbeariaId(usuario.barbeariaId);
       _usuarioLocalLogado = usuario;
       return usuario;
     } on FirebaseAuthException catch (e) {
@@ -210,7 +215,7 @@ class AuthService {
         email: email,
       );
       _usuarioLocalLogado = usuario;
-      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      _context.setCachedBarbeariaId(usuario.barbeariaId);
       return usuario;
     } on FirebaseAuthException catch (e) {
       if (e.code != 'user-not-found' &&
@@ -232,7 +237,7 @@ class AuthService {
         email: email,
       );
       _usuarioLocalLogado = usuario;
-      FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+      _context.setCachedBarbeariaId(usuario.barbeariaId);
       return usuario;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -247,7 +252,7 @@ class AuthService {
             email: email,
           );
           _usuarioLocalLogado = usuario;
-          FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+          _context.setCachedBarbeariaId(usuario.barbeariaId);
           return usuario;
         } on FirebaseAuthException {
           throw Exception(
@@ -470,7 +475,7 @@ class AuthService {
         createdAt: DateTime.now(),
       );
       await _upsertUsuarioLocal(usuario);
-      FirebaseContextService.setCachedBarbeariaId(shopId);
+      _context.setCachedBarbeariaId(shopId);
       _usuarioLocalLogado = usuario;
       return usuario;
     } on FirebaseAuthException catch (e) {
@@ -483,7 +488,7 @@ class AuthService {
       await _auth.signOut();
     }
     _usuarioLocalLogado = null;
-    FirebaseContextService.setCachedBarbeariaId(null);
+    _context.setCachedBarbeariaId(null);
   }
 
   Future<void> recuperarSenha(String email) async {
@@ -826,6 +831,10 @@ class AuthService {
     return false;
   }
 
+  /// Returns whether at least one admin exists.
+  /// Throws [AuthException] when the check is inconclusive (permission denied
+  /// from Firestore) so callers can treat it as "cannot determine" rather than
+  /// silently assuming no admin exists and allowing unauthorised registration.
   Future<bool> _hasAnyAdmin() async {
     if (_firebaseDisponivel) {
       try {
@@ -836,10 +845,10 @@ class AuthService {
             .get();
         return snap.docs.isNotEmpty;
       } on FirebaseException catch (e) {
-        // Em regras de producao fechadas, usuario deslogado pode nao ter
-        // permissao de leitura para esse collectionGroup.
         if (e.code == 'permission-denied') {
-          return false;
+          // Rules blocked the query — we cannot determine whether an admin
+          // exists. Treat this as "admin exists" to block public registration.
+          return true;
         }
         rethrow;
       }
@@ -1113,7 +1122,7 @@ class AuthService {
 
     await _upsertUsuarioLocal(usuario);
     _usuarioLocalLogado = usuario;
-    FirebaseContextService.setCachedBarbeariaId(usuario.barbeariaId);
+    _context.setCachedBarbeariaId(usuario.barbeariaId);
     return usuario;
   }
 }

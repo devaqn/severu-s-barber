@@ -28,6 +28,43 @@ service cloud.firestore {
       return isInShop(shopId) && getUser(shopId).role == 'barbeiro';
     }
 
+    function barbeariaFieldMatchesPath(shopId) {
+      return !request.resource.data.keys().hasAny(['barbearia_id'])
+        || request.resource.data.barbearia_id == shopId;
+    }
+
+    function existingBarbeariaFieldMatchesPath(shopId) {
+      return !resource.data.keys().hasAny(['barbearia_id'])
+        || resource.data.barbearia_id == shopId;
+    }
+
+    function barbeiroRefIsValid(shopId) {
+      return !request.resource.data.keys().hasAny(['barbeiro_id'])
+        || request.resource.data.barbeiro_id == null
+        || exists(/databases/$(database)/documents/barbearias/$(shopId)/usuarios/$(request.resource.data.barbeiro_id));
+    }
+
+    function comandaOwnerUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'barbeiro_uid',
+        'barbeiro_id'
+      ]);
+    }
+
+    function validCaixaOperation(operationId, shopId) {
+      return request.resource.data.operationId == operationId
+        && request.resource.data.barbearia_id == shopId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.tipo in [
+          'entrada',
+          'sangria',
+          'reforco',
+          'fechamento'
+        ]
+        && request.resource.data.valor is number
+        && request.resource.data.timestamp is timestamp;
+    }
+
     function clientProtectedFieldsAbsent() {
       return !request.resource.data.keys().hasAny([
         'total_gasto',
@@ -85,8 +122,11 @@ service cloud.firestore {
     match /barbearias/{shopId}/clientes/{id} {
       allow read: if isInShop(shopId);
       allow create: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
         && (isAdmin(shopId) || (isBarbeiro(shopId) && clientProtectedFieldsAbsent()));
       allow update: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && existingBarbeariaFieldMatchesPath(shopId)
         && (isAdmin(shopId) || (isBarbeiro(shopId) && clientProtectedFieldsUnchanged()));
       allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
@@ -99,19 +139,30 @@ service cloud.firestore {
     match /barbearias/{shopId}/produtos/{id} {
       allow read: if isInShop(shopId);
       allow create: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
         && (isAdmin(shopId) || (isBarbeiro(shopId) && productPriceFieldsAbsent()));
       allow update: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && existingBarbeariaFieldMatchesPath(shopId)
         && (isAdmin(shopId) || (isBarbeiro(shopId) && productPriceFieldsUnchanged()));
       allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/comandas/{id} {
       allow read: if isInShop(shopId);
-      allow create: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow create: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && barbeiroRefIsValid(shopId)
+        && (isAdmin(shopId) || isBarbeiro(shopId));
+      // Only check the EXISTING owner (resource.data), not the incoming payload.
+      // Allowing request.resource.data.barbeiro_uid would let any barbeiro
+      // claim ownership of any comanda by writing their own UID.
       allow update: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && existingBarbeariaFieldMatchesPath(shopId)
+        && barbeiroRefIsValid(shopId)
         && (isAdmin(shopId)
-          || resource.data.barbeiro_uid == request.auth.uid
-          || request.resource.data.barbeiro_uid == request.auth.uid);
+          || (resource.data.barbeiro_uid == request.auth.uid && comandaOwnerUnchanged()));
       allow delete: if isInShop(shopId) && isAdmin(shopId);
 
       match /itens/{itemId} {
@@ -123,21 +174,43 @@ service cloud.firestore {
     }
 
     match /barbearias/{shopId}/despesas/{id} {
-      allow read, write: if isInShop(shopId) && isAdmin(shopId);
+      allow read: if isInShop(shopId);
+      allow create, update: if isInShop(shopId)
+        && isAdmin(shopId)
+        && barbeariaFieldMatchesPath(shopId);
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/caixas/{id} {
-      allow read, write: if isInShop(shopId) && isAdmin(shopId);
+      allow read: if isInShop(shopId);
+      allow create, update: if isInShop(shopId)
+        && isAdmin(shopId)
+        && barbeariaFieldMatchesPath(shopId);
+      allow delete: if false;
+
+      match /operacoes/{operationId} {
+        allow read: if isInShop(shopId);
+        allow create: if isInShop(shopId)
+          && isAdmin(shopId)
+          && validCaixaOperation(operationId, shopId);
+        allow update, delete: if false;
+      }
     }
 
     match /barbearias/{shopId}/agendamentos/{id} {
       allow read: if isInShop(shopId);
-      allow create: if isInShop(shopId) && (isAdmin(shopId) || isBarbeiro(shopId));
+      allow create: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && barbeiroRefIsValid(shopId)
+        && (isAdmin(shopId) || isBarbeiro(shopId));
       allow update: if isInShop(shopId)
+        && barbeariaFieldMatchesPath(shopId)
+        && existingBarbeariaFieldMatchesPath(shopId)
+        && barbeiroRefIsValid(shopId)
         && (isAdmin(shopId)
           || resource.data.barbeiro_id == request.auth.uid
           || request.resource.data.barbeiro_id == request.auth.uid);
-      allow delete: if isInShop(shopId) && (isAdmin(shopId) || resource.data.barbeiro_id == request.auth.uid);
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/estoque/{id} {

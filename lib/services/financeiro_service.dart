@@ -1,9 +1,10 @@
-﻿// ============================================================
+// ============================================================
 // financeiro_service.dart
 // ServiÃ§o financeiro com Firestore como fonte principal
 // e SQLite como cache offline.
 // ============================================================
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -59,7 +60,7 @@ class FinanceiroService {
     int? limit,
     int? offset,
   }) async {
-    await _syncDespesasFromFirestoreIfOnline();
+    _syncDespesasEmBackground();
 
     final whereParts = <String>[];
     final whereArgs = <dynamic>[];
@@ -201,7 +202,7 @@ class FinanceiroService {
 
   Future<double> getTotalDespesas(DateTime inicio, DateTime fim) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
-    await _syncDespesasFromFirestoreIfOnline();
+    _syncDespesasEmBackground();
 
     final shopIdFiltro = await _barbeariaIdParaFiltro();
     final args = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
@@ -223,7 +224,7 @@ class FinanceiroService {
     DateTime fim,
   ) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'PerÃ­odo invÃ¡lido.');
-    await _syncDespesasFromFirestoreIfOnline();
+    _syncDespesasEmBackground();
 
     final shopIdFiltro = await _barbeariaIdParaFiltro();
     final args = <dynamic>[inicio.toIso8601String(), fim.toIso8601String()];
@@ -285,7 +286,7 @@ class FinanceiroService {
   }
 
   Future<Caixa?> getCaixaAberto() async {
-    await _syncCaixasFromFirestoreIfOnline();
+    _syncCaixasEmBackground();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
@@ -302,7 +303,7 @@ class FinanceiroService {
   }
 
   Future<Caixa?> getUltimoCaixa() async {
-    await _syncCaixasFromFirestoreIfOnline();
+    _syncCaixasEmBackground();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
@@ -324,7 +325,7 @@ class FinanceiroService {
       max: 365,
     );
 
-    await _syncCaixasFromFirestoreIfOnline();
+    _syncCaixasEmBackground();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
@@ -346,58 +347,48 @@ class FinanceiroService {
       max: 999999,
     );
 
-    final caixaAberto = await getCaixaAberto();
-    if (caixaAberto != null) {
-      throw const ConflictException(
-        'Ja existe um caixa aberto. Feche o caixa atual antes de abrir outro.',
-      );
+    final session = await _firebaseSession();
+    final firebaseCaixaId = session == null
+        ? null
+        : await _abrirCaixaFirebase(
+            barbeariaId: session.barbeariaId,
+            userId: session.userId,
+            valorInicial: safeValorInicial,
+          );
+
+    if (firebaseCaixaId == null) {
+      final caixaAberto = await getCaixaAberto();
+      if (caixaAberto != null) {
+        throw const ConflictException(
+          'Ja existe um caixa aberto. Feche o caixa atual antes de abrir outro.',
+        );
+      }
     }
 
+    final agora = DateTime.now().toUtc();
     final novoCaixa = Caixa(
-      dataAbertura: DateTime.now(),
+      dataAbertura: agora,
       valorInicial: safeValorInicial,
       status: AppConstants.caixaAberto,
     );
 
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = agora.toIso8601String();
     final localMap = <String, dynamic>{
       ...novoCaixa.toMap(),
       'created_at': nowIso,
       'updated_at': nowIso,
     };
 
-    if (await _isFirebaseOnline()) {
-      final shopId = await _context.getBarbeariaIdAtual();
-      final uid = _auth.currentUser?.uid;
-      if (shopId != null && uid != null) {
-        final firebaseId = _uuid.v4();
-        await _context
-            .collection(barbeariaId: shopId, nome: AppConstants.tableCaixas)
-            .doc(firebaseId)
-            .set({
-          'data_abertura': Timestamp.fromDate(novoCaixa.dataAbertura),
-          'data_fechamento': null,
-          'valor_inicial': novoCaixa.valorInicial,
-          'valor_final': null,
-          'status': novoCaixa.status,
-          'resumo_pagamentos': null,
-          'observacoes': novoCaixa.observacoes,
-          'barbearia_id': shopId,
-          'created_by': uid,
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        });
-
-        localMap['firebase_id'] = firebaseId;
-        localMap['barbearia_id'] = shopId;
-        localMap['created_by'] = uid;
-      }
+    if (session != null && firebaseCaixaId != null) {
+      localMap['firebase_id'] = firebaseCaixaId;
+      localMap['barbearia_id'] = session.barbeariaId;
+      localMap['created_by'] = session.userId;
     }
 
     return _db.insert(AppConstants.tableCaixas, localMap);
   }
 
-  Future<void> fecharCaixa(int caixaId) async {
+  Future<void> fecharCaixa(int caixaId, {String? operationId}) async {
     final safeCaixaId = SecurityUtils.sanitizeIntRange(
       caixaId,
       fieldName: 'ID do caixa',
@@ -405,7 +396,7 @@ class FinanceiroService {
       max: 1 << 30,
     );
 
-    final agora = DateTime.now();
+    final agora = DateTime.now().toUtc();
     final caixa = await getCaixaAberto();
     if (caixa == null) {
       throw const NotFoundException('Nao existe caixa aberto para fechamento.');
@@ -415,6 +406,18 @@ class FinanceiroService {
         'Caixa informado nÃ£o corresponde ao caixa aberto atual.',
       );
     }
+
+    final session = await _firebaseSession();
+    final firebaseCaixaId =
+        session == null ? null : await _firebaseCaixaIdFromLocalId(safeCaixaId);
+    final firebaseResumo = session != null && firebaseCaixaId != null
+        ? await _fecharCaixaFirebase(
+            barbeariaId: session.barbeariaId,
+            userId: session.userId,
+            caixaId: firebaseCaixaId,
+            operationId: operationId ?? 'fechamento_$firebaseCaixaId',
+          )
+        : null;
 
     // Soma comandas (fluxo atual)
     final pagamentos = Map<String, double>.from(
@@ -429,7 +432,7 @@ class FinanceiroService {
       pagamentos[entry.key] = (pagamentos[entry.key] ?? 0.0) + entry.value;
     }
 
-    final valorFinal =
+    final valorFinal = firebaseResumo?.valorFinal ??
         caixa.valorInicial + pagamentos.values.fold(0.0, (a, b) => a + b);
 
     await _db.update(
@@ -445,7 +448,9 @@ class FinanceiroService {
       [safeCaixaId],
     );
 
-    await _syncCaixaByLocalIdIfOnline(safeCaixaId);
+    if (firebaseResumo == null) {
+      await _syncCaixaByLocalIdIfOnline(safeCaixaId);
+    }
   }
 
   /// Retorna faturamento agrupado por forma de pagamento da tabela legada
@@ -479,6 +484,7 @@ class FinanceiroService {
     required int caixaId,
     required double valor,
     String? observacao,
+    String? operationId,
   }) async {
     final safeCaixaId = SecurityUtils.sanitizeIntRange(
       caixaId,
@@ -501,6 +507,20 @@ class FinanceiroService {
     final caixa = await getCaixaAberto();
     if (caixa == null || caixa.id != safeCaixaId) {
       throw const NotFoundException('Caixa aberto nao encontrado.');
+    }
+
+    final session = await _firebaseSession();
+    final firebaseCaixaId =
+        session == null ? null : await _firebaseCaixaIdFromLocalId(safeCaixaId);
+    if (session != null && firebaseCaixaId != null) {
+      await _registrarOperacaoCaixaFirebase(
+        barbeariaId: session.barbeariaId,
+        userId: session.userId,
+        caixaId: firebaseCaixaId,
+        operationId: operationId ?? _uuid.v4(),
+        tipo: 'sangria',
+        valor: safeValor,
+      );
     }
 
     await _db.transaction((txn) async {
@@ -590,6 +610,7 @@ class FinanceiroService {
     required int caixaId,
     required double valor,
     String? observacao,
+    String? operationId,
   }) async {
     final safeCaixaId = SecurityUtils.sanitizeIntRange(
       caixaId,
@@ -614,20 +635,45 @@ class FinanceiroService {
       throw const NotFoundException('Caixa aberto nao encontrado.');
     }
 
-    // Atualiza o valor inicial do caixa para refletir o reforÃ§o.
-    await _db.update(
-      AppConstants.tableCaixas,
-      {
-        'valor_inicial': caixa.valorInicial + safeValor,
-        'observacoes': safeObs != null
-            ? 'ReforÃ§o: $safeObs'
-            : 'ReforÃ§o de caixa â€” R\$ ${safeValor.toStringAsFixed(2)}',
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      'id = ?',
-      [safeCaixaId],
-    );
-    await _syncCaixaByLocalIdIfOnline(safeCaixaId);
+    final session = await _firebaseSession();
+    final firebaseCaixaId =
+        session == null ? null : await _firebaseCaixaIdFromLocalId(safeCaixaId);
+    if (session != null && firebaseCaixaId != null) {
+      await _registrarOperacaoCaixaFirebase(
+        barbeariaId: session.barbeariaId,
+        userId: session.userId,
+        caixaId: firebaseCaixaId,
+        operationId: operationId ?? _uuid.v4(),
+        tipo: 'reforco',
+        valor: safeValor,
+      );
+    }
+
+    final agora = DateTime.now();
+    final agoraIso = agora.toIso8601String();
+    String? shopId;
+    String? uid;
+    if (await _isFirebaseOnline()) {
+      shopId = await _context.getBarbeariaIdAtual();
+      uid = _auth.currentUser?.uid;
+    }
+
+    await _db.transaction((txn) async {
+      await txn.insert(AppConstants.tableDespesas, {
+        ...Despesa(
+          descricao: safeObs ?? 'Reforço de caixa',
+          categoria: 'Reforço',
+          valor: -safeValor,
+          data: agora,
+          observacoes: 'Reforço - Caixa #$safeCaixaId',
+        ).toMap(),
+        'barbearia_id': shopId,
+        'created_by': uid,
+        'created_at': agoraIso,
+        'updated_at': agoraIso,
+      });
+    });
+    await _syncDespesasFromFirestoreIfOnline();
   }
 
   Map<String, double> simularMudancaPreco({
@@ -668,6 +714,264 @@ class FinanceiroService {
     };
   }
 
+  Future<_FirebaseSession?> _firebaseSession() async {
+    if (!await _isFirebaseOnline()) return null;
+    final shopId = await _context.getBarbeariaIdAtual();
+    final uid = _auth.currentUser?.uid;
+    if (shopId == null ||
+        shopId.trim().isEmpty ||
+        uid == null ||
+        uid.trim().isEmpty) {
+      return null;
+    }
+    return _FirebaseSession(barbeariaId: shopId, userId: uid);
+  }
+
+  Future<String?> _abrirCaixaFirebase({
+    required String barbeariaId,
+    required String userId,
+    required double valorInicial,
+  }) async {
+    final caixaId = _uuid.v4();
+    final agora = DateTime.now().toUtc();
+    final caixaRef = _caixaDoc(barbeariaId, caixaId);
+    final activeRef = _caixaAtualDoc(barbeariaId);
+
+    await FirebaseFirestore.instance.runTransaction((txn) async {
+      final activeSnap = await txn.get(activeRef);
+      final activeCaixaId = activeSnap.data()?['caixa_aberto_id'] as String?;
+      if (activeCaixaId != null && activeCaixaId.trim().isNotEmpty) {
+        final activeCaixa =
+            await txn.get(_caixaDoc(barbeariaId, activeCaixaId));
+        if (activeCaixa.exists &&
+            activeCaixa.data()?['status'] == AppConstants.caixaAberto) {
+          throw const ConflictException(
+            'Ja existe um caixa aberto. Feche o caixa atual antes de abrir outro.',
+          );
+        }
+      }
+
+      txn.set(caixaRef, {
+        'id': caixaId,
+        'firebase_id': caixaId,
+        'barbearia_id': barbeariaId,
+        'created_by': userId,
+        'data_abertura': Timestamp.fromDate(agora),
+        'data_fechamento': null,
+        'valor_inicial': valorInicial,
+        'valor_final': null,
+        'status': AppConstants.caixaAberto,
+        'operation_ids': <String>[],
+        'created_at': Timestamp.fromDate(agora),
+        'updated_at': Timestamp.fromDate(agora),
+      });
+      txn.set(
+          activeRef,
+          {
+            'caixa_aberto_id': caixaId,
+            'barbearia_id': barbeariaId,
+            'updated_at': Timestamp.fromDate(agora),
+          },
+          SetOptions(merge: true));
+    });
+
+    return caixaId;
+  }
+
+  Future<void> _registrarOperacaoCaixaFirebase({
+    required String barbeariaId,
+    required String userId,
+    required String caixaId,
+    required String operationId,
+    required String tipo,
+    required double valor,
+  }) {
+    final caixaRef = _caixaDoc(barbeariaId, caixaId);
+    final opRef = _caixaOperacaoDoc(barbeariaId, caixaId, operationId);
+
+    return FirebaseFirestore.instance.runTransaction((txn) async {
+      final existingOp = await txn.get(opRef);
+      if (existingOp.exists) return;
+
+      final caixaSnap = await txn.get(caixaRef);
+      if (!caixaSnap.exists) {
+        throw const NotFoundException('Caixa aberto nao encontrado.');
+      }
+      final caixaData = caixaSnap.data()!;
+      if (caixaData['status'] != AppConstants.caixaAberto) {
+        throw const ConflictException('Caixa informado nao esta aberto.');
+      }
+
+      final operationIds = _operationIds(caixaData);
+      final operationDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final id in operationIds) {
+        operationDocs.add(await txn.get(_caixaOperacaoDoc(
+          barbeariaId,
+          caixaId,
+          id,
+        )));
+      }
+
+      if (tipo == 'sangria') {
+        final saldo = _saldoCaixaLedger(caixaData, operationDocs);
+        if (valor > saldo) {
+          throw BusinessException(
+            'Sangria excede o saldo disponível no caixa. '
+            'Saldo atual: R\$ ${_formatarMoedaSimples(saldo)}',
+          );
+        }
+      }
+
+      final agora = DateTime.now().toUtc();
+      txn.set(opRef, {
+        'tipo': tipo,
+        'valor': valor,
+        'timestamp': Timestamp.fromDate(agora),
+        'userId': userId,
+        'operationId': operationId,
+        'barbearia_id': barbeariaId,
+      });
+      txn.update(caixaRef, {
+        'operation_ids': [...operationIds, operationId],
+        'updated_at': Timestamp.fromDate(agora),
+      });
+    });
+  }
+
+  Future<_CaixaFechamentoResumo?> _fecharCaixaFirebase({
+    required String barbeariaId,
+    required String userId,
+    required String caixaId,
+    required String operationId,
+  }) {
+    final caixaRef = _caixaDoc(barbeariaId, caixaId);
+    final opRef = _caixaOperacaoDoc(barbeariaId, caixaId, operationId);
+    final activeRef = _caixaAtualDoc(barbeariaId);
+
+    return FirebaseFirestore.instance
+        .runTransaction<_CaixaFechamentoResumo?>((txn) async {
+      final caixaSnap = await txn.get(caixaRef);
+      if (!caixaSnap.exists) {
+        throw const NotFoundException('Caixa aberto nao encontrado.');
+      }
+      final caixaData = caixaSnap.data()!;
+
+      final existingOp = await txn.get(opRef);
+      if (existingOp.exists) {
+        final valor = (existingOp.data()?['valor'] as num?)?.toDouble() ??
+            (caixaData['valor_final'] as num?)?.toDouble();
+        return valor == null ? null : _CaixaFechamentoResumo(valor);
+      }
+
+      if (caixaData['status'] != AppConstants.caixaAberto) {
+        throw const ConflictException('Caixa informado nao esta aberto.');
+      }
+
+      final operationIds = _operationIds(caixaData);
+      final operationDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final id in operationIds) {
+        operationDocs.add(await txn.get(_caixaOperacaoDoc(
+          barbeariaId,
+          caixaId,
+          id,
+        )));
+      }
+
+      final valorFinal = _saldoCaixaLedger(caixaData, operationDocs);
+      final agora = DateTime.now().toUtc();
+      txn.set(opRef, {
+        'tipo': 'fechamento',
+        'valor': valorFinal,
+        'timestamp': Timestamp.fromDate(agora),
+        'userId': userId,
+        'operationId': operationId,
+        'barbearia_id': barbeariaId,
+      });
+      txn.update(caixaRef, {
+        'status': AppConstants.caixaFechado,
+        'data_fechamento': Timestamp.fromDate(agora),
+        'valor_final': valorFinal,
+        'operation_ids': [...operationIds, operationId],
+        'updated_at': Timestamp.fromDate(agora),
+      });
+      txn.set(
+          activeRef,
+          {
+            'caixa_aberto_id': null,
+            'barbearia_id': barbeariaId,
+            'updated_at': Timestamp.fromDate(agora),
+          },
+          SetOptions(merge: true));
+      return _CaixaFechamentoResumo(valorFinal);
+    });
+  }
+
+  double _saldoCaixaLedger(
+    Map<String, dynamic> caixaData,
+    List<DocumentSnapshot<Map<String, dynamic>>> operationDocs,
+  ) {
+    var saldo = (caixaData['valor_inicial'] as num?)?.toDouble() ?? 0.0;
+    for (final doc in operationDocs) {
+      final data = doc.data();
+      if (data == null) continue;
+      final tipo = data['tipo'] as String?;
+      final valor = (data['valor'] as num?)?.toDouble() ?? 0.0;
+      if (tipo == 'entrada' || tipo == 'reforco') {
+        saldo += valor;
+      } else if (tipo == 'sangria') {
+        saldo -= valor;
+      }
+    }
+    return saldo;
+  }
+
+  List<String> _operationIds(Map<String, dynamic> caixaData) {
+    final raw = caixaData['operation_ids'];
+    if (raw is Iterable) {
+      return raw.map((e) => e.toString()).toList(growable: false);
+    }
+    return const [];
+  }
+
+  DocumentReference<Map<String, dynamic>> _caixaDoc(
+    String barbeariaId,
+    String caixaId,
+  ) {
+    return _context
+        .collection(barbeariaId: barbeariaId, nome: AppConstants.tableCaixas)
+        .doc(caixaId);
+  }
+
+  DocumentReference<Map<String, dynamic>> _caixaOperacaoDoc(
+    String barbeariaId,
+    String caixaId,
+    String operationId,
+  ) {
+    return _caixaDoc(barbeariaId, caixaId)
+        .collection('operacoes')
+        .doc(operationId);
+  }
+
+  DocumentReference<Map<String, dynamic>> _caixaAtualDoc(String barbeariaId) {
+    return _context
+        .barbeariaDoc(barbeariaId)
+        .collection('metadata')
+        .doc('caixa_atual');
+  }
+
+  Future<String?> _firebaseCaixaIdFromLocalId(int caixaId) async {
+    final rows = await _db.queryAll(
+      AppConstants.tableCaixas,
+      where: 'id = ?',
+      whereArgs: [caixaId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final firebaseId = rows.first['firebase_id'] as String?;
+    if (firebaseId == null || firebaseId.trim().isEmpty) return null;
+    return firebaseId;
+  }
+
   Future<void> _syncDespesasFromFirestoreIfOnline() async {
     if (!await _isFirebaseOnline()) return;
 
@@ -683,6 +987,7 @@ class FinanceiroService {
       final snap = await _context
           .collection(barbeariaId: shopId, nome: AppConstants.tableDespesas)
           .orderBy('data', descending: true)
+          .limit(AppConstants.kSyncBatchSize)
           .get();
 
       for (final doc in snap.docs) {
@@ -691,12 +996,40 @@ class FinanceiroService {
     });
   }
 
+  void _syncDespesasEmBackground() {
+    unawaited(_syncDespesasFromFirestoreIfOnline().catchError((_) {}));
+  }
+
+  void _syncCaixasEmBackground() {
+    unawaited(_syncCaixasFromFirestoreIfOnline().catchError((_) {}));
+  }
+
   Future<void> _syncPendingLocalDespesasIfOnline(String shopId) async {
-    final rows = await _db.queryAll(
+    // Step 1: never-synced records
+    final semFirebaseId = await _db.queryAll(
       AppConstants.tableDespesas,
+      where: "firebase_id IS NULL OR trim(firebase_id) = ''",
       orderBy: 'updated_at DESC',
+      limit: AppConstants.kSyncBatchSize,
     );
-    for (final row in rows) {
+    for (final row in semFirebaseId) {
+      final id = (row['id'] as num?)?.toInt();
+      if (id == null) continue;
+      await _syncDespesaByLocalIdIfOnline(id, shopId: shopId);
+    }
+
+    // Step 2: recently-modified records
+    final threshold =
+        DateTime.now().subtract(const Duration(hours: 48)).toIso8601String();
+    final recentes = await _db.queryAll(
+      AppConstants.tableDespesas,
+      where:
+          "firebase_id IS NOT NULL AND trim(firebase_id) != '' AND updated_at >= ?",
+      whereArgs: [threshold],
+      orderBy: 'updated_at DESC',
+      limit: AppConstants.kSyncBatchSize,
+    );
+    for (final row in recentes) {
       final id = (row['id'] as num?)?.toInt();
       if (id == null) continue;
       await _syncDespesaByLocalIdIfOnline(id, shopId: shopId);
@@ -796,6 +1129,7 @@ class FinanceiroService {
     );
 
     if (existing.isNotEmpty) {
+      if (_localMaisNovoQueRemoto(existing.first, updatedAt)) return;
       await _db.update(
         AppConstants.tableDespesas,
         localMap,
@@ -825,6 +1159,7 @@ class FinanceiroService {
       final snap = await _context
           .collection(barbeariaId: shopId, nome: AppConstants.tableCaixas)
           .orderBy('data_abertura', descending: true)
+          .limit(AppConstants.kSyncBatchSize)
           .get();
 
       for (final doc in snap.docs) {
@@ -948,6 +1283,7 @@ class FinanceiroService {
     );
 
     if (existing.isNotEmpty) {
+      if (_localMaisNovoQueRemoto(existing.first, updatedAt)) return;
       await _db.update(
         AppConstants.tableCaixas,
         localMap,
@@ -981,6 +1317,15 @@ class FinanceiroService {
       return DateTime.tryParse(value);
     }
     return null;
+  }
+
+  bool _localMaisNovoQueRemoto(
+    Map<String, dynamic> local,
+    DateTime remotoUpdatedAt,
+  ) {
+    final localUpdatedAt =
+        DateTime.tryParse((local['updated_at'] as String?) ?? '');
+    return localUpdatedAt != null && localUpdatedAt.isAfter(remotoUpdatedAt);
   }
 
   Future<String?> _barbeariaIdParaFiltro() async {
@@ -1028,4 +1373,20 @@ class FinanceiroService {
       observacoes: safeObs,
     );
   }
+}
+
+class _FirebaseSession {
+  const _FirebaseSession({
+    required this.barbeariaId,
+    required this.userId,
+  });
+
+  final String barbeariaId;
+  final String userId;
+}
+
+class _CaixaFechamentoResumo {
+  const _CaixaFechamentoResumo(this.valorFinal);
+
+  final double valorFinal;
 }

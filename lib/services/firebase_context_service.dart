@@ -2,10 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
-import '../utils/constants.dart';
+import 'session_manager.dart';
 
 class FirebaseContextService {
-  static String? _cachedBarbeariaId;
+  FirebaseContextService({SessionManager? sessionManager})
+      : _sessionManager = sessionManager ?? SessionManager();
+
+  final SessionManager _sessionManager;
 
   bool get firebaseDisponivel {
     if (Firebase.apps.isEmpty) return false;
@@ -19,52 +22,20 @@ class FirebaseContextService {
   Future<String?> getBarbeariaIdAtual({bool forceRefresh = false}) async {
     if (!firebaseDisponivel) return null;
 
-    if (!forceRefresh &&
-        _cachedBarbeariaId != null &&
-        _cachedBarbeariaId!.trim().isNotEmpty) {
-      return _cachedBarbeariaId;
+    final cached = _sessionManager.barbeariaId;
+    if (!forceRefresh && cached != null && cached.trim().isNotEmpty) {
+      return cached;
     }
 
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    final resolved = await _resolverBarbeariaIdUsuario(user.uid);
+    final resolved = await _sessionManager.getBarbeariaId(
+      user.uid,
+      forceRefresh: forceRefresh,
+    );
     if (resolved != null && resolved.trim().isNotEmpty) {
-      _cachedBarbeariaId = resolved;
       return resolved;
-    }
-
-    return null;
-  }
-
-  Future<String?> _resolverBarbeariaIdUsuario(String uid) async {
-    final group = await _firestore
-        .collectionGroup(AppConstants.tableUsuarios)
-        .where('uid', isEqualTo: uid)
-        .limit(1)
-        .get();
-
-    if (group.docs.isNotEmpty) {
-      final doc = group.docs.first;
-      final data = doc.data();
-      final byField = data['barbearia_id'] as String?;
-      if (byField != null && byField.trim().isNotEmpty) {
-        return byField;
-      }
-      final byPath = doc.reference.parent.parent?.id;
-      if (byPath != null && byPath.trim().isNotEmpty) {
-        return byPath;
-      }
-    }
-
-    // Compatibilidade com estrutura legada /usuarios/{uid}
-    final legacy =
-        await _firestore.collection(AppConstants.tableUsuarios).doc(uid).get();
-    if (legacy.exists && legacy.data() != null) {
-      final byField = legacy.data()!['barbearia_id'] as String?;
-      if (byField != null && byField.trim().isNotEmpty) {
-        return byField;
-      }
     }
 
     return null;
@@ -97,8 +68,8 @@ class FirebaseContextService {
     };
   }
 
-  static void setCachedBarbeariaId(String? value) {
-    _cachedBarbeariaId = value;
+  void setCachedBarbeariaId(String? value) {
+    _sessionManager.setBarbeariaIdForCurrentUser(value);
   }
 
   bool _firebaseConfigValida(FirebaseOptions options) {

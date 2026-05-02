@@ -210,12 +210,11 @@ Screens  →  Controllers (ChangeNotifier + ControllerMixin)
 
 | # | Item | Severidade | Detalhe |
 |---|---|---|---|
-| 1 | `google-services.json` no histórico git | 🔴 | Arquivo removido do tracking, mas histórico antigo contém a chave — rotar no Firebase Console e expurgar com `git filter-repo` |
-| 2 | Sangria sem transação atômica | 🟠 | Verificação de saldo e insert não estão na mesma transação SQLite — risco teórico de race em `Future.wait` concorrente |
-| 3 | Publicação manual das regras Firestore | 🟠 | `firebase deploy --only firestore:rules` deve ser executado após qualquer alteração em `firestore.rules` |
-| 4 | APK não validado em dispositivo físico | 🟡 | Testado apenas em emulador e desktop |
-| 5 | `_offlineLoginEnabled` ativo em builds `--profile` | 🟡 | Requer credenciais via dart-define para funcionar — risco baixo |
-| 6 | Overflow em devices < 320 px | 🟢 | Impacto mínimo |
+| 1 | Histórico git com chave Firebase exposta | 🔴 | Arquivo removido do tracking (Tarefa 1). Chave deve ser rotada no Firebase Console e histórico purgado com git filter-repo manualmente |
+| 2 | Publicação manual das regras Firestore | 🟠 | Use `make deploy-rules` ou `make deploy-all` após qualquer alteração em `firestore.rules` |
+| 3 | APK não validado em dispositivo físico | 🟡 | Validar com `docs/QA_DEVICE_CHECKLIST.md` |
+| 4 | `_offlineLoginEnabled` ativo em builds `--profile` | 🟢 | Resolvido — guard alterado para `kDebugMode` |
+| 5 | Overflow em devices < 320 px | 🟢 | Mitigação aplicada nos Rows prioritários de dashboard e caixa; manter validação visual em QA |
 
 ---
 
@@ -398,6 +397,24 @@ flutter build apk --release
 ### 5. Primeiro acesso
 
 Na **primeira execução** com Firebase configurado, a tela de cadastro do admin aparece automaticamente — o sistema detecta que não há nenhum admin no Firestore. Após criar o admin, novos barbeiros são cadastrados pelo menu **Adicionar Barbeiro** no painel admin.
+
+---
+
+## 🤖 Automação
+
+O projeto inclui um `Makefile` para padronizar comandos recorrentes:
+
+```bash
+make test
+make deploy-rules
+make deploy-all
+```
+
+- `make test` executa a suíte automatizada (`flutter test`)
+- `make deploy-rules` publica `firestore.rules` no Firebase
+- `make deploy-all` roda análise, testes, build de release e deploy das regras
+
+O workflow `.github/workflows/ci.yml` executa `flutter analyze` e `flutter test` a cada push ou pull request para `main`.
 
 ---
 

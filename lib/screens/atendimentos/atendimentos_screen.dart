@@ -24,6 +24,7 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
   List<Atendimento> _atendimentos = [];
   bool _loading = true;
   int _rangeDays = 30;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -33,17 +34,21 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _carregar() async {
+    if (_disposed) return;
     setState(() => _loading = true);
     try {
       final fim = DateTime.now();
       final inicio = fim.subtract(Duration(days: _rangeDays));
       final ctrl = context.read<AtendimentoController>();
-      _atendimentos = await ctrl.getPorPeriodo(inicio, fim);
+      final atendimentos = await ctrl.getPorPeriodo(inicio, fim);
+      if (_disposed) return;
+      _atendimentos = atendimentos;
       if (ctrl.errorMsg != null && mounted) {
         UiFeedback.showSnack(
           context,
@@ -52,7 +57,7 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Falha ao carregar atendimentos: $e',
@@ -60,7 +65,7 @@ class _AtendimentosScreenState extends State<AtendimentosScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!_disposed) setState(() => _loading = false);
     }
   }
 

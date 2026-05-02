@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
@@ -41,6 +43,7 @@ class ComandaService {
   final ConnectivityService _connectivity;
   final Uuid _uuid;
   DocumentSnapshot<Map<String, dynamic>>? _lastSyncCursor;
+  String? _lastSyncShopId;
 
   bool get _firebaseDisponivel => _context.firebaseDisponivel;
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -50,13 +53,17 @@ class ComandaService {
     return _connectivity.isOnline();
   }
 
+  void _syncEmBackground() {
+    unawaited(_syncFromFirestoreIfOnline().catchError((_) {}));
+  }
+
   Future<List<Comanda>> getAll({
     String? barbeiroId,
     String? status,
     int? limit,
     int? offset,
   }) async {
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final safeBarbeiroId = barbeiroId == null
         ? null
@@ -112,7 +119,7 @@ class ComandaService {
       min: 1,
       max: 1 << 30,
     );
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final maps = await _db.queryAll(
@@ -128,7 +135,7 @@ class ComandaService {
   }
 
   Future<Comanda?> getComandaAberta({String? barbeiroId}) async {
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final safeBarbeiroId = barbeiroId == null
         ? null
@@ -164,15 +171,15 @@ class ComandaService {
   }
 
   Future<List<Comanda>> getComandasHoje({String? barbeiroId}) async {
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final hoje = DateTime.now();
     final inicio = DateTime(hoje.year, hoje.month, hoje.day).toIso8601String();
     final fim =
         DateTime(hoje.year, hoje.month, hoje.day, 23, 59, 59).toIso8601String();
 
-    var where = 'data_abertura BETWEEN ? AND ?';
-    final whereArgs = <dynamic>[inicio, fim];
+    var where = 'status = ? AND data_fechamento BETWEEN ? AND ?';
+    final whereArgs = <dynamic>[AppConstants.comandaFechada, inicio, fim];
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     if (barbeiroId != null) {
@@ -555,7 +562,7 @@ class ComandaService {
       minLength: 1,
     );
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final result = await _db.rawQuery('''
       SELECT SUM(total) as total
@@ -578,7 +585,7 @@ class ComandaService {
       minLength: 1,
     );
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final result = await _db.rawQuery('''
       SELECT SUM(comissao_total) as total
@@ -595,7 +602,7 @@ class ComandaService {
     DateTime fim,
   ) async {
     SecurityUtils.ensure(!fim.isBefore(inicio), 'Período inválido.');
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
     return _db.rawQuery('''
       SELECT
         c.barbeiro_id,
@@ -616,7 +623,7 @@ class ComandaService {
   }
 
   Future<int> getCountComandasAbertas() async {
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
     final args = <dynamic>[];
     if (shopIdFiltro != null) {
@@ -643,7 +650,7 @@ class ComandaService {
             fieldName: 'ID do barbeiro',
             minLength: 1,
           );
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final whereArgs = <dynamic>[
       inicio.toIso8601String(),
@@ -683,7 +690,7 @@ class ComandaService {
             fieldName: 'ID do barbeiro',
             minLength: 1,
           );
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final whereArgs = <dynamic>[
       inicio.toIso8601String(),
@@ -727,7 +734,7 @@ class ComandaService {
             fieldName: 'ID do barbeiro',
             minLength: 1,
           );
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final inicio =
         DateTime.now().subtract(Duration(days: safeDias)).toIso8601String();
@@ -770,7 +777,7 @@ class ComandaService {
             fieldName: 'ID do barbeiro',
             minLength: 1,
           );
-    await _syncFromFirestoreIfOnline();
+    _syncEmBackground();
 
     final whereArgs = <dynamic>[
       inicio.toIso8601String(),
@@ -851,6 +858,11 @@ class ComandaService {
   }
 
   Future<void> _sincronizarComandasDoFirestore(String shopId) async {
+    // Reset cursor when the shop changes (e.g. after logout/login).
+    if (_lastSyncShopId != shopId) {
+      _lastSyncCursor = null;
+      _lastSyncShopId = shopId;
+    }
     var query = _context
         .collection(barbeariaId: shopId, nome: AppConstants.tableComandas)
         .orderBy('updated_at')
@@ -902,6 +914,10 @@ class ComandaService {
         );
       } else {
         localComandaId = (existing.first['id'] as num).toInt();
+        if (_localMaisNovoQueRemoto(
+            existing.first, map['updated_at'] as String)) {
+          continue;
+        }
         await _db.update(
           AppConstants.tableComandas,
           map,
@@ -1127,6 +1143,18 @@ class ComandaService {
     if (value is DateTime) return value.toIso8601String();
     if (value is String && value.trim().isNotEmpty) return value;
     return null;
+  }
+
+  bool _localMaisNovoQueRemoto(
+    Map<String, dynamic> local,
+    String remotoUpdatedAtIso,
+  ) {
+    final localUpdatedAt =
+        DateTime.tryParse((local['updated_at'] as String?) ?? '');
+    final remotoUpdatedAt = DateTime.tryParse(remotoUpdatedAtIso);
+    return localUpdatedAt != null &&
+        remotoUpdatedAt != null &&
+        localUpdatedAt.isAfter(remotoUpdatedAt);
   }
 
   Future<String?> _barbeariaIdParaFiltro() async {

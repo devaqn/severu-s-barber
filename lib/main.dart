@@ -16,8 +16,11 @@ import 'controllers/financeiro_controller.dart';
 import 'controllers/produto_controller.dart';
 import 'controllers/servico_controller.dart';
 import 'services/agenda_service.dart';
+import 'services/auth_service.dart';
 import 'services/comanda_service.dart';
+import 'services/firebase_context_service.dart';
 import 'services/financeiro_service.dart';
+import 'services/session_manager.dart';
 import 'screens/admin/barbeiros_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/agenda/agenda_screen.dart';
@@ -43,13 +46,12 @@ import 'firebase_options.dart';
 
 final ValueNotifier<ThemeMode> themeModeNotifier =
     ValueNotifier(ThemeMode.dark);
-final ComandaService _sharedComandaService = ComandaService();
-final AgendaService _sharedAgendaService = AgendaService(
-  comandaService: _sharedComandaService,
-);
-final FinanceiroService _sharedFinanceiroService = FinanceiroService(
-  comandaService: _sharedComandaService,
-);
+SessionManager? _sharedSessionManager;
+FirebaseContextService? _sharedFirebaseContext;
+ComandaService? _sharedComandaService;
+AgendaService? _sharedAgendaService;
+FinanceiroService? _sharedFinanceiroService;
+AuthService? _sharedAuthService;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,8 +78,28 @@ Future<void> main() async {
   };
 
   await _inicializarFirebase();
+  _inicializarServicosCompartilhados();
 
   runApp(const SeverusBarberApp());
+}
+
+void _inicializarServicosCompartilhados() {
+  final session = _sharedSessionManager ??= SessionManager();
+  final firebaseContext = _sharedFirebaseContext ??= FirebaseContextService(
+    sessionManager: session,
+  );
+  final comanda = _sharedComandaService ??= ComandaService(
+    context: firebaseContext,
+  );
+  _sharedAgendaService ??= AgendaService(
+    context: firebaseContext,
+    comandaService: comanda,
+  );
+  _sharedFinanceiroService ??= FinanceiroService(
+    context: firebaseContext,
+    comandaService: comanda,
+  );
+  _sharedAuthService ??= AuthService(context: firebaseContext);
 }
 
 Future<void> _inicializarFirebase() async {
@@ -118,12 +140,18 @@ class SeverusBarberApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    _inicializarServicosCompartilhados();
     return MultiProvider(
       providers: [
-        Provider<ComandaService>.value(value: _sharedComandaService),
-        Provider<AgendaService>.value(value: _sharedAgendaService),
-        Provider<FinanceiroService>.value(value: _sharedFinanceiroService),
-        ChangeNotifierProvider(create: (_) => AuthController()),
+        ChangeNotifierProvider<SessionManager>.value(
+          value: _sharedSessionManager!,
+        ),
+        Provider<ComandaService>.value(value: _sharedComandaService!),
+        Provider<AgendaService>.value(value: _sharedAgendaService!),
+        Provider<FinanceiroService>.value(value: _sharedFinanceiroService!),
+        ChangeNotifierProvider(
+          create: (_) => AuthController(authService: _sharedAuthService!),
+        ),
         ChangeNotifierProvider(create: (_) => ClienteController()),
         ChangeNotifierProvider(create: (_) => AtendimentoController()),
         ChangeNotifierProvider(create: (_) => EstoqueController()),

@@ -33,6 +33,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   DateTime _diaSelecionado = DateTime.now();
   DateTime _foco = DateTime.now();
   bool _loading = true;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -40,7 +41,14 @@ class _AgendaScreenState extends State<AgendaScreen> {
     _carregar();
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   Future<void> _carregar() async {
+    if (_disposed) return;
     setState(() => _loading = true);
     try {
       final authController = context.read<AuthController>();
@@ -52,13 +60,13 @@ class _AgendaScreenState extends State<AgendaScreen> {
             : Future.value(<Usuario>[]),
       ]);
 
-      if (!mounted) return;
+      if (_disposed) return;
       setState(() {
         _agendamentos = results[0] as List<Agendamento>;
         _barbeiros = results[1] as List<Usuario>;
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
           'Falha ao carregar agenda: $e',
@@ -66,7 +74,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!_disposed) setState(() => _loading = false);
     }
   }
 

@@ -45,6 +45,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
   // Dados de movimentacoes e fornecedores.
   List<MovimentoEstoque> _movimentos = [];
   List<Fornecedor> _fornecedores = [];
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -52,13 +53,14 @@ class _EstoqueScreenState extends State<EstoqueScreen>
     // Inicializa abas e carrega dados iniciais da tela.
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (!_disposed) setState(() {});
     });
     _carregar();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     // Libera controlador de abas.
     _tabController.dispose();
     super.dispose();
@@ -66,6 +68,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
 
   /// Carrega todas as fontes de dados da tela em paralelo.
   Future<void> _carregar() async {
+    if (_disposed) return;
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
@@ -76,21 +79,25 @@ class _EstoqueScreenState extends State<EstoqueScreen>
         _produtoController.getMovimentos(),
         _produtoController.getFornecedores(),
       ]);
-      _valorTotal = results[0] as double;
-      _baixo = results[1] as List<Produto>;
-      _parados = results[2] as List<Produto>;
-      _reposicao = (results[3] as List).cast<Map<String, dynamic>>();
-      _movimentos = results[4] as List<MovimentoEstoque>;
-      _fornecedores = results[5] as List<Fornecedor>;
+      if (_disposed) return;
+      setState(() {
+        _valorTotal = results[0] as double;
+        _baixo = results[1] as List<Produto>;
+        _parados = results[2] as List<Produto>;
+        _reposicao = (results[3] as List).cast<Map<String, dynamic>>();
+        _movimentos = results[4] as List<MovimentoEstoque>;
+        _fornecedores = results[5] as List<Fornecedor>;
+      });
     } catch (e) {
       _erro('Falha ao carregar estoque: $e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!_disposed) setState(() => _loading = false);
     }
   }
 
   /// Exibe erro em snackbar vermelho.
   void _erro(String msg) {
+    if (_disposed) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(backgroundColor: AppTheme.errorColor, content: Text(msg)),
     );
@@ -98,6 +105,7 @@ class _EstoqueScreenState extends State<EstoqueScreen>
 
   /// Exibe sucesso em snackbar verde.
   void _sucesso(String msg) {
+    if (_disposed) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(backgroundColor: AppTheme.successColor, content: Text(msg)),
     );

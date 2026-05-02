@@ -29,6 +29,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
   List<Caixa> _historico = [];
   Map<String, double> _pagamentosHoje = {};
   bool _loading = true;
+  bool _operacaoEmAndamento = false;
+  bool _disposed = false;
 
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get _pageBg =>
@@ -53,7 +55,14 @@ class _CaixaScreenState extends State<CaixaScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _carregar());
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   void _erro(String msg) {
+    if (_disposed) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppTheme.errorColor,
@@ -69,6 +78,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
   }
 
   Future<void> _carregar() async {
+    if (_disposed) return;
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
@@ -87,7 +97,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
         );
       }
 
-      if (mounted) {
+      if (!_disposed) {
         setState(() {
           _caixaAberto = aberto;
           _historico = historico;
@@ -97,7 +107,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
     } catch (e) {
       _erro('Falha ao carregar caixa: $e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!_disposed) setState(() => _loading = false);
     }
   }
 
@@ -187,7 +197,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
   }
 
   Future<void> _fecharCaixa() async {
-    if (_caixaAberto == null) return;
+    if (_caixaAberto == null || _operacaoEmAndamento) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -233,6 +243,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
       },
     );
     if (confirm == true) {
+      setState(() => _operacaoEmAndamento = true);
       try {
         await _service.fecharCaixa(_caixaAberto!.id!);
         await _carregar();
@@ -249,12 +260,14 @@ class _CaixaScreenState extends State<CaixaScreen> {
         }
       } catch (e) {
         _erro('Falha ao fechar caixa: $e');
+      } finally {
+        if (mounted) setState(() => _operacaoEmAndamento = false);
       }
     }
   }
 
   Future<void> _sangria() async {
-    if (_caixaAberto == null) return;
+    if (_caixaAberto == null || _operacaoEmAndamento) return;
     final ctrl = TextEditingController();
     final obsCtrl = TextEditingController();
     try {
@@ -326,8 +339,13 @@ class _CaixaScreenState extends State<CaixaScreen> {
         },
       );
       if (confirm == true) {
+        final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
+        if (valor <= 0) {
+          _erro('Informe um valor válido para a sangria.');
+          return;
+        }
+        setState(() => _operacaoEmAndamento = true);
         try {
-          final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
           await _service.sangria(
             caixaId: _caixaAberto!.id!,
             valor: valor,
@@ -348,6 +366,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
           }
         } catch (e) {
           _erro('Falha na sangria: $e');
+        } finally {
+          if (mounted) setState(() => _operacaoEmAndamento = false);
         }
       }
     } finally {
@@ -357,7 +377,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
   }
 
   Future<void> _reforco() async {
-    if (_caixaAberto == null) return;
+    if (_caixaAberto == null || _operacaoEmAndamento) return;
     final ctrl = TextEditingController();
     final obsCtrl = TextEditingController();
     try {
@@ -427,8 +447,13 @@ class _CaixaScreenState extends State<CaixaScreen> {
         },
       );
       if (confirm == true) {
+        final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
+        if (valor <= 0) {
+          _erro('Informe um valor válido para o reforço.');
+          return;
+        }
+        setState(() => _operacaoEmAndamento = true);
         try {
-          final valor = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
           await _service.reforco(
             caixaId: _caixaAberto!.id!,
             valor: valor,
@@ -449,6 +474,8 @@ class _CaixaScreenState extends State<CaixaScreen> {
           }
         } catch (e) {
           _erro('Falha no reforço: $e');
+        } finally {
+          if (mounted) setState(() => _operacaoEmAndamento = false);
         }
       }
     } finally {
@@ -744,8 +771,20 @@ class _CaixaScreenState extends State<CaixaScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Valor inicial:'),
-                              Text(AppFormatters.currency(c.valorInicial)),
+                              const Flexible(
+                                child: Text(
+                                  'Valor inicial:',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  AppFormatters.currency(c.valorInicial),
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -753,14 +792,23 @@ class _CaixaScreenState extends State<CaixaScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Total em caixa:',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.bold)),
-                              Text(
-                                AppFormatters.currency(c.valorFinal!),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.successColor,
+                              const Flexible(
+                                child: Text(
+                                  'Total em caixa:',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  AppFormatters.currency(c.valorFinal!),
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.successColor,
+                                  ),
                                 ),
                               ),
                             ],
@@ -808,11 +856,15 @@ class _CaixaScreenState extends State<CaixaScreen> {
               ),
             ),
           ),
-          Text(
-            AppFormatters.currency(valor),
-            style: GoogleFonts.poppins(
-              color: AppTheme.textPrimary,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              AppFormatters.currency(valor),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.poppins(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
