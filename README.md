@@ -21,7 +21,7 @@ O **Severus Barber** é um app mobile e desktop completo para gestão de barbear
 - **Schema SQLite:** versão 7 (migrações incrementais, nunca DROP)
 - **Plataformas:** Android · Windows (desktop)
 - **Testes automatizados:** 115 passando (integração + unit + widget)
-- **Última atualização:** 26/04/2026
+- **Última atualização:** 02/05/2026
 
 ---
 
