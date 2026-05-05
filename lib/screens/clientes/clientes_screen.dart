@@ -61,7 +61,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
       if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
-          'Falha ao salvar cliente: $e',
+          UiFeedback.friendlyError(
+            e,
+            fallback: 'Nao foi possivel salvar o cliente. Tente novamente.',
+          ),
           type: AppNoticeType.error,
         );
       }
@@ -87,7 +90,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
       if (mounted && !_disposed) {
         UiFeedback.showSnack(
           context,
-          'Falha ao atualizar cliente: $e',
+          UiFeedback.friendlyError(
+            e,
+            fallback: 'Nao foi possivel atualizar o cliente. Tente novamente.',
+          ),
           type: AppNoticeType.error,
         );
       }

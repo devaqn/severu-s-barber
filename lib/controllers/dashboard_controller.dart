@@ -27,6 +27,6 @@ class DashboardController extends ChangeNotifier with ControllerMixin {
 
   Future<void> _carregarDados() => runSilent(() async {
         dados = await _service.getDadosDashboard();
-        ultimaAtualizacao = DateTime.now();
+        ultimaAtualizacao = DateTime.now().toUtc();
       });
 }

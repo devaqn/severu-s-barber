@@ -125,31 +125,43 @@ class SessionManager extends ChangeNotifier {
   }
 
   Future<String?> _resolveBarbeariaId(String uid) async {
-    final globalUser =
-        await _firestore.collection(AppConstants.tableUsuarios).doc(uid).get();
-    final globalData = globalUser.data();
-    final globalShop = globalData?['barbearia_id'] as String?;
-    if (globalShop != null && globalShop.trim().isNotEmpty) {
-      return globalShop;
+    try {
+      final membership = await _firestore.collection('user_shops').doc(uid).get();
+      final shopId = membership.data()?['barbearia_id'] as String?;
+      if (shopId != null && shopId.trim().isNotEmpty) {
+        return shopId;
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
     }
 
     final deterministicShopId = 'shop_$uid';
-    final deterministicUser = await _firestore
-        .collection('barbearias')
-        .doc(deterministicShopId)
-        .collection(AppConstants.tableUsuarios)
-        .doc(uid)
-        .get();
-    if (deterministicUser.exists) {
-      return deterministicShopId;
+    try {
+      final deterministicUser = await _firestore
+          .collection('barbearias')
+          .doc(deterministicShopId)
+          .collection(AppConstants.tableUsuarios)
+          .doc(uid)
+          .get();
+      if (deterministicUser.exists) {
+        return deterministicShopId;
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
     }
 
     // Legacy fallback: resolved only while establishing the session, never per request.
-    final legacy = await _firestore
-        .collectionGroup(AppConstants.tableUsuarios)
-        .where('uid', isEqualTo: uid)
-        .limit(1)
-        .get();
+    final QuerySnapshot<Map<String, dynamic>> legacy;
+    try {
+      legacy = await _firestore
+          .collectionGroup(AppConstants.tableUsuarios)
+          .where('uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
     if (legacy.docs.isEmpty) return null;
     final doc = legacy.docs.first;
     final data = doc.data();

@@ -147,7 +147,7 @@ class AgendaService {
 
   Future<int> insert(Agendamento agendamento) async {
     final safeAgendamento = _sanitizarAgendamento(agendamento);
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final usuario = await _usuarioAtual();
     final barbeiroId = safeAgendamento.barbeiroId ?? usuario.uid;
     final barbeiroNome = safeAgendamento.barbeiroNome ?? usuario.nome;
@@ -262,7 +262,7 @@ class AgendaService {
         'barbeiro_id': barbeiroId,
         'barbeiro_nome': barbeiroNome,
         'faturamento_registrado': safeAgendamento.faturamentoRegistrado ? 1 : 0,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
       'id = ?',
       [safeAgendamento.id],
@@ -339,7 +339,7 @@ class AgendaService {
       {
         'status': safeStatus,
         'faturamento_registrado': faturamentoRegistrado ? 1 : 0,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
       'id = ?',
       [id],
@@ -436,7 +436,7 @@ class AgendaService {
 
     await _syncFromFirestoreIfOnline();
 
-    final agora = DateTime.now().toIso8601String();
+    final agora = DateTime.now().toUtc().toIso8601String();
     final barbeiroFiltro = await _barbeiroFiltroAtual();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
@@ -568,7 +568,7 @@ class AgendaService {
   ) async {
     final createdAt = _parseFirestoreDate(
       data['created_at'],
-      fallback: DateTime.now(),
+      fallback: DateTime.now().toUtc(),
     );
     final updatedAt = _parseFirestoreDate(
       data['updated_at'],
@@ -609,6 +609,12 @@ class AgendaService {
     );
 
     if (existing.isNotEmpty) {
+      final localUpdatedAt = DateTime.tryParse(
+        (existing.first['updated_at'] as String?) ?? '',
+      );
+      if (localUpdatedAt != null && localUpdatedAt.isAfter(updatedAt)) {
+        return;
+      }
       await _db.update(
         AppConstants.tableAgendamentos,
         localMap,
@@ -742,13 +748,14 @@ class AgendaService {
   }
 
   DateTime _parseFirestoreDate(dynamic value, {DateTime? fallback}) {
-    if (value == null) return fallback ?? DateTime.now();
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value == null) return fallback ?? DateTime.now().toUtc();
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
     if (value is String && value.trim().isNotEmpty) {
-      return DateTime.tryParse(value) ?? (fallback ?? DateTime.now());
+      return DateTime.tryParse(value)?.toUtc() ??
+          (fallback ?? DateTime.now().toUtc());
     }
-    return fallback ?? DateTime.now();
+    return fallback ?? DateTime.now().toUtc();
   }
 
   Agendamento _sanitizarAgendamento(Agendamento agendamento) {

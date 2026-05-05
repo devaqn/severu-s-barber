@@ -277,7 +277,7 @@ class AuthService {
 
     final sanitizedNome = SecurityUtils.sanitizeName(nome, fieldName: 'Nome');
     final sanitizedEmail = SecurityUtils.sanitizeEmail(email);
-    SecurityUtils.ensureStrongPassword(senha);
+    SecurityUtils.ensureEmployeePassword(senha);
     final sanitizedTelefone = SecurityUtils.sanitizeOptionalPhone(telefone);
     final sanitizedComissao = SecurityUtils.sanitizeDoubleRange(
       comissaoPercentual,
@@ -289,12 +289,12 @@ class AuthService {
     final shopId = _resolveBarbeariaId(admin);
 
     SecurityUtils.ensure(
-      !(await _emailEmUso(sanitizedEmail)),
+      !(await _emailEmUso(sanitizedEmail, barbeariaId: shopId)),
       'E-mail ja cadastrado.',
     );
 
     final secondaryApp = await Firebase.initializeApp(
-      name: 'secondaryApp_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'secondaryApp_${DateTime.now().toUtc().millisecondsSinceEpoch}',
       options: Firebase.app().options,
     );
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
@@ -323,6 +323,7 @@ class AuthService {
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       });
+      await _upsertUserShopMapping(credential.user!.uid, shopId);
 
       final usuario = Usuario(
         id: credential.user!.uid,
@@ -335,7 +336,7 @@ class AuthService {
         comissaoPercentual: sanitizedComissao,
         firstLogin: true,
         barbeariaId: shopId,
-        createdAt: DateTime.now(),
+        createdAt: DateTime.now().toUtc(),
       );
       await _upsertUsuarioLocal(usuario);
       return credential;
@@ -405,16 +406,19 @@ class AuthService {
       await _assertAdminSession();
     }
 
-    SecurityUtils.ensure(
-      !(await _emailEmUso(sanitizedEmail)),
-      'E-mail ja cadastrado.',
-    );
-
     try {
       UserCredential credential;
       if (existeAdmin) {
+        final admin = await _assertAdminSession();
+        final shopId = _resolveBarbeariaId(admin);
+        SecurityUtils.ensure(
+          !(await _emailEmUso(sanitizedEmail, barbeariaId: shopId)),
+          'E-mail ja cadastrado.',
+        );
+
         final app = await Firebase.initializeApp(
-          name: 'secondaryApp_admin_${DateTime.now().millisecondsSinceEpoch}',
+          name:
+              'secondaryApp_admin_${DateTime.now().toUtc().millisecondsSinceEpoch}',
           options: Firebase.app().options,
         );
         final secondaryAuth = FirebaseAuth.instanceFor(app: app);
@@ -460,6 +464,7 @@ class AuthService {
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       });
+      await _upsertUserShopMapping(credential.user!.uid, shopId);
 
       final usuario = Usuario(
         id: credential.user!.uid,
@@ -472,7 +477,7 @@ class AuthService {
         comissaoPercentual: 0.0,
         firstLogin: false,
         barbeariaId: shopId,
-        createdAt: DateTime.now(),
+        createdAt: DateTime.now().toUtc(),
       );
       await _upsertUsuarioLocal(usuario);
       _context.setCachedBarbeariaId(shopId);
@@ -507,7 +512,7 @@ class AuthService {
 
   Future<void> alterarSenha(String novaSenha) async {
     _garantirFirebaseInicializado();
-    SecurityUtils.ensureStrongPassword(novaSenha);
+    SecurityUtils.ensureEmployeePassword(novaSenha);
 
     try {
       await _auth.currentUser?.updatePassword(novaSenha);
@@ -558,7 +563,7 @@ class AuthService {
 
     final safePhotoUrl = SecurityUtils.sanitizeOptionalText(
       photoUrl,
-      maxLength: 2048,
+      maxLength: 260 * 1024,
       allowNewLines: false,
     );
     final shopId = _resolveBarbeariaId(usuarioAtual);
@@ -635,23 +640,27 @@ class AuthService {
       throw Exception('Autenticacao obrigatoria.');
     }
 
+    final shopId = _resolveBarbeariaId(atual);
     Query<Map<String, dynamic>> query = _usuariosCollection(
-      _resolveBarbeariaId(atual),
+      shopId,
     ).where('role', isEqualTo: AppConstants.roleBarbeiro);
 
-    if (apenasAtivos) {
-      query = query.where('ativo', isEqualTo: true);
-    }
-
-    final snap = await query.orderBy('nome').get();
+    final snap = await query.get();
     final usuarios = snap.docs.map((d) {
       final data = <String, dynamic>{...d.data()};
       data['id'] = data['id'] ?? d.id;
       data['uid'] = data['uid'] ?? d.id;
-      data['barbearia_id'] = data['barbearia_id'] ?? _resolveBarbeariaId(atual);
+      data['barbearia_id'] = data['barbearia_id'] ?? shopId;
       data['created_at'] = _normalizeDateValue(data['created_at']);
       return Usuario.fromFirestore(data);
-    }).toList(growable: false);
+    }).where((usuario) {
+      return !apenasAtivos || usuario.ativo;
+    }).toList(growable: false)
+      ..sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
+
+    for (final usuario in usuarios) {
+      await _upsertUserShopMapping(usuario.id, shopId);
+    }
 
     await _syncUsuariosLocais(usuarios);
     return usuarios;
@@ -863,17 +872,32 @@ class AuthService {
     return total > 0;
   }
 
-  Future<bool> _emailEmUso(String email) async {
+  Future<bool> _emailEmUso(String email, {String? barbeariaId}) async {
     final normalized = SecurityUtils.sanitizeEmail(email);
 
     if (_firebaseDisponivel) {
-      final firestoreRows = await _firestore
-          .collectionGroup(AppConstants.tableUsuarios)
-          .where('email', isEqualTo: normalized)
-          .limit(1)
-          .get();
-      if (firestoreRows.docs.isNotEmpty) {
-        return true;
+      final shopId = barbeariaId?.trim();
+      if (shopId != null && shopId.isNotEmpty) {
+        final firestoreRows = await _usuariosCollection(shopId)
+            .where('email', isEqualTo: normalized)
+            .limit(1)
+            .get();
+        if (firestoreRows.docs.isNotEmpty) {
+          return true;
+        }
+      } else {
+        try {
+          final firestoreRows = await _firestore
+              .collectionGroup(AppConstants.tableUsuarios)
+              .where('email', isEqualTo: normalized)
+              .limit(1)
+              .get();
+          if (firestoreRows.docs.isNotEmpty) {
+            return true;
+          }
+        } on FirebaseException catch (e) {
+          if (e.code != 'permission-denied') rethrow;
+        }
       }
     }
 
@@ -909,6 +933,15 @@ class AuthService {
       barbeariaId: barbeariaId,
       nome: AppConstants.tableUsuarios,
     );
+  }
+
+  Future<void> _upsertUserShopMapping(String uid, String shopId) async {
+    if (!_firebaseDisponivel) return;
+    await _firestore.collection('user_shops').doc(uid).set({
+      'uid': uid,
+      'barbearia_id': shopId,
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> _ensureBarbeariaDocument(
@@ -950,6 +983,7 @@ class AuthService {
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    await _upsertUserShopMapping(user.uid, shopId);
 
     final criado = Usuario(
       id: user.uid,
@@ -962,7 +996,7 @@ class AuthService {
       comissaoPercentual: 0.0,
       firstLogin: false,
       barbeariaId: shopId,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
     );
     await _upsertUsuarioLocal(criado);
     return criado;
@@ -971,25 +1005,48 @@ class AuthService {
   Future<Usuario?> _buscarUsuarioFirestore(String uid) async {
     if (!_firebaseDisponivel) return null;
 
-    final cachedShop = await _context.getBarbeariaIdAtual();
-    if (cachedShop != null && cachedShop.trim().isNotEmpty) {
-      final doc = await _usuariosCollection(cachedShop).doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        final data = <String, dynamic>{...doc.data()!};
-        data['id'] = data['id'] ?? uid;
-        data['uid'] = data['uid'] ?? uid;
-        data['barbearia_id'] = data['barbearia_id'] ?? cachedShop;
-        data['created_at'] = _normalizeDateValue(data['created_at']);
-        _throwIfRevoked(data);
-        return Usuario.fromFirestore(data);
+    Future<Usuario?> buscarNoShop(String shopId) async {
+      try {
+        final doc = await _usuariosCollection(shopId).doc(uid).get();
+        if (doc.exists && doc.data() != null) {
+          final data = <String, dynamic>{...doc.data()!};
+          data['id'] = data['id'] ?? uid;
+          data['uid'] = data['uid'] ?? uid;
+          data['barbearia_id'] = data['barbearia_id'] ?? shopId;
+          data['created_at'] = _normalizeDateValue(data['created_at']);
+          _throwIfRevoked(data);
+          return Usuario.fromFirestore(data);
+        }
+        return null;
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') return null;
+        rethrow;
       }
     }
 
-    final group = await _firestore
-        .collectionGroup(AppConstants.tableUsuarios)
-        .where('uid', isEqualTo: uid)
-        .limit(1)
-        .get();
+    final cachedShop = await _context.getBarbeariaIdAtual();
+    if (cachedShop != null && cachedShop.trim().isNotEmpty) {
+      final usuario = await buscarNoShop(cachedShop);
+      if (usuario != null) return usuario;
+    }
+
+    final bootstrapShop = 'shop_$uid';
+    if (cachedShop != bootstrapShop) {
+      final usuario = await buscarNoShop(bootstrapShop);
+      if (usuario != null) return usuario;
+    }
+
+    final QuerySnapshot<Map<String, dynamic>> group;
+    try {
+      group = await _firestore
+          .collectionGroup(AppConstants.tableUsuarios)
+          .where('uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
     if (group.docs.isNotEmpty) {
       final doc = group.docs.first;
       final data = <String, dynamic>{...doc.data()};
@@ -1015,15 +1072,17 @@ class AuthService {
 
   String _normalizeDateValue(dynamic value) {
     if (value is Timestamp) {
-      return value.toDate().toIso8601String();
+      return value.toDate().toUtc().toIso8601String();
     }
     if (value is DateTime) {
-      return value.toIso8601String();
+      return value.toUtc().toIso8601String();
     }
     if (value is String && value.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
       return value;
     }
-    return DateTime.now().toIso8601String();
+    return DateTime.now().toUtc().toIso8601String();
   }
 
   Future<void> _syncUsuariosLocais(List<Usuario> usuarios) async {
@@ -1112,7 +1171,7 @@ class AuthService {
             comissaoPercentual: 0.0,
             firstLogin: false,
             barbeariaId: AppConstants.localBarbeariaId,
-            createdAt: DateTime.now(),
+            createdAt: DateTime.now().toUtc(),
           );
 
     if (!usuario.ativo || !usuario.isAdmin) {

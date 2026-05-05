@@ -97,8 +97,8 @@ class ServicoService {
           'firebase_id': firebaseId,
           'barbearia_id': shopId,
           'created_by': uid,
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
         });
       }
     }
@@ -155,7 +155,7 @@ class ServicoService {
       AppConstants.tableServicos,
       {
         ...safeServico.toMap(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
       'id = ?',
       [safeServico.id],
@@ -193,7 +193,7 @@ class ServicoService {
 
     await _db.update(
       AppConstants.tableServicos,
-      {'ativo': 0, 'updated_at': DateTime.now().toIso8601String()},
+      {'ativo': 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       'id = ?',
       [id],
     );
@@ -258,12 +258,8 @@ class ServicoService {
         'comissao_percentual':
             (data['comissao_percentual'] as num?)?.toDouble() ?? 0.5,
         'ativo': ((data['ativo'] as bool?) ?? true) ? 1 : 0,
-        'created_at': data['created_at'] is Timestamp
-            ? (data['created_at'] as Timestamp).toDate().toIso8601String()
-            : DateTime.now().toIso8601String(),
-        'updated_at': data['updated_at'] is Timestamp
-            ? (data['updated_at'] as Timestamp).toDate().toIso8601String()
-            : DateTime.now().toIso8601String(),
+        'created_at': _normalizeDate(data['created_at']),
+        'updated_at': _normalizeDate(data['updated_at']),
       };
 
       if (existing.isEmpty) {
@@ -273,6 +269,12 @@ class ServicoService {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       } else {
+        if (_localMaisNovoQueRemoto(
+          existing.first,
+          map['updated_at'] as String,
+        )) {
+          continue;
+        }
         await _db.update(
           AppConstants.tableServicos,
           map,
@@ -281,6 +283,28 @@ class ServicoService {
         );
       }
     }
+  }
+
+  String _normalizeDate(dynamic value) {
+    if (value is Timestamp) return value.toDate().toUtc().toIso8601String();
+    if (value is DateTime) return value.toUtc().toIso8601String();
+    if (value is String && value.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
+    }
+    return DateTime.now().toUtc().toIso8601String();
+  }
+
+  bool _localMaisNovoQueRemoto(
+    Map<String, dynamic> local,
+    String remotoUpdatedAtIso,
+  ) {
+    final localUpdatedAt =
+        DateTime.tryParse((local['updated_at'] as String?) ?? '');
+    final remotoUpdatedAt = DateTime.tryParse(remotoUpdatedAtIso);
+    return localUpdatedAt != null &&
+        remotoUpdatedAt != null &&
+        localUpdatedAt.isAfter(remotoUpdatedAt);
   }
 
   Servico _sanitizarServico(Servico servico) {

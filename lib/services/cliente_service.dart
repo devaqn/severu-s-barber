@@ -151,7 +151,7 @@ class ClienteService {
           'barbearia_id': shopId,
           'created_by': uid,
         };
-        return _db.insert(AppConstants.tableClientes, localMap);
+        return _upsertLocalClienteComFirebaseId(localMap, firebaseId);
       }
     }
 
@@ -161,7 +161,7 @@ class ClienteService {
   Future<void> update(Cliente cliente) async {
     SecurityUtils.ensure(cliente.id != null, 'ID do cliente inválido.');
     final safeCliente = _sanitizarCliente(
-      cliente.copyWith(updatedAt: DateTime.now()),
+      cliente.copyWith(updatedAt: DateTime.now().toUtc()),
     );
 
     if (await _isFirebaseOnline()) {
@@ -285,7 +285,7 @@ class ClienteService {
     final totalAtendimentosAtual =
         (row['total_atendimentos'] as num?)?.toInt() ?? 0;
     final pontosAtual = (row['pontos_fidelidade'] as num?)?.toInt() ?? 0;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await executor.update(
       AppConstants.tableClientes,
       {
@@ -316,7 +316,7 @@ class ClienteService {
     final novoPontos = cliente.pontosFidelidade - 10;
     final atualizado = cliente.copyWith(
       pontosFidelidade: novoPontos < 0 ? 0 : novoPontos,
-      updatedAt: DateTime.now(),
+      updatedAt: DateTime.now().toUtc(),
     );
     await update(atualizado);
   }
@@ -398,7 +398,7 @@ class ClienteService {
   }
 
   Future<List<Cliente>> aniversariantesHoje({DateTime? referencia}) async {
-    final base = referencia ?? DateTime.now();
+    final base = (referencia ?? DateTime.now()).toUtc();
     final mes = base.month.toString().padLeft(2, '0');
     final dia = base.day.toString().padLeft(2, '0');
     final md = '$mes-$dia';
@@ -446,7 +446,7 @@ class ClienteService {
   ) async {
     final createdAt = _parseFirestoreDate(
       data['created_at'],
-      fallback: DateTime.now(),
+      fallback: DateTime.now().toUtc(),
     );
     final updatedAt = _parseFirestoreDate(
       data['updated_at'],
@@ -478,6 +478,12 @@ class ClienteService {
     );
 
     if (existing.isNotEmpty) {
+      final localUpdatedAt = DateTime.tryParse(
+        (existing.first['updated_at'] as String?) ?? '',
+      );
+      if (localUpdatedAt != null && localUpdatedAt.isAfter(updatedAt)) {
+        return;
+      }
       await _db.update(
         AppConstants.tableClientes,
         localMap,
@@ -491,6 +497,35 @@ class ClienteService {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+  }
+
+  Future<int> _upsertLocalClienteComFirebaseId(
+    Map<String, dynamic> localMap,
+    String firebaseId,
+  ) async {
+    final existing = await _db.queryAll(
+      AppConstants.tableClientes,
+      where: 'firebase_id = ?',
+      whereArgs: [firebaseId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final id = (existing.first['id'] as num).toInt();
+      await _db.update(
+        AppConstants.tableClientes,
+        localMap,
+        'id = ?',
+        [id],
+      );
+      return id;
+    }
+
+    return _db.insert(
+      AppConstants.tableClientes,
+      localMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Cliente _fromFirestore(
@@ -514,11 +549,11 @@ class ClienteService {
       'total_atendimentos': (data['total_atendimentos'] as num?)?.toInt() ?? 0,
       'created_at': _parseFirestoreDate(
         data['created_at'],
-        fallback: DateTime.now(),
+        fallback: DateTime.now().toUtc(),
       ).toIso8601String(),
       'updated_at': _parseFirestoreDate(
         data['updated_at'],
-        fallback: DateTime.now(),
+        fallback: DateTime.now().toUtc(),
       ).toIso8601String(),
     });
   }
@@ -553,23 +588,23 @@ class ClienteService {
 
   DateTime _parseFirestoreDate(dynamic value, {DateTime? fallback}) {
     if (value == null) {
-      return fallback ?? DateTime.now();
+      return fallback ?? DateTime.now().toUtc();
     }
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
     if (value is String) {
       final parsed = DateTime.tryParse(value);
-      if (parsed != null) return parsed;
+      if (parsed != null) return parsed.toUtc();
     }
-    return fallback ?? DateTime.now();
+    return fallback ?? DateTime.now().toUtc();
   }
 
   DateTime? _parseOptionalFirestoreDate(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
     if (value is String && value.trim().isNotEmpty) {
-      return DateTime.tryParse(value);
+      return DateTime.tryParse(value)?.toUtc();
     }
     return null;
   }
@@ -655,7 +690,7 @@ class ClienteService {
         cliente.dataNascimento!.day,
       );
       final limiteInferior = DateTime(1900, 1, 1);
-      final hoje = DateTime.now();
+      final hoje = DateTime.now().toUtc();
       SecurityUtils.ensure(
         !normalizada.isBefore(limiteInferior),
         'Data de nascimento inválida.',

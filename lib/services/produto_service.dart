@@ -123,7 +123,7 @@ class ProdutoService {
   Future<void> update(Produto produto) async {
     SecurityUtils.ensure(produto.id != null, 'ID do produto inválido.');
     final safeProduto = _sanitizarProduto(
-      produto.copyWith(updatedAt: DateTime.now()),
+      produto.copyWith(updatedAt: DateTime.now().toUtc()),
     );
     if (await _isFirebaseOnline()) {
       final row = await _db.queryAll(
@@ -347,7 +347,7 @@ class ProdutoService {
     final quantidadeAtual = (produtoRow['quantidade'] as num?)?.toInt() ?? 0;
     final precoCustoAtual =
         (produtoRow['preco_custo'] as num?)?.toDouble() ?? 0.0;
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
 
     if (safeTipo == AppConstants.estoqueEntrada) {
       final novaQuantidade = quantidadeAtual + safeQuantidade;
@@ -392,7 +392,7 @@ class ProdutoService {
         tipo: safeTipo,
         quantidade: safeQuantidade,
         valorUnitario: safeValorUnitario,
-        data: DateTime.now(),
+        data: DateTime.now().toUtc(),
         observacao: safeObservacao ?? observacaoPadrao,
       ).toMap(),
     );
@@ -512,8 +512,10 @@ class ProdutoService {
   }
 
   Future<List<Produto>> getProdutosParados() async {
-    final limite =
-        DateTime.now().subtract(const Duration(days: 60)).toIso8601String();
+    final limite = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(days: 60))
+        .toIso8601String();
     final maps = await _db.rawQuery('''
       SELECT p.*, f.nome as fornecedor_nome
       FROM ${AppConstants.tableProdutos} p
@@ -604,12 +606,8 @@ class ProdutoService {
             (data['comissao_percentual'] as num?)?.toDouble() ?? 0.20,
         'fornecedor_id': (data['fornecedor_id'] as num?)?.toInt(),
         'ativo': ((data['ativo'] as bool?) ?? true) ? 1 : 0,
-        'created_at': data['created_at'] is Timestamp
-            ? (data['created_at'] as Timestamp).toDate().toIso8601String()
-            : DateTime.now().toIso8601String(),
-        'updated_at': data['updated_at'] is Timestamp
-            ? (data['updated_at'] as Timestamp).toDate().toIso8601String()
-            : DateTime.now().toIso8601String(),
+        'created_at': _normalizeDate(data['created_at']),
+        'updated_at': _normalizeDate(data['updated_at']),
       };
 
       if (existing.isEmpty) {
@@ -619,6 +617,12 @@ class ProdutoService {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       } else {
+        if (_localMaisNovoQueRemoto(
+          existing.first,
+          map['updated_at'] as String,
+        )) {
+          continue;
+        }
         await _db.update(
           AppConstants.tableProdutos,
           map,
@@ -739,6 +743,28 @@ class ProdutoService {
     if (shopId == null || shopId.trim().isEmpty) return null;
     if (shopId == AppConstants.localBarbeariaId) return null;
     return shopId;
+  }
+
+  String _normalizeDate(dynamic value) {
+    if (value is Timestamp) return value.toDate().toUtc().toIso8601String();
+    if (value is DateTime) return value.toUtc().toIso8601String();
+    if (value is String && value.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
+    }
+    return DateTime.now().toUtc().toIso8601String();
+  }
+
+  bool _localMaisNovoQueRemoto(
+    Map<String, dynamic> local,
+    String remotoUpdatedAtIso,
+  ) {
+    final localUpdatedAt =
+        DateTime.tryParse((local['updated_at'] as String?) ?? '');
+    final remotoUpdatedAt = DateTime.tryParse(remotoUpdatedAtIso);
+    return localUpdatedAt != null &&
+        remotoUpdatedAt != null &&
+        localUpdatedAt.isAfter(remotoUpdatedAt);
   }
 
   Produto _sanitizarProduto(Produto produto) {

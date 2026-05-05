@@ -144,7 +144,7 @@ class AuthController extends ChangeNotifier {
         comissaoPercentual: 0.0,
         firstLogin: false,
         barbeariaId: AppConstants.localBarbeariaId,
-        createdAt: DateTime.now(),
+        createdAt: DateTime.now().toUtc(),
       );
       _status = AuthStatus.autenticadoAdmin;
       _authService.setCachedBarbeariaId(AppConstants.localBarbeariaId);
@@ -207,7 +207,7 @@ class AuthController extends ChangeNotifier {
     try {
       final safeNome = SecurityUtils.sanitizeName(nome, fieldName: 'Nome');
       final safeEmail = SecurityUtils.sanitizeEmail(email);
-      SecurityUtils.ensureStrongPassword(password);
+      SecurityUtils.ensureEmployeePassword(password);
       final safeComissao = SecurityUtils.sanitizeDoubleRange(
         comissaoPercentual,
         fieldName: 'Comissao',

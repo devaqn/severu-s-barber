@@ -21,13 +21,34 @@ Future<void> main(List<String> args) async {
     final comandas = await _queryIfExists(db, 'comandas');
     final itens = await _queryIfExists(db, 'comandas_itens');
 
-    final caixaIds = <int, String>{};
+    final caixaIds = <int, String>{
+      for (final row in caixas)
+        (row['id'] as num).toInt(): _docId(
+          row,
+          fallbackPrefix: 'caixa',
+          localId: (row['id'] as num).toInt(),
+        ),
+    };
+    final caixaExtraOperations = <int, List<String>>{};
+
+    for (final row in despesas) {
+      final localId = (row['id'] as num).toInt();
+      final caixaLocalId = _extractCaixaId(row['observacoes'] as String?);
+      final caixaDocId = caixaLocalId == null ? null : caixaIds[caixaLocalId];
+      if (caixaDocId != null) {
+        final operationId = 'migracao_despesa_$localId';
+        caixaExtraOperations
+            .putIfAbsent(caixaLocalId!, () => <String>[])
+            .add(operationId);
+      }
+    }
+
     for (final row in caixas) {
       final localId = (row['id'] as num).toInt();
-      final docId = _docId(row, fallbackPrefix: 'caixa', localId: localId);
-      caixaIds[localId] = docId;
+      final docId = caixaIds[localId]!;
       final operationIds = <String>[
         'migracao_valor_inicial_$localId',
+        ...?caixaExtraOperations[localId],
         if (row['status'] == 'fechado') 'migracao_fechamento_$localId',
       ];
       writes.add(_write(
@@ -71,6 +92,22 @@ Future<void> main(List<String> args) async {
           },
         ));
       }
+    }
+
+    Map<String, Object?>? caixaAberto;
+    for (final row in caixas) {
+      if (row['status'] == 'aberto') {
+        caixaAberto = row;
+      }
+    }
+    if (caixaAberto != null) {
+      final localId = (caixaAberto['id'] as num).toInt();
+      final docId = caixaIds[localId]!;
+      writes.add(_write(config, 'metadata/caixa_atual', {
+        'caixa_aberto_id': docId,
+        'barbearia_id': config.barbeariaId,
+        'updated_at': _utcIso(caixaAberto['data_abertura']),
+      }));
     }
 
     for (final row in despesas) {
@@ -178,12 +215,28 @@ Future<void> main(List<String> args) async {
 }
 
 fs.Write _write(_Config config, String path, Map<String, Object?> data) {
+  final normalized = Map<String, Object?>.from(data);
+  for (final key in const [
+    'data',
+    'data_abertura',
+    'data_fechamento',
+    'timestamp',
+    'created_at',
+    'updated_at',
+  ]) {
+    final raw = normalized[key];
+    if (raw is String && raw.trim().isNotEmpty) {
+      normalized[key] = DateTime.tryParse(raw) ?? raw;
+    }
+  }
+
   return fs.Write(
     update: fs.Document(
       name:
           'projects/${config.projectId}/databases/(default)/documents/barbearias/${config.barbeariaId}/$path',
-      fields: data.map((key, value) => MapEntry(key, _value(value))),
+      fields: normalized.map((key, value) => MapEntry(key, _value(value))),
     ),
+    currentDocument: config.noOverwrite ? fs.Precondition(exists: false) : null,
   );
 }
 
@@ -274,6 +327,7 @@ class _Config {
     required this.projectId,
     required this.barbeariaId,
     required this.dryRun,
+    required this.noOverwrite,
   });
 
   final String sqlitePath;
@@ -281,6 +335,7 @@ class _Config {
   final String projectId;
   final String barbeariaId;
   final bool dryRun;
+  final bool noOverwrite;
 
   static _Config parse(List<String> args) {
     String? value(String name) {
@@ -294,6 +349,7 @@ class _Config {
     final projectId = value('project');
     final barbeariaId = value('barbearia');
     final dryRun = args.contains('--dry-run');
+    final noOverwrite = args.contains('--no-overwrite');
     if (sqlitePath == null ||
         serviceAccountPath == null ||
         projectId == null ||
@@ -302,7 +358,7 @@ class _Config {
         'Usage: dart run tool/migrate_sqlite_to_firestore.dart '
         '--db <sqlite.db> --service-account <sa.json> '
         '--project <firebase-project-id> --barbearia <barbeariaId> '
-        '[--dry-run]',
+        '[--dry-run] [--no-overwrite]',
       );
       exitCode = 64;
       throw const FormatException('Missing required argument.');
@@ -313,6 +369,7 @@ class _Config {
       projectId: projectId,
       barbeariaId: barbeariaId,
       dryRun: dryRun,
+      noOverwrite: noOverwrite,
     );
   }
 }

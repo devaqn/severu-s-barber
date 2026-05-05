@@ -16,10 +16,15 @@ import 'controllers/financeiro_controller.dart';
 import 'controllers/produto_controller.dart';
 import 'controllers/servico_controller.dart';
 import 'services/agenda_service.dart';
+import 'services/atendimento_service.dart';
 import 'services/auth_service.dart';
+import 'services/cliente_service.dart';
 import 'services/comanda_service.dart';
+import 'services/dashboard_service.dart';
 import 'services/firebase_context_service.dart';
 import 'services/financeiro_service.dart';
+import 'services/produto_service.dart';
+import 'services/servico_service.dart';
 import 'services/session_manager.dart';
 import 'screens/admin/barbeiros_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
@@ -51,6 +56,11 @@ FirebaseContextService? _sharedFirebaseContext;
 ComandaService? _sharedComandaService;
 AgendaService? _sharedAgendaService;
 FinanceiroService? _sharedFinanceiroService;
+AtendimentoService? _sharedAtendimentoService;
+ClienteService? _sharedClienteService;
+ProdutoService? _sharedProdutoService;
+ServicoService? _sharedServicoService;
+DashboardService? _sharedDashboardService;
 AuthService? _sharedAuthService;
 
 Future<void> main() async {
@@ -91,13 +101,34 @@ void _inicializarServicosCompartilhados() {
   final comanda = _sharedComandaService ??= ComandaService(
     context: firebaseContext,
   );
-  _sharedAgendaService ??= AgendaService(
+  final agenda = _sharedAgendaService ??= AgendaService(
     context: firebaseContext,
     comandaService: comanda,
   );
-  _sharedFinanceiroService ??= FinanceiroService(
+  final financeiro = _sharedFinanceiroService ??= FinanceiroService(
     context: firebaseContext,
     comandaService: comanda,
+  );
+  final cliente = _sharedClienteService ??= ClienteService(
+    context: firebaseContext,
+  );
+  final produto = _sharedProdutoService ??= ProdutoService(
+    context: firebaseContext,
+  );
+  _sharedServicoService ??= ServicoService(
+    context: firebaseContext,
+  );
+  _sharedAtendimentoService ??= AtendimentoService(
+    context: firebaseContext,
+    clienteService: cliente,
+    produtoService: produto,
+  );
+  _sharedDashboardService ??= DashboardService(
+    comandaService: comanda,
+    financeiroService: financeiro,
+    produtoService: produto,
+    clienteService: cliente,
+    agendaService: agenda,
   );
   _sharedAuthService ??= AuthService(context: firebaseContext);
 }
@@ -149,12 +180,29 @@ class SeverusBarberApp extends StatelessWidget {
         Provider<ComandaService>.value(value: _sharedComandaService!),
         Provider<AgendaService>.value(value: _sharedAgendaService!),
         Provider<FinanceiroService>.value(value: _sharedFinanceiroService!),
+        Provider<AtendimentoService>.value(value: _sharedAtendimentoService!),
+        Provider<ClienteService>.value(value: _sharedClienteService!),
+        Provider<ProdutoService>.value(value: _sharedProdutoService!),
+        Provider<ServicoService>.value(value: _sharedServicoService!),
+        Provider<DashboardService>.value(value: _sharedDashboardService!),
         ChangeNotifierProvider(
           create: (_) => AuthController(authService: _sharedAuthService!),
         ),
-        ChangeNotifierProvider(create: (_) => ClienteController()),
-        ChangeNotifierProvider(create: (_) => AtendimentoController()),
-        ChangeNotifierProvider(create: (_) => EstoqueController()),
+        ChangeNotifierProvider(
+          create: (_) => ClienteController(
+            clienteService: _sharedClienteService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AtendimentoController(
+            atendimentoService: _sharedAtendimentoService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => EstoqueController(
+            produtoService: _sharedProdutoService,
+          ),
+        ),
         ChangeNotifierProvider(
           create: (_) => AgendaController(agendaService: _sharedAgendaService),
         ),
@@ -162,14 +210,26 @@ class SeverusBarberApp extends StatelessWidget {
           create: (_) =>
               ComandaController(comandaService: _sharedComandaService),
         ),
-        ChangeNotifierProvider(create: (_) => DashboardController()),
+        ChangeNotifierProvider(
+          create: (_) => DashboardController(
+            dashboardService: _sharedDashboardService,
+          ),
+        ),
         ChangeNotifierProvider(
           create: (_) => FinanceiroController(
             financeiroService: _sharedFinanceiroService,
           ),
         ),
-        ChangeNotifierProvider(create: (_) => ServicoController()),
-        ChangeNotifierProvider(create: (_) => ProdutoController()),
+        ChangeNotifierProvider(
+          create: (_) => ServicoController(
+            servicoService: _sharedServicoService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ProdutoController(
+            produtoService: _sharedProdutoService,
+          ),
+        ),
       ],
       child: ValueListenableBuilder<ThemeMode>(
         valueListenable: themeModeNotifier,

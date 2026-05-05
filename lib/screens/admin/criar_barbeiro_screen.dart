@@ -96,7 +96,10 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
     if (!ok) {
       UiFeedback.showSnack(
         context,
-        ctrl.errorMsg ?? 'Falha ao criar barbeiro.',
+        UiFeedback.friendlyError(
+          ctrl.errorMsg,
+          fallback: 'Nao foi possivel criar o barbeiro. Tente novamente.',
+        ),
         type: AppNoticeType.error,
       );
       return;
@@ -221,7 +224,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                       return 'Informe a senha temporaria.';
                     }
                     try {
-                      SecurityUtils.ensureStrongPassword(v);
+                      SecurityUtils.ensureEmployeePassword(v);
                     } catch (e) {
                       return e.toString().replaceFirst('Exception: ', '');
                     }
@@ -257,7 +260,7 @@ class _CriarBarbeiroScreenState extends State<CriarBarbeiroScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'O barbeiro sera criado com status ativo e firstLogin ligado para trocar a senha no primeiro acesso.',
+                    'Use uma senha temporaria com 8 caracteres ou mais e ao menos 1 letra maiuscula.',
                     style: GoogleFonts.inter(
                       color: AppTheme.infoColor,
                       fontSize: 12,

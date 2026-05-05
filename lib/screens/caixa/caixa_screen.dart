@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/caixa.dart';
 import '../../services/financeiro_service.dart';
 import '../../utils/formatters.dart';
@@ -268,6 +269,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
 
   Future<void> _sangria() async {
     if (_caixaAberto == null || _operacaoEmAndamento) return;
+    final operationId = const Uuid().v4();
     final ctrl = TextEditingController();
     final obsCtrl = TextEditingController();
     try {
@@ -351,6 +353,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
             valor: valor,
             observacao:
                 obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+            operationId: operationId,
           );
           await _carregar();
           if (mounted) {
@@ -378,6 +381,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
 
   Future<void> _reforco() async {
     if (_caixaAberto == null || _operacaoEmAndamento) return;
+    final operationId = const Uuid().v4();
     final ctrl = TextEditingController();
     final obsCtrl = TextEditingController();
     try {
@@ -459,6 +463,7 @@ class _CaixaScreenState extends State<CaixaScreen> {
             valor: valor,
             observacao:
                 obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim(),
+            operationId: operationId,
           );
           await _carregar();
           if (mounted) {

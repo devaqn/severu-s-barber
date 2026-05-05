@@ -106,6 +106,28 @@ service cloud.firestore {
         && request.resource.data.barbearia_id == shopId;
     }
 
+    function onlyOwnProfileFieldsChanged(uid) {
+      return isAuth()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'photo_url',
+          'first_login',
+          'updated_at'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['first_login'])
+          || request.resource.data.first_login == false
+        )
+        && (
+          !request.resource.data.keys().hasAny(['photo_url'])
+          || request.resource.data.photo_url == null
+          || (
+            request.resource.data.photo_url is string
+            && request.resource.data.photo_url.size() < 260 * 1024
+          )
+        );
+    }
+
     match /barbearias/{shopId} {
       allow read: if isInShop(shopId);
       allow create: if isAuth()
@@ -114,9 +136,22 @@ service cloud.firestore {
       allow update: if isInShop(shopId) && isAdmin(shopId);
     }
 
+    match /user_shops/{uid} {
+      allow read: if isAuth() && request.auth.uid == uid;
+      allow create, update: if isAuth()
+        && request.resource.data.uid == uid
+        && request.resource.data.barbearia_id is string
+        && isInShop(request.resource.data.barbearia_id)
+        && isAdmin(request.resource.data.barbearia_id);
+      allow delete: if false;
+    }
+
     match /barbearias/{shopId}/usuarios/{uid} {
       allow read: if isInShop(shopId) && (isAdmin(shopId) || request.auth.uid == uid);
-      allow write: if (isInShop(shopId) && isAdmin(shopId)) || isBootstrapAdmin(shopId, uid);
+      allow create: if (isInShop(shopId) && isAdmin(shopId)) || isBootstrapAdmin(shopId, uid);
+      allow update: if (isInShop(shopId) && isAdmin(shopId))
+        || (isInShop(shopId) && onlyOwnProfileFieldsChanged(uid));
+      allow delete: if isInShop(shopId) && isAdmin(shopId);
     }
 
     match /barbearias/{shopId}/clientes/{id} {

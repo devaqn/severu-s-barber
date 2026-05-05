@@ -89,7 +89,7 @@ class FinanceiroService {
 
   Future<int> insertDespesa(Despesa despesa) async {
     final safeDespesa = _sanitizarDespesa(despesa);
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final localMap = <String, dynamic>{
       ...safeDespesa.toMap(),
       'created_at': nowIso,
@@ -164,7 +164,7 @@ class FinanceiroService {
       AppConstants.tableDespesas,
       {
         ...safeDespesa.toMap(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
       'id = ?',
       [safeDespesa.id],
@@ -509,6 +509,7 @@ class FinanceiroService {
       throw const NotFoundException('Caixa aberto nao encontrado.');
     }
 
+    final effectiveOperationId = operationId ?? _uuid.v4();
     final session = await _firebaseSession();
     final firebaseCaixaId =
         session == null ? null : await _firebaseCaixaIdFromLocalId(safeCaixaId);
@@ -517,7 +518,7 @@ class FinanceiroService {
         barbeariaId: session.barbeariaId,
         userId: session.userId,
         caixaId: firebaseCaixaId,
-        operationId: operationId ?? _uuid.v4(),
+        operationId: effectiveOperationId,
         tipo: 'sangria',
         valor: safeValor,
       );
@@ -532,7 +533,7 @@ class FinanceiroService {
         );
       }
 
-      final now = DateTime.now();
+      final now = DateTime.now().toUtc();
       final nowIso = now.toIso8601String();
       await txn.insert(
         AppConstants.tableDespesas,
@@ -544,9 +545,11 @@ class FinanceiroService {
             data: now,
             observacoes: 'Sangria — Caixa #$safeCaixaId',
           ).toMap(),
+          'operation_id': effectiveOperationId,
           'created_at': nowIso,
           'updated_at': nowIso,
         },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
       );
     });
   }
@@ -558,7 +561,7 @@ class FinanceiroService {
     final caixaId = caixa.id;
     if (caixaId == null) return 0;
     final inicio = caixa.dataAbertura.toIso8601String();
-    final fim = DateTime.now().toIso8601String();
+    final fim = DateTime.now().toUtc().toIso8601String();
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     final comandasArgs = <dynamic>[
@@ -635,6 +638,7 @@ class FinanceiroService {
       throw const NotFoundException('Caixa aberto nao encontrado.');
     }
 
+    final effectiveOperationId = operationId ?? _uuid.v4();
     final session = await _firebaseSession();
     final firebaseCaixaId =
         session == null ? null : await _firebaseCaixaIdFromLocalId(safeCaixaId);
@@ -643,13 +647,13 @@ class FinanceiroService {
         barbeariaId: session.barbeariaId,
         userId: session.userId,
         caixaId: firebaseCaixaId,
-        operationId: operationId ?? _uuid.v4(),
+        operationId: effectiveOperationId,
         tipo: 'reforco',
         valor: safeValor,
       );
     }
 
-    final agora = DateTime.now();
+    final agora = DateTime.now().toUtc();
     final agoraIso = agora.toIso8601String();
     String? shopId;
     String? uid;
@@ -659,19 +663,23 @@ class FinanceiroService {
     }
 
     await _db.transaction((txn) async {
-      await txn.insert(AppConstants.tableDespesas, {
-        ...Despesa(
-          descricao: safeObs ?? 'Reforço de caixa',
-          categoria: 'Reforço',
-          valor: -safeValor,
-          data: agora,
-          observacoes: 'Reforço - Caixa #$safeCaixaId',
-        ).toMap(),
-        'barbearia_id': shopId,
-        'created_by': uid,
-        'created_at': agoraIso,
-        'updated_at': agoraIso,
-      });
+      await txn.insert(
+          AppConstants.tableDespesas,
+          {
+            ...Despesa(
+              descricao: safeObs ?? 'Reforço de caixa',
+              categoria: 'Reforço',
+              valor: -safeValor,
+              data: agora,
+              observacoes: 'Reforço - Caixa #$safeCaixaId',
+            ).toMap(),
+            'operation_id': effectiveOperationId,
+            'barbearia_id': shopId,
+            'created_by': uid,
+            'created_at': agoraIso,
+            'updated_at': agoraIso,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     });
     await _syncDespesasFromFirestoreIfOnline();
   }
@@ -876,6 +884,8 @@ class FinanceiroService {
           id,
         )));
       }
+      final activeSnap = await txn.get(activeRef);
+      final activeCaixaId = activeSnap.data()?['caixa_aberto_id'] as String?;
 
       final valorFinal = _saldoCaixaLedger(caixaData, operationDocs);
       final agora = DateTime.now().toUtc();
@@ -894,14 +904,16 @@ class FinanceiroService {
         'operation_ids': [...operationIds, operationId],
         'updated_at': Timestamp.fromDate(agora),
       });
-      txn.set(
-          activeRef,
-          {
-            'caixa_aberto_id': null,
-            'barbearia_id': barbeariaId,
-            'updated_at': Timestamp.fromDate(agora),
-          },
-          SetOptions(merge: true));
+      if (activeCaixaId == caixaId) {
+        txn.set(
+            activeRef,
+            {
+              'caixa_aberto_id': null,
+              'barbearia_id': barbeariaId,
+              'updated_at': Timestamp.fromDate(agora),
+            },
+            SetOptions(merge: true));
+      }
       return _CaixaFechamentoResumo(valorFinal);
     });
   }
@@ -1019,8 +1031,10 @@ class FinanceiroService {
     }
 
     // Step 2: recently-modified records
-    final threshold =
-        DateTime.now().subtract(const Duration(hours: 48)).toIso8601String();
+    final threshold = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(hours: 48))
+        .toIso8601String();
     final recentes = await _db.queryAll(
       AppConstants.tableDespesas,
       where:
@@ -1097,7 +1111,7 @@ class FinanceiroService {
   ) async {
     final createdAt = _parseFirestoreDate(
       data['created_at'],
-      fallback: DateTime.now(),
+      fallback: DateTime.now().toUtc(),
     );
     final updatedAt = _parseFirestoreDate(
       data['updated_at'],
@@ -1248,7 +1262,7 @@ class FinanceiroService {
   ) async {
     final createdAt = _parseFirestoreDate(
       data['created_at'],
-      fallback: DateTime.now(),
+      fallback: DateTime.now().toUtc(),
     );
     final updatedAt = _parseFirestoreDate(
       data['updated_at'],
@@ -1300,21 +1314,22 @@ class FinanceiroService {
   }
 
   DateTime _parseFirestoreDate(dynamic value, {DateTime? fallback}) {
-    if (value == null) return fallback ?? DateTime.now();
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value == null) return fallback ?? DateTime.now().toUtc();
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
     if (value is String && value.trim().isNotEmpty) {
-      return DateTime.tryParse(value) ?? (fallback ?? DateTime.now());
+      return DateTime.tryParse(value)?.toUtc() ??
+          (fallback ?? DateTime.now().toUtc());
     }
-    return fallback ?? DateTime.now();
+    return fallback ?? DateTime.now().toUtc();
   }
 
   DateTime? _parseOptionalFirestoreDate(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
     if (value is String && value.trim().isNotEmpty) {
-      return DateTime.tryParse(value);
+      return DateTime.tryParse(value)?.toUtc();
     }
     return null;
   }

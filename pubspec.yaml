@@ -1,7 +1,7 @@
 name: barbearia_pro
 description: Severus Barber - Gestao Profissional de Barbearia (Multi-Usuario)
 publish_to: 'none'
-version: 5.0.0+5
+version: 6.0.0+6
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -63,6 +63,7 @@ dependencies:
 
   # Icones extras
   cupertino_icons: ^1.0.8
+  image: 4.3.0
 
 dev_dependencies:
   flutter_test:

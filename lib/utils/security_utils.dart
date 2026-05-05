@@ -184,6 +184,14 @@ class SecurityUtils {
     );
   }
 
+  static void ensureEmployeePassword(String password) {
+    ensure(password.length >= 8, 'Senha deve ter ao menos 8 caracteres.');
+    ensure(
+      RegExp(r'[A-Z]').hasMatch(password),
+      'Senha deve conter ao menos 1 letra maiuscula.',
+    );
+  }
+
   static String digitsOnly(String input) {
     return input.replaceAll(RegExp(r'\D'), '');
   }

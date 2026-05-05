@@ -4,6 +4,8 @@
 // ============================================================
 
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -140,8 +142,22 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   String _withCacheBust(String url) {
+    if (_isDataImage(url)) return url;
     final separator = url.contains('?') ? '&' : '?';
     return '$url${separator}v=$_avatarVersion';
+  }
+
+  bool _isDataImage(String value) {
+    return value.startsWith('data:image/') && value.contains(';base64,');
+  }
+
+  Uint8List? _decodeDataImage(String value) {
+    try {
+      final base64Part = value.substring(value.indexOf(';base64,') + 8);
+      return base64Decode(base64Part);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _openAvatarActions(AuthController auth) async {
@@ -219,18 +235,19 @@ class _AppDrawerState extends State<AppDrawer> {
     final previousPath = _avatarPath;
     setState(() => _updatingAvatar = true);
     try {
-      final saved = await _photoService.saveProfilePhoto(
+      final photoUrl = await _photoService.saveProfilePhotoUrl(
         userId: auth.usuarioId,
+        barbeariaId: auth.barbeariaId,
         sourcePath: picked.path,
       );
-      final persisted = await auth.atualizarFotoPerfil(saved.path);
+      final persisted = await auth.atualizarFotoPerfil(photoUrl);
       if (!persisted) {
         throw Exception(auth.errorMsg ?? 'Falha ao persistir foto de perfil.');
       }
       await _invalidateAvatarCache(previousPath);
       if (!mounted) return;
       setState(() {
-        _avatarPath = saved.path;
+        _avatarPath = photoUrl;
         _avatarVersion = DateTime.now().millisecondsSinceEpoch;
       });
       _showAvatarSnack('Foto de perfil atualizada com sucesso.');
@@ -253,7 +270,11 @@ class _AppDrawerState extends State<AppDrawer> {
     final previousPath = _avatarPath;
     setState(() => _updatingAvatar = true);
     try {
-      await _photoService.deleteProfilePhoto(auth.usuarioId);
+      await _photoService.deleteProfilePhotoUrl(
+        userId: auth.usuarioId,
+        barbeariaId: auth.barbeariaId,
+        photoUrl: previousPath,
+      );
       final persisted = await auth.atualizarFotoPerfil(null);
       if (!persisted) {
         throw Exception(auth.errorMsg ?? 'Falha ao remover foto do perfil.');
@@ -278,10 +299,15 @@ class _AppDrawerState extends State<AppDrawer> {
   Widget _buildHeader(AuthController auth, bool isAdmin) {
     final name = auth.usuarioNome.isEmpty ? 'Sessao ativa' : auth.usuarioNome;
     final path = _avatarPath?.trim();
+    final isDataAvatar = path != null && _isDataImage(path);
+    final avatarBytes = isDataAvatar ? _decodeDataImage(path) : null;
     final isNetworkAvatar = path != null &&
         (path.startsWith('http://') || path.startsWith('https://'));
-    final avatarFile = (!isNetworkAvatar && path != null) ? File(path) : null;
-    final hasAvatar = isNetworkAvatar || (avatarFile?.existsSync() ?? false);
+    final avatarFile =
+        (!isNetworkAvatar && !isDataAvatar && path != null) ? File(path) : null;
+    final hasAvatar = avatarBytes != null ||
+        isNetworkAvatar ||
+        (avatarFile?.existsSync() ?? false);
 
     return Container(
       width: double.infinity,
@@ -323,25 +349,35 @@ class _AppDrawerState extends State<AppDrawer> {
                     ),
                     child: ClipOval(
                       child: hasAvatar
-                          ? isNetworkAvatar
-                              ? Image.network(
-                                  _withCacheBust(path),
-                                  key: ValueKey(
-                                      'network_avatar_${_withCacheBust(path)}'),
+                          ? avatarBytes != null
+                              ? Image.memory(
+                                  avatarBytes,
+                                  key: ValueKey('data_avatar_$_avatarVersion'),
                                   fit: BoxFit.cover,
                                   width: 96,
                                   height: 96,
                                   errorBuilder: (_, __, ___) =>
                                       const _AvatarPlaceholder(),
                                 )
-                              : Image.file(
-                                  avatarFile!,
-                                  key: ValueKey(
-                                      'file_avatar_${avatarFile.path}_$_avatarVersion'),
-                                  fit: BoxFit.cover,
-                                  width: 96,
-                                  height: 96,
-                                )
+                              : isNetworkAvatar
+                                  ? Image.network(
+                                      _withCacheBust(path),
+                                      key: ValueKey(
+                                          'network_avatar_${_withCacheBust(path)}'),
+                                      fit: BoxFit.cover,
+                                      width: 96,
+                                      height: 96,
+                                      errorBuilder: (_, __, ___) =>
+                                          const _AvatarPlaceholder(),
+                                    )
+                                  : Image.file(
+                                      avatarFile!,
+                                      key: ValueKey(
+                                          'file_avatar_${avatarFile.path}_$_avatarVersion'),
+                                      fit: BoxFit.cover,
+                                      width: 96,
+                                      height: 96,
+                                    )
                           : const _AvatarPlaceholder(),
                     ),
                   ),
@@ -574,67 +610,44 @@ class _AppDrawerState extends State<AppDrawer> {
                   valueListenable: themeModeNotifier,
                   builder: (ctx, mode, _) {
                     final dark = mode == ThemeMode.dark;
-                    final switchWidget = Switch.adaptive(
-                      value: dark,
-                      activeThumbColor: AppTheme.accentColor,
-                      onChanged: (v) {
-                        themeModeNotifier.value =
-                            v ? ThemeMode.dark : ThemeMode.light;
-                      },
-                    );
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth < 290) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    dark ? Icons.dark_mode : Icons.light_mode,
-                                    color: _drawerTextSecondary,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Modo Escuro',
-                                      style: GoogleFonts.inter(
-                                        color: _drawerTextPrimary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: switchWidget,
-                              ),
-                            ],
-                          );
-                        }
-                        return Row(
-                          children: [
-                            Icon(
-                              dark ? Icons.dark_mode : Icons.light_mode,
-                              color: _drawerTextSecondary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Modo Escuro',
-                                style: GoogleFonts.inter(
-                                  color: _drawerTextPrimary,
-                                  fontSize: 14,
-                                ),
+                    return SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          Icon(
+                            dark ? Icons.dark_mode : Icons.light_mode,
+                            color: _drawerTextSecondary,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Modo Escuro',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: _drawerTextPrimary,
+                                fontSize: 14,
                               ),
                             ),
-                            switchWidget,
-                          ],
-                        );
-                      },
+                          ),
+                          SizedBox(
+                            width: 52,
+                            height: 40,
+                            child: FittedBox(
+                              fit: BoxFit.contain,
+                              child: Switch.adaptive(
+                                value: dark,
+                                activeThumbColor: AppTheme.accentColor,
+                                onChanged: (v) {
+                                  themeModeNotifier.value =
+                                      v ? ThemeMode.dark : ThemeMode.light;
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -777,13 +790,13 @@ class _DrawerItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg =
-        isDark ? AppTheme.primaryColor.withValues(alpha: 0) : Colors.transparent;
+    final baseBg = isDark
+        ? AppTheme.primaryColor.withValues(alpha: 0)
+        : Colors.transparent;
     final activeBg = isDark
         ? AppTheme.secondaryColor.withValues(alpha: 0.95)
         : AppTheme.lightInputFill;
-    final textColor =
-        isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
+    final textColor = isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

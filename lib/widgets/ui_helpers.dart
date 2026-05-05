@@ -6,6 +6,40 @@ import '../utils/app_theme.dart';
 enum AppNoticeType { success, error, info }
 
 class UiFeedback {
+  static String friendlyError(Object? error, {required String fallback}) {
+    final raw = (error ?? '').toString();
+    final lower = raw.toLowerCase();
+
+    if (lower.contains('cloud_firestore/failed-precondition') &&
+        lower.contains('requires an index')) {
+      return 'Estamos ajustando a lista. Tente novamente em alguns segundos.';
+    }
+    if (lower.contains('cloud_firestore/permission-denied') ||
+        lower.contains('permission_denied') ||
+        lower.contains('permission denied') ||
+        lower.contains('permiss')) {
+      return 'Seu acesso ainda nao esta liberado para essa acao. Saia e entre novamente; se continuar, fale com o administrador.';
+    }
+    if (lower.contains('unique constraint failed') ||
+        lower.contains('sqlite_constraint_unique') ||
+        lower.contains('duplicate')) {
+      return 'Esse registro ja estava salvo neste aparelho. Atualizamos a lista para evitar duplicidade.';
+    }
+    if (lower.contains('network') ||
+        lower.contains('unavailable') ||
+        lower.contains('sem conexao')) {
+      return 'Sem conexao no momento. Verifique a internet e tente novamente.';
+    }
+    if (raw.trim().isEmpty) return fallback;
+    if (raw.length > 180 ||
+        lower.contains('databaseexception') ||
+        lower.contains('firebaseexception') ||
+        lower.contains('http')) {
+      return fallback;
+    }
+    return raw.replaceFirst('Exception: ', '');
+  }
+
   static void showSnack(
     BuildContext context,
     String message, {

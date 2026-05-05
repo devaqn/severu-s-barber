@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,6 +40,43 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
     return '(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7)}';
   }
 
+  bool _isDataImage(String value) {
+    return value.startsWith('data:image/') && value.contains(';base64,');
+  }
+
+  Uint8List? _decodeDataImage(String value) {
+    try {
+      final base64Part = value.substring(value.indexOf(';base64,') + 8);
+      return base64Decode(base64Part);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _avatarBarbeiro(Usuario usuario) {
+    final photo = usuario.photoUrl?.trim();
+    final bytes =
+        photo != null && _isDataImage(photo) ? _decodeDataImage(photo) : null;
+    final nome = usuario.nome.trim();
+    final initial = nome.isEmpty ? '?' : nome.substring(0, 1).toUpperCase();
+
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: AppTheme.accentColor,
+      foregroundColor: AppTheme.primaryColor,
+      backgroundImage: bytes == null ? null : MemoryImage(bytes),
+      child: bytes == null
+          ? Text(
+              initial,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            )
+          : null,
+    );
+  }
+
   void _aplicarMascaraTelefone(TextEditingController ctrl, String value) {
     final digits = _apenasDigitos(value);
     final limitado = digits.length > 11 ? digits.substring(0, 11) : digits;
@@ -65,7 +104,10 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
       if (!mounted) return;
       UiFeedback.showSnack(
         context,
-        'Falha ao carregar barbeiros: $e',
+        UiFeedback.friendlyError(
+          e,
+          fallback: 'Nao foi possivel carregar os barbeiros. Tente novamente.',
+        ),
         type: AppNoticeType.error,
       );
     } finally {
@@ -81,7 +123,10 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
       if (!mounted) return;
       UiFeedback.showSnack(
         context,
-        'Falha ao atualizar status: $e',
+        UiFeedback.friendlyError(
+          e,
+          fallback: 'Nao foi possivel atualizar o status. Tente novamente.',
+        ),
         type: AppNoticeType.error,
       );
     }
@@ -401,6 +446,7 @@ class _BarbeirosScreenState extends State<BarbeirosScreen> {
                                 horizontal: 14,
                                 vertical: 10,
                               ),
+                              leading: _avatarBarbeiro(usuario),
                               title: Text(
                                 usuario.nome,
                                 style: GoogleFonts.poppins(

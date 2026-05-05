@@ -173,13 +173,27 @@ class ComandaService {
   Future<List<Comanda>> getComandasHoje({String? barbeiroId}) async {
     _syncEmBackground();
 
-    final hoje = DateTime.now();
-    final inicio = DateTime(hoje.year, hoje.month, hoje.day).toIso8601String();
-    final fim =
-        DateTime(hoje.year, hoje.month, hoje.day, 23, 59, 59).toIso8601String();
+    final agora = DateTime.now().toUtc();
+    final inicio =
+        DateTime.utc(agora.year, agora.month, agora.day).toIso8601String();
+    final fim = DateTime.utc(
+      agora.year,
+      agora.month,
+      agora.day,
+      23,
+      59,
+      59,
+    ).toIso8601String();
 
-    var where = 'status = ? AND data_fechamento BETWEEN ? AND ?';
-    final whereArgs = <dynamic>[AppConstants.comandaFechada, inicio, fim];
+    var where =
+        '((data_fechamento BETWEEN ? AND ?) OR (status = ? AND data_abertura BETWEEN ? AND ?))';
+    final whereArgs = <dynamic>[
+      inicio,
+      fim,
+      AppConstants.comandaAberta,
+      inicio,
+      fim,
+    ];
     final shopIdFiltro = await _barbeariaIdParaFiltro();
 
     if (barbeiroId != null) {
@@ -202,7 +216,8 @@ class ComandaService {
       whereArgs: whereArgs,
       orderBy: 'data_abertura DESC',
     );
-    return maps.map((m) => Comanda.fromMap(m)).toList();
+    final comandas = maps.map((m) => Comanda.fromMap(m)).toList();
+    return _anexarItens(comandas);
   }
 
   Future<Comanda> abrirComanda({
@@ -249,14 +264,14 @@ class ComandaService {
       barbeiroId: safeBarbeiroId,
       barbeiroNome: safeBarbeiroNome,
       status: AppConstants.comandaAberta,
-      dataAbertura: DateTime.now(),
+      dataAbertura: DateTime.now().toUtc(),
       observacoes: safeObs,
     );
 
     final localMap = <String, dynamic>{
       ...comanda.toMap(),
       'barbeiro_uid': safeBarbeiroId,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
 
     if (await _isFirebaseOnline()) {
@@ -337,7 +352,7 @@ class ComandaService {
                 comissaoPercentual: comissaoFinal,
               )
               .toMap(),
-          'updated_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
       );
 
@@ -429,7 +444,7 @@ class ComandaService {
       allowNewLines: true,
     );
 
-    final agora = DateTime.now();
+    final agora = DateTime.now().toUtc();
     final produtosAbaixados = <int>{};
     await _db.transaction((txn) async {
       final comandaRows = await txn.query(
@@ -532,7 +547,7 @@ class ComandaService {
       min: 1,
       max: 1 << 30,
     );
-    final agora = DateTime.now().toIso8601String();
+    final agora = DateTime.now().toUtc().toIso8601String();
     final updated = await _db.update(
       AppConstants.tableComandas,
       {
@@ -570,7 +585,11 @@ class ComandaService {
       WHERE barbeiro_id = ?
         AND status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
-    ''', [safeBarbeiroId, inicio.toIso8601String(), fim.toIso8601String()]);
+    ''', [
+      safeBarbeiroId,
+      inicio.toUtc().toIso8601String(),
+      fim.toUtc().toIso8601String(),
+    ]);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
@@ -593,7 +612,11 @@ class ComandaService {
       WHERE barbeiro_id = ?
         AND status = 'fechada'
         AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
-    ''', [safeBarbeiroId, inicio.toIso8601String(), fim.toIso8601String()]);
+    ''', [
+      safeBarbeiroId,
+      inicio.toUtc().toIso8601String(),
+      fim.toUtc().toIso8601String(),
+    ]);
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
@@ -619,7 +642,7 @@ class ComandaService {
         AND c.barbeiro_id IS NOT NULL
       GROUP BY c.barbeiro_id
       ORDER BY faturamento DESC
-    ''', [inicio.toIso8601String(), fim.toIso8601String()]);
+    ''', [inicio.toUtc().toIso8601String(), fim.toUtc().toIso8601String()]);
   }
 
   Future<int> getCountComandasAbertas() async {
@@ -653,8 +676,8 @@ class ComandaService {
     _syncEmBackground();
 
     final whereArgs = <dynamic>[
-      inicio.toIso8601String(),
-      fim.toIso8601String()
+      inicio.toUtc().toIso8601String(),
+      fim.toUtc().toIso8601String()
     ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
@@ -670,7 +693,7 @@ class ComandaService {
       SELECT SUM(total) as total
       FROM ${AppConstants.tableComandas}
       WHERE status = 'fechada'
-        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        AND data_fechamento BETWEEN ? AND ?
         $whereBarbeiro
         $whereBarbearia
     ''', whereArgs);
@@ -693,8 +716,8 @@ class ComandaService {
     _syncEmBackground();
 
     final whereArgs = <dynamic>[
-      inicio.toIso8601String(),
-      fim.toIso8601String()
+      inicio.toUtc().toIso8601String(),
+      fim.toUtc().toIso8601String()
     ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
@@ -710,7 +733,7 @@ class ComandaService {
       SELECT COUNT(*) as total
       FROM ${AppConstants.tableComandas}
       WHERE status = 'fechada'
-        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        AND data_fechamento BETWEEN ? AND ?
         $whereBarbeiro
         $whereBarbearia
     ''', whereArgs);
@@ -736,8 +759,10 @@ class ComandaService {
           );
     _syncEmBackground();
 
-    final inicio =
-        DateTime.now().subtract(Duration(days: safeDias)).toIso8601String();
+    final inicio = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: safeDias))
+        .toIso8601String();
     final whereArgs = <dynamic>[inicio];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
@@ -751,15 +776,15 @@ class ComandaService {
 
     return _db.rawQuery('''
       SELECT 
-        DATE(COALESCE(data_fechamento, data_abertura)) as dia,
+        DATE(data_fechamento) as dia,
         SUM(total) as total,
         COUNT(*) as quantidade
       FROM ${AppConstants.tableComandas}
       WHERE status = 'fechada'
-        AND COALESCE(data_fechamento, data_abertura) >= ?
+        AND data_fechamento >= ?
         $whereBarbeiro
         $whereBarbearia
-      GROUP BY DATE(COALESCE(data_fechamento, data_abertura))
+      GROUP BY DATE(data_fechamento)
       ORDER BY dia ASC
     ''', whereArgs);
   }
@@ -780,8 +805,8 @@ class ComandaService {
     _syncEmBackground();
 
     final whereArgs = <dynamic>[
-      inicio.toIso8601String(),
-      fim.toIso8601String()
+      inicio.toUtc().toIso8601String(),
+      fim.toUtc().toIso8601String()
     ];
     final whereBarbeiro = safeBarbeiroId == null ? '' : ' AND barbeiro_id = ?';
     if (safeBarbeiroId != null) {
@@ -797,7 +822,7 @@ class ComandaService {
       SELECT forma_pagamento, SUM(total) as total
       FROM ${AppConstants.tableComandas}
       WHERE status = 'fechada'
-        AND COALESCE(data_fechamento, data_abertura) BETWEEN ? AND ?
+        AND data_fechamento BETWEEN ? AND ?
         $whereBarbeiro
         $whereBarbearia
       GROUP BY forma_pagamento
@@ -1103,8 +1128,10 @@ class ComandaService {
     }
 
     // Etapa 2 — Já sincronizadas, mas atualizadas nas últimas 48 h
-    final threshold =
-        DateTime.now().subtract(const Duration(hours: 48)).toIso8601String();
+    final threshold = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(hours: 48))
+        .toIso8601String();
     final recentes = await _db.queryAll(
       AppConstants.tableComandas,
       where:
@@ -1131,17 +1158,23 @@ class ComandaService {
   }
 
   String _normalizeDate(dynamic value) {
-    if (value is Timestamp) return value.toDate().toIso8601String();
-    if (value is DateTime) return value.toIso8601String();
-    if (value is String && value.trim().isNotEmpty) return value;
-    return DateTime.now().toIso8601String();
+    if (value is Timestamp) return value.toDate().toUtc().toIso8601String();
+    if (value is DateTime) return value.toUtc().toIso8601String();
+    if (value is String && value.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
+    }
+    return DateTime.now().toUtc().toIso8601String();
   }
 
   String? _normalizeOptionalDate(dynamic value) {
     if (value == null) return null;
-    if (value is Timestamp) return value.toDate().toIso8601String();
-    if (value is DateTime) return value.toIso8601String();
-    if (value is String && value.trim().isNotEmpty) return value;
+    if (value is Timestamp) return value.toDate().toUtc().toIso8601String();
+    if (value is DateTime) return value.toUtc().toIso8601String();
+    if (value is String && value.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed.toUtc().toIso8601String();
+    }
     return null;
   }
 

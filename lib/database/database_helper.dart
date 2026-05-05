@@ -77,6 +77,9 @@ class DatabaseHelper {
     if (oldVersion < 7) {
       await _migrateToV7(db);
     }
+    if (oldVersion < 8) {
+      await _migrateToV8(db);
+    }
     await _createIndexes(db);
   }
 
@@ -162,6 +165,8 @@ class DatabaseHelper {
         forma_pagamento TEXT NOT NULL,
         data TEXT NOT NULL,
         observacoes TEXT,
+        created_at TEXT,
+        updated_at TEXT,
         FOREIGN KEY (cliente_id) REFERENCES ${AppConstants.tableClientes}(id)
       )
     ''');
@@ -216,6 +221,7 @@ class DatabaseHelper {
         valor REAL NOT NULL,
         data TEXT NOT NULL,
         observacoes TEXT,
+        operation_id TEXT UNIQUE,
         created_at TEXT,
         updated_at TEXT
       )
@@ -710,6 +716,99 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _migrateToV8(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAtendimentos,
+      'created_at',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableAtendimentos,
+      'updated_at',
+      'TEXT',
+    );
+    await _addColumnIfMissing(
+      db,
+      AppConstants.tableDespesas,
+      'operation_id',
+      'TEXT',
+    );
+
+    await _normalizeDateColumnsToUtc(db);
+  }
+
+  Future<void> _normalizeDateColumnsToUtc(Database db) async {
+    final specs = <({String table, List<String> columns})>[
+      (
+        table: AppConstants.tableDespesas,
+        columns: ['data', 'created_at', 'updated_at'],
+      ),
+      (
+        table: AppConstants.tableComandas,
+        columns: ['data_abertura', 'data_fechamento', 'updated_at'],
+      ),
+      (
+        table: AppConstants.tableCaixas,
+        columns: [
+          'data_abertura',
+          'data_fechamento',
+          'created_at',
+          'updated_at'
+        ],
+      ),
+      (
+        table: AppConstants.tableAtendimentos,
+        columns: ['data', 'created_at', 'updated_at'],
+      ),
+      (
+        table: AppConstants.tableAgendamentos,
+        columns: ['data_hora', 'created_at', 'updated_at'],
+      ),
+    ];
+
+    for (final spec in specs) {
+      final existingColumns = await _tableColumns(db, spec.table);
+      final columns =
+          spec.columns.where(existingColumns.contains).toList(growable: false);
+      if (columns.isEmpty) continue;
+
+      final rows = await db.query(
+        spec.table,
+        columns: ['id', ...columns],
+      );
+      for (final row in rows) {
+        final updates = <String, Object?>{};
+        for (final column in columns) {
+          final normalized = _normalizeIsoToUtc(row[column]);
+          if (normalized != null && normalized != row[column]) {
+            updates[column] = normalized;
+          }
+        }
+        if (updates.isEmpty) continue;
+        await db.update(
+          spec.table,
+          updates,
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
+    }
+  }
+
+  Future<Set<String>> _tableColumns(Database db, String tableName) async {
+    final info = await db.rawQuery('PRAGMA table_info($tableName)');
+    return info.map((row) => row['name'] as String).toSet();
+  }
+
+  String? _normalizeIsoToUtc(Object? value) {
+    if (value is! String || value.trim().isEmpty) return null;
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return null;
+    return parsed.toUtc().toIso8601String();
+  }
+
   Future<void> _addColumnIfMissing(
     Database db,
     String tableName,
@@ -786,6 +885,11 @@ class DatabaseHelper {
       WHERE firebase_id IS NOT NULL
     ''');
     await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_despesas_operation_unique
+      ON ${AppConstants.tableDespesas}(operation_id)
+      WHERE operation_id IS NOT NULL
+    ''');
+    await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email_unique
       ON ${AppConstants.tableUsuarios}(email)
     ''');
@@ -818,7 +922,7 @@ class DatabaseHelper {
   }
 
   Future<void> _insertDefaultData(Database db) async {
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
 
     final servicos = [
       {

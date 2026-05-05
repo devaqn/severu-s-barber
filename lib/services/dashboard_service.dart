@@ -29,11 +29,11 @@ class DashboardService {
   final AgendaService _agendaService;
 
   Future<Map<String, dynamic>> getDadosDashboard() async {
-    final agora = DateTime.now();
-    final inicioDia = DateTime(agora.year, agora.month, agora.day);
-    final fimDia = DateTime(agora.year, agora.month, agora.day, 23, 59, 59);
+    final agora = DateTime.now().toUtc();
+    final inicioDia = DateTime.utc(agora.year, agora.month, agora.day);
+    final fimDia = DateTime.utc(agora.year, agora.month, agora.day, 23, 59, 59);
     final inicioSemana = agora.subtract(Duration(days: agora.weekday - 1));
-    final inicioMes = DateTime(agora.year, agora.month, 1);
+    final inicioMes = DateTime.utc(agora.year, agora.month, 1);
 
     final results = await Future.wait([
       _comandaService.getFaturamentoPeriodo(inicioDia, fimDia),

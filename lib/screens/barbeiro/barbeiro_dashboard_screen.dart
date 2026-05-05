@@ -46,29 +46,17 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
   Future<Map<String, dynamic>> _carregarDados() async {
     final ctrl = context.read<AuthController>();
     final barbeiroId = ctrl.usuarioId;
-    final agora = DateTime.now();
-    final inicioDia = DateTime(agora.year, agora.month, agora.day);
-    final fimDia = DateTime(agora.year, agora.month, agora.day, 23, 59, 59);
-    final inicioMes = DateTime(agora.year, agora.month, 1);
 
     final results = await Future.wait([
-      _comandaController.getFaturamentoBarbeiro(barbeiroId, inicioDia, fimDia),
-      _comandaController.getFaturamentoBarbeiro(barbeiroId, inicioMes, agora),
-      _comandaController.getComissaoBarbeiro(barbeiroId, inicioDia, fimDia),
-      _comandaController.getComissaoBarbeiro(barbeiroId, inicioMes, agora),
       _comandaController.getComandasHoje(barbeiroId: barbeiroId),
       _comandaController.getComandaAberta(barbeiroId: barbeiroId),
       _clienteController.aniversariantesHoje(),
     ]);
 
     return {
-      'fatHoje': results[0] as double,
-      'fatMes': results[1] as double,
-      'comissaoHoje': results[2] as double,
-      'comissaoMes': results[3] as double,
-      'comandasHoje': results[4] as List<Comanda>,
-      'comandaAberta': results[5] as Comanda?,
-      'aniversariantesHoje': results[6] as List<Cliente>,
+      'comandasHoje': results[0] as List<Comanda>,
+      'comandaAberta': results[1] as Comanda?,
+      'aniversariantesHoje': results[2] as List<Cliente>,
     };
   }
 
@@ -178,33 +166,20 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
                       _buildAlertaComanda(comandaAberta),
                     const SizedBox(height: 12),
 
-                    // Cards de ganhos
-                    _buildSectionTitle('Seus Ganhos'),
+                    _buildSectionTitle('Seu Dia'),
                     const SizedBox(height: 10),
                     _buildCardGrid([
-                      _GanhoCard(
-                        titulo: 'Faturado Hoje',
-                        valor: fatHoje,
-                        icon: Icons.today,
+                      _ResumoOperacionalCard(
+                        titulo: 'Atendimentos Hoje',
+                        valor: comandasHoje.length.toString(),
+                        icon: Icons.content_cut,
                         color: AppTheme.infoColor,
                       ),
-                      _GanhoCard(
-                        titulo: 'Faturado no Mês',
-                        valor: fatMes,
-                        icon: Icons.calendar_month,
-                        color: AppTheme.successColor,
-                      ),
-                      _GanhoCard(
-                        titulo: 'Comissão Hoje',
-                        valor: comissaoHoje,
-                        icon: Icons.payments_outlined,
-                        color: AppTheme.goldColor,
-                      ),
-                      _GanhoCard(
-                        titulo: 'Comissão do Mês',
-                        valor: comissaoMes,
-                        icon: Icons.monetization_on_outlined,
-                        color: AppTheme.purpleStart,
+                      _ResumoOperacionalCard(
+                        titulo: 'Comanda Aberta',
+                        valor: comandaAberta == null ? 'Nao' : 'Sim',
+                        icon: Icons.receipt_long,
+                        color: AppTheme.warningColor,
                       ),
                     ]),
                     const SizedBox(height: 20),
@@ -428,22 +403,13 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                AppFormatters.currency(c.total),
-                style: GoogleFonts.poppins(
-                  color: AppTheme.successColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                'Comissão: ${AppFormatters.currency(c.comissaoTotal)}',
-                style:
-                    GoogleFonts.inter(color: AppTheme.goldColor, fontSize: 11),
-              ),
-            ],
+          Text(
+            isFechada ? 'Concluida' : 'Aberta',
+            style: GoogleFonts.inter(
+              color: isFechada ? AppTheme.successColor : AppTheme.warningColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -451,14 +417,13 @@ class _BarbeiroDashboardScreenState extends State<BarbeiroDashboardScreen> {
   }
 }
 
-/// Card de ganho individual para o grid do barbeiro
-class _GanhoCard extends StatelessWidget {
+class _ResumoOperacionalCard extends StatelessWidget {
   final String titulo;
-  final double valor;
+  final String valor;
   final IconData icon;
   final Color color;
 
-  const _GanhoCard({
+  const _ResumoOperacionalCard({
     required this.titulo,
     required this.valor,
     required this.icon,
@@ -483,7 +448,7 @@ class _GanhoCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                AppFormatters.currency(valor),
+                valor,
                 style: GoogleFonts.poppins(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.w700,

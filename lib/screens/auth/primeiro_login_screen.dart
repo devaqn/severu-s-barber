@@ -125,7 +125,7 @@ class _PrimeiroLoginScreenState extends State<PrimeiroLoginScreen> {
                       return 'Informe a nova senha.';
                     }
                     try {
-                      SecurityUtils.ensureStrongPassword(value);
+                      SecurityUtils.ensureEmployeePassword(value);
                     } catch (e) {
                       return e.toString();
                     }

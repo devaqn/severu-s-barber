@@ -7,11 +7,11 @@
 class AppConstants {
   // ── Nome do aplicativo ──────────────────────────────────────────────
   static const String appName = 'Severus Barber';
-  static const String appVersion = '5.0.0';
+  static const String appVersion = '6.0.0';
 
   // ── Nome do banco de dados ──────────────────────────────────────────
   static const String dbName = 'barbearia_pro.db';
-  static const int dbVersion = 7;
+  static const int dbVersion = 8;
 
   // ── Nomes das tabelas do banco ──────────────────────────────────────
   static const String tableClientes = 'clientes';
